@@ -1,0 +1,588 @@
+# main.py
+import os
+import sqlite3
+from datetime import datetime, date
+from flask import Flask, request, redirect, url_for, render_template_string, flash
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")  # set in Replit env vars for production
+
+DB_PATH = "samples.db"
+
+# Email / notification configuration via environment variables
+SMTP_HOST = os.environ.get("SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER", "")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+FROM_EMAIL = os.environ.get("FROM_EMAIL", "")
+
+TEAM_EMAIL = os.environ.get("TEAM_EMAIL", "")  # Artisan Tile team notifications
+TEAM_NAME = os.environ.get("TEAM_NAME", "Artisan Tile Team")
+
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS samples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_name TEXT NOT NULL,
+            customer_email TEXT NOT NULL,
+            customer_phone TEXT,
+            sample_name TEXT NOT NULL,
+            checkout_date TEXT NOT NULL,
+            due_date TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'checked_out',
+            notification_sent INTEGER NOT NULL DEFAULT 0,
+            team_notification_sent INTEGER NOT NULL DEFAULT 0,
+            notes TEXT,
+            auth_notes TEXT,
+            stripe_customer_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+def send_email(to_email, subject, body):
+    """Basic SMTP email sender. Config with env vars.
+    If not configured, it will just print to console.
+    """
+    if not (SMTP_HOST and SMTP_USER and SMTP_PASS and FROM_EMAIL):
+        print("=== EMAIL (simulation) ===")
+        print("To:", to_email)
+        print("Subject:", subject)
+        print("Body:\n", body)
+        print("=========================")
+        return
+
+    import smtplib
+    from email.mime.text import MIMEText
+
+    msg = MIMEText(body)
+    msg["From"] = FROM_EMAIL
+    msg["To"] = to_email
+    msg["Subject"] = subject
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+    except Exception as e:
+        print("Error sending email:", e)
+
+
+def format_date_str(d):
+    try:
+        return datetime.strptime(d, "%Y-%m-%d").strftime("%b %d, %Y")
+    except Exception:
+        return d
+
+
+@app.route("/")
+def index():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT * FROM samples
+        ORDER BY 
+          CASE status 
+            WHEN 'checked_out' THEN 0
+            WHEN 'overdue' THEN 1
+            WHEN 'returned' THEN 2
+            ELSE 3
+          END,
+          due_date ASC
+        """
+    )
+    rows = c.fetchall()
+    conn.close()
+
+    today_str = date.today().strftime("%Y-%m-%d")
+
+    html = """
+    <!doctype html>
+    <html>
+    <head>
+        <title>Artisan Tile Sample Tracker</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link 
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
+          rel="stylesheet"
+        />
+        <style>
+          body { padding: 1.5rem; }
+          .status-badge { text-transform: capitalize; }
+        </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1 class="mb-4">Artisan Tile Sample Tracker</h1>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="alert alert-info">
+              {% for m in messages %}
+                <div>{{ m }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <div class="mb-3 d-flex gap-2 flex-wrap">
+          <a href="{{ url_for('new_sample') }}" class="btn btn-primary">New Sample Checkout</a>
+          <a href="{{ url_for('run_reminders') }}" class="btn btn-outline-secondary">Run Reminder Check</a>
+        </div>
+
+        <table class="table table-striped table-hover align-middle">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Contact</th>
+              <th>Sample</th>
+              <th>Checkout</th>
+              <th>Due</th>
+              <th>Status</th>
+              <th>Card/Auth</th>
+              <th>Notes</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for s in samples %}
+            <tr>
+              <td>
+                <strong>{{ s['customer_name'] }}</strong><br>
+                <small>ID: {{ s['id'] }}</small>
+              </td>
+              <td>
+                <div>{{ s['customer_email'] }}</div>
+                {% if s['customer_phone'] %}
+                  <div><small>{{ s['customer_phone'] }}</small></div>
+                {% endif %}
+              </td>
+              <td>{{ s['sample_name'] }}</td>
+              <td>{{ format_date_str(s['checkout_date']) }}</td>
+              <td>
+                {{ format_date_str(s['due_date']) }}
+                {% if s['status'] != 'returned' and s['due_date'] < current_date %}
+                  <span class="badge bg-danger ms-1">Overdue</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s['status'] == 'returned' %}
+                  <span class="badge bg-success status-badge">Returned</span>
+                {% elif s['due_date'] < current_date %}
+                  <span class="badge bg-danger status-badge">Overdue</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark status-badge">Checked out</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if s['auth_notes'] %}
+                  <small>{{ s['auth_notes'] }}</small>
+                {% else %}
+                  <small class="text-muted">No card notes</small>
+                {% endif %}
+              </td>
+              <td>
+                {% if s['notes'] %}
+                  <small>{{ s['notes'] }}</small>
+                {% else %}
+                  <small class="text-muted">—</small>
+                {% endif %}
+              </td>
+              <td>
+                {% if s['status'] != 'returned' %}
+                  <a href="{{ url_for('mark_returned', sample_id=s['id']) }}" class="btn btn-sm btn-success mb-1">Mark Returned</a><br>
+                {% endif %}
+                <a href="{{ url_for('edit_sample', sample_id=s['id']) }}" class="btn btn-sm btn-outline-secondary">Edit</a>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+
+        <p class="text-muted mt-4">
+          Tip: set up a scheduled ping in Replit (or external cron) to call <code>/run-reminders</code> daily.
+        </p>
+      </div>
+    </body>
+    </html>
+    """
+    return render_template_string(
+        html,
+        samples=rows,
+        current_date=today_str,
+        format_date_str=format_date_str,
+    )
+
+
+@app.route("/new", methods=["GET", "POST"])
+def new_sample():
+    if request.method == "POST":
+        customer_name = request.form["customer_name"].strip()
+        customer_email = request.form["customer_email"].strip()
+        customer_phone = request.form.get("customer_phone", "").strip()
+        sample_name = request.form["sample_name"].strip()
+        due_date = request.form["due_date"]
+        notes = request.form.get("notes", "").strip()
+        auth_notes = request.form.get("auth_notes", "").strip()
+        stripe_customer_id = request.form.get("stripe_customer_id", "").strip()
+
+        if not (customer_name and customer_email and sample_name and due_date):
+            flash("Please fill in customer name, email, sample name, and due date.")
+            return redirect(url_for("new_sample"))
+
+        today = date.today().strftime("%Y-%m-%d")
+        now_str = datetime.utcnow().isoformat()
+
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            """
+            INSERT INTO samples (
+                customer_name, customer_email, customer_phone,
+                sample_name, checkout_date, due_date, status,
+                notification_sent, team_notification_sent,
+                notes, auth_notes, stripe_customer_id,
+                created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'checked_out', 0, 0, ?, ?, ?, ?, ?)
+            """,
+            (
+                customer_name,
+                customer_email,
+                customer_phone,
+                sample_name,
+                today,
+                due_date,
+                notes,
+                auth_notes,
+                stripe_customer_id,
+                now_str,
+                now_str,
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        # Notify team about new checkout
+        if TEAM_EMAIL:
+            subject = f"New sample checkout: {sample_name} for {customer_name}"
+            body = (
+                f"{TEAM_NAME},\n\n"
+                f"A new sample has been checked out.\n\n"
+                f"Customer: {customer_name}\n"
+                f"Email: {customer_email}\n"
+                f"Phone: {customer_phone}\n"
+                f"Sample: {sample_name}\n"
+                f"Due date: {format_date_str(due_date)}\n"
+                f"Notes: {notes or 'None'}\n"
+                f"Card/Auth: {auth_notes or 'None'}\n\n"
+                f"Artisan Tile Sample Tracker"
+            )
+            send_email(TEAM_EMAIL, subject, body)
+
+        flash("Sample checkout saved.")
+        return redirect(url_for("index"))
+
+    html = """
+    <!doctype html>
+    <html>
+    <head>
+        <title>New Sample Checkout</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link 
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
+          rel="stylesheet"
+        />
+    </head>
+    <body>
+      <div class="container">
+        <h1 class="mb-4">New Sample Checkout</h1>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="alert alert-info">
+              {% for m in messages %}
+                <div>{{ m }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <form method="post" class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Customer Name</label>
+            <input type="text" name="customer_name" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Customer Email</label>
+            <input type="email" name="customer_email" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Customer Phone</label>
+            <input type="text" name="customer_phone" class="form-control" placeholder="Optional">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Sample Name / Description</label>
+            <input type="text" name="sample_name" class="form-control" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Due Date</label>
+            <input type="date" name="due_date" class="form-control" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Internal Notes</label>
+            <textarea name="notes" class="form-control" rows="2" placeholder="Any notes for the team"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Card Authorization Notes</label>
+            <textarea name="auth_notes" class="form-control" rows="2"
+              placeholder="Example: Stripe customer ID, authorization code, or payment link used. Do NOT store raw card numbers here."></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Stripe Customer ID (optional)</label>
+            <input type="text" name="stripe_customer_id" class="form-control" placeholder="For deeper Stripe integration later">
+          </div>
+          <div class="col-12 mt-3">
+            <button type="submit" class="btn btn-primary">Save Checkout</button>
+            <a href="{{ url_for('index') }}" class="btn btn-link">Back</a>
+          </div>
+        </form>
+      </div>
+    </body>
+    </html>
+    """
+    return render_template_string(html)
+
+
+@app.route("/edit/<int:sample_id>", methods=["GET", "POST"])
+def edit_sample(sample_id):
+    conn = get_db()
+    c = conn.cursor()
+
+    if request.method == "POST":
+        customer_name = request.form["customer_name"].strip()
+        customer_email = request.form["customer_email"].strip()
+        customer_phone = request.form.get("customer_phone", "").strip()
+        sample_name = request.form["sample_name"].strip()
+        checkout_date = request.form["checkout_date"]
+        due_date = request.form["due_date"]
+        status = request.form["status"]
+        notes = request.form.get("notes", "").strip()
+        auth_notes = request.form.get("auth_notes", "").strip()
+        stripe_customer_id = request.form.get("stripe_customer_id", "").strip()
+
+        now_str = datetime.utcnow().isoformat()
+
+        c.execute(
+            """
+            UPDATE samples
+            SET customer_name = ?, customer_email = ?, customer_phone = ?,
+                sample_name = ?, checkout_date = ?, due_date = ?, status = ?,
+                notes = ?, auth_notes = ?, stripe_customer_id = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                customer_name,
+                customer_email,
+                customer_phone,
+                sample_name,
+                checkout_date,
+                due_date,
+                status,
+                notes,
+                auth_notes,
+                stripe_customer_id,
+                now_str,
+                sample_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        flash("Sample updated.")
+        return redirect(url_for("index"))
+
+    c.execute("SELECT * FROM samples WHERE id = ?", (sample_id,))
+    row = c.fetchone()
+    conn.close()
+    if not row:
+        flash("Sample not found.")
+        return redirect(url_for("index"))
+
+    html = """
+    <!doctype html>
+    <html>
+    <head>
+        <title>Edit Sample</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link 
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" 
+          rel="stylesheet"
+        />
+    </head>
+    <body>
+      <div class="container">
+        <h1 class="mb-4">Edit Sample #{{ s['id'] }}</h1>
+
+        <form method="post" class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Customer Name</label>
+            <input type="text" name="customer_name" class="form-control" required value="{{ s['customer_name'] }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Customer Email</label>
+            <input type="email" name="customer_email" class="form-control" required value="{{ s['customer_email'] }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Customer Phone</label>
+            <input type="text" name="customer_phone" class="form-control" value="{{ s['customer_phone'] }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Sample Name / Description</label>
+            <input type="text" name="sample_name" class="form-control" required value="{{ s['sample_name'] }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Checkout Date</label>
+            <input type="date" name="checkout_date" class="form-control" required value="{{ s['checkout_date'] }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Due Date</label>
+            <input type="date" name="due_date" class="form-control" required value="{{ s['due_date'] }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Status</label>
+            <select name="status" class="form-select">
+              <option value="checked_out" {% if s['status']=='checked_out' %}selected{% endif %}>Checked out</option>
+              <option value="overdue" {% if s['status']=='overdue' %}selected{% endif %}>Overdue</option>
+              <option value="returned" {% if s['status']=='returned' %}selected{% endif %}>Returned</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Internal Notes</label>
+            <textarea name="notes" class="form-control" rows="2">{{ s['notes'] or '' }}</textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Card Authorization Notes</label>
+            <textarea name="auth_notes" class="form-control" rows="2">{{ s['auth_notes'] or '' }}</textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Stripe Customer ID</label>
+            <input type="text" name="stripe_customer_id" class="form-control" value="{{ s['stripe_customer_id'] or '' }}">
+          </div>
+          <div class="col-12 mt-3">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('index') }}" class="btn btn-link">Back</a>
+          </div>
+        </form>
+      </div>
+    </body>
+    </html>
+    """
+    return render_template_string(html, s=row)
+
+
+@app.route("/mark-returned/<int:sample_id>")
+def mark_returned(sample_id):
+    conn = get_db()
+    c = conn.cursor()
+    now_str = datetime.utcnow().isoformat()
+    c.execute(
+        "UPDATE samples SET status = 'returned', updated_at = ? WHERE id = ?",
+        (now_str, sample_id),
+    )
+    conn.commit()
+    conn.close()
+    flash("Sample marked as returned.")
+    return redirect(url_for("index"))
+
+
+@app.route("/run-reminders")
+def run_reminders():
+    today_str = date.today().strftime("%Y-%m-%d")
+
+    conn = get_db()
+    c = conn.cursor()
+    # Find checked-out samples that are past due and not yet notified
+    c.execute(
+        """
+        SELECT * FROM samples
+        WHERE status = 'checked_out'
+          AND due_date < ?
+          AND notification_sent = 0
+        """,
+        (today_str,),
+    )
+    overdue_samples = c.fetchall()
+
+    count = 0
+    for s in overdue_samples:
+        customer_email = s["customer_email"]
+        customer_name = s["customer_name"]
+        sample_name = s["sample_name"]
+        due_date = s["due_date"]
+
+        subject = "Reminder to return your Artisan Tile sample"
+        body = (
+            f"Hi {customer_name},\n\n"
+            f"This is a friendly reminder to return your sample from Artisan Tile.\n\n"
+            f"Sample: {sample_name}\n"
+            f"Due date: {format_date_str(due_date)}\n\n"
+            f"If you have already returned it, you can ignore this message.\n\n"
+            f"Thank you,\n"
+            f"Artisan Tile"
+        )
+        send_email(customer_email, subject, body)
+
+        # Notify team as well
+        if TEAM_EMAIL and not s["team_notification_sent"]:
+            t_subject = f"Overdue sample: {sample_name} for {customer_name}"
+            t_body = (
+                f"{TEAM_NAME},\n\n"
+                f"The following sample is overdue:\n\n"
+                f"Customer: {customer_name}\n"
+                f"Email: {customer_email}\n"
+                f"Phone: {s['customer_phone']}\n"
+                f"Sample: {sample_name}\n"
+                f"Due date: {format_date_str(due_date)}\n\n"
+                f"Please follow up as needed.\n\n"
+                f"Artisan Tile Sample Tracker"
+            )
+            send_email(TEAM_EMAIL, t_subject, t_body)
+            c.execute(
+                "UPDATE samples SET team_notification_sent = 1 WHERE id = ?",
+                (s["id"],),
+            )
+
+        c.execute(
+            "UPDATE samples SET notification_sent = 1, status = 'overdue', updated_at = ? WHERE id = ?",
+            (datetime.utcnow().isoformat(), s["id"]),
+        )
+        count += 1
+
+    conn.commit()
+    conn.close()
+
+    flash(f"Reminder check complete. {count} customer reminder(s) sent.")
+    return redirect(url_for("index"))
+
+
+if __name__ == "__main__":
+    init_db()
+    # Replit usually sets PORT env var
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port, debug=True)
