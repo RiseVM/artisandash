@@ -54,7 +54,7 @@ export function Layout({ children }: LayoutProps) {
         
         <div className="mt-auto p-6 border-t border-sidebar-border hidden md:block">
           <p className="text-xs text-sidebar-foreground/50">
-            © 2025 Artisan Tile Co.
+            © 2025 Artisan Tile Kitchen & Bath
             <br />
             Internal Use Only
           </p>
