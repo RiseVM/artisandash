@@ -1,7 +1,8 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { Layers, PlusCircle, LayoutDashboard } from "lucide-react";
+import { PlusCircle, LayoutDashboard } from "lucide-react";
+import logoUrl from "@assets/1_1765497247808.jpg";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,14 +21,12 @@ export function Layout({ children }: LayoutProps) {
       {/* Sidebar / Topbar */}
       <aside className="w-full md:w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0">
         <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="p-2 bg-sidebar-primary text-sidebar-primary-foreground rounded-lg">
-              <Layers className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="font-serif font-bold text-lg text-sidebar-foreground leading-tight">Artisan Tile</h1>
-              <p className="text-xs text-sidebar-foreground/70">Sample Tracker</p>
-            </div>
+          <div className="mb-8 px-2">
+            <img 
+              src={logoUrl} 
+              alt="Artisan Tile" 
+              className="w-full h-auto rounded-sm mix-blend-multiply" 
+            />
           </div>
 
           <nav className="space-y-1">
@@ -63,7 +62,7 @@ export function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto bg-slate-50/50">
         <div className="container max-w-5xl mx-auto p-6 md:p-10">
           {children}
         </div>
