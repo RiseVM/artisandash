@@ -51,7 +51,43 @@ async function getUncachableGoogleDriveClient() {
 
 export { getAgreementText };
 
-const AGREEMENTS_FOLDER_ID = '1SW-afvEzW2cFhEte4ENeLjeEGnh32Rov';
+const FOLDER_NAME = 'Sample Checkout Agreements';
+let cachedFolderId: string | null = null;
+
+async function getOrCreateAgreementsFolder(drive: any): Promise<string | null> {
+  if (cachedFolderId) {
+    return cachedFolderId;
+  }
+
+  try {
+    const searchResponse = await drive.files.list({
+      q: `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name)',
+      spaces: 'drive',
+    });
+
+    if (searchResponse.data.files && searchResponse.data.files.length > 0) {
+      cachedFolderId = searchResponse.data.files[0].id;
+      console.log(`Found existing folder: ${FOLDER_NAME} (ID: ${cachedFolderId})`);
+      return cachedFolderId;
+    }
+
+    const createResponse = await drive.files.create({
+      requestBody: {
+        name: FOLDER_NAME,
+        mimeType: 'application/vnd.google-apps.folder',
+      },
+      fields: 'id',
+    });
+
+    cachedFolderId = createResponse.data.id;
+    console.log(`Created new folder: ${FOLDER_NAME} (ID: ${cachedFolderId})`);
+    return cachedFolderId;
+  } catch (error) {
+    console.error('Error getting/creating agreements folder:', error);
+    return null;
+  }
+}
 
 export async function uploadAgreementToGoogleDrive(options: {
   customerName: string;
@@ -96,17 +132,20 @@ export async function uploadAgreementToGoogleDrive(options: {
 
     const fileId = response.data.id;
     
-    // Try to move to target folder if accessible
-    if (fileId && AGREEMENTS_FOLDER_ID) {
-      try {
-        await drive.files.update({
-          fileId: fileId,
-          addParents: AGREEMENTS_FOLDER_ID,
-          fields: 'id, parents'
-        });
-        console.log(`Moved agreement PDF to folder: ${fileName} (ID: ${fileId})`);
-      } catch (moveError) {
-        console.log(`Could not move to folder (may not have permission), file is in Drive root: ${fileName}`);
+    // Move to agreements folder
+    if (fileId) {
+      const folderId = await getOrCreateAgreementsFolder(drive);
+      if (folderId) {
+        try {
+          await drive.files.update({
+            fileId: fileId,
+            addParents: folderId,
+            fields: 'id, parents'
+          });
+          console.log(`Moved agreement PDF to folder: ${fileName} (ID: ${fileId})`);
+        } catch (moveError) {
+          console.log(`Could not move to folder, file is in Drive root: ${fileName}`);
+        }
       }
     }
 
