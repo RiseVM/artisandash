@@ -51,6 +51,8 @@ async function getUncachableGoogleDriveClient() {
 
 export { getAgreementText };
 
+const AGREEMENTS_FOLDER_ID = '1SW-afvEzW2cFhEte4ENeLjeEGnh32Rov';
+
 export async function uploadAgreementToGoogleDrive(options: {
   customerName: string;
   customerEmail: string;
@@ -79,6 +81,7 @@ export async function uploadAgreementToGoogleDrive(options: {
     
     const fileMetadata = {
       name: fileName,
+      parents: [AGREEMENTS_FOLDER_ID],
     };
 
     const media = {
