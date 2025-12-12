@@ -256,6 +256,26 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
     }
   };
 
+  const getSignatureWithWhiteBackground = (): string => {
+    if (!signatureRef.current) return "";
+    
+    const canvas = signatureRef.current.getCanvas();
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return signatureRef.current.toDataURL();
+    
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    if (!tempCtx) return signatureRef.current.toDataURL();
+    
+    tempCtx.fillStyle = '#FFFFFF';
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx.drawImage(canvas, 0, 0);
+    
+    return tempCanvas.toDataURL('image/png');
+  };
+
   const handleSubmit = (data: FormValues) => {
     if (!cardVerified && !initialData) {
       toast({
@@ -274,7 +294,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       return;
     }
     
-    const signatureData = signatureRef.current?.toDataURL() || "";
+    const signatureData = getSignatureWithWhiteBackground();
     onSubmit({ ...data, signature: signatureData });
     setLocation("/");
   };
