@@ -189,6 +189,17 @@ export function Agreements() {
                 </p>
               </div>
             )}
+
+            {(selectedAgreement as any)?.agreement_text && (
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">Agreement Terms:</p>
+                <div className="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm font-sans" data-testid="text-agreement-terms">
+                    {(selectedAgreement as any).agreement_text}
+                  </pre>
+                </div>
+              </div>
+            )}
             
             <div>
               <p className="text-sm text-muted-foreground mb-2">Signature:</p>
