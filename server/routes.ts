@@ -4,8 +4,6 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder } from "./emailService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -186,70 +184,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to delete checkout" });
     }
   });
-
-  app.post("/api/notifications/send", isAuthenticated, async (req, res) => {
-    try {
-      const results = await checkAndSendNotifications();
-      res.json(results);
-    } catch (error) {
-      console.error("Error sending notifications:", error);
-      res.status(500).json({ error: "Failed to send notifications" });
-    }
-  });
-
-  app.post("/api/test-email", isAuthenticated, async (req: any, res) => {
-    try {
-      const { email } = req.body;
-      const testEmail = email || req.user?.claims?.email || "test@artisantilect.com";
-      
-      const success = await sendSampleReminder(
-        testEmail,
-        "Test User",
-        "Test Tile Sample",
-        new Date().toLocaleDateString(),
-        "7_day_reminder"
-      );
-      
-      if (success) {
-        res.json({ success: true, message: `Test email sent to ${testEmail}` });
-      } else {
-        res.status(500).json({ success: false, message: "Failed to send test email" });
-      }
-    } catch (error) {
-      console.error("Error sending test email:", error);
-      res.status(500).json({ error: "Failed to send test email", details: String(error) });
-    }
-  });
-
-  app.post("/api/checkouts/:id/send-reminder", isAuthenticated, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      const checkoutView = await storage.getCheckoutView(id);
-      
-      if (!checkoutView) {
-        return res.status(404).json({ error: "Checkout not found" });
-      }
-      
-      const success = await sendSampleReminder(
-        checkoutView.customer.email,
-        checkoutView.customer.name,
-        checkoutView.item.name,
-        checkoutView.due_date,
-        "7_day_reminder"
-      );
-      
-      if (success) {
-        res.json({ success: true, message: `Reminder sent to ${checkoutView.customer.email}` });
-      } else {
-        res.status(500).json({ success: false, message: "Failed to send reminder" });
-      }
-    } catch (error) {
-      console.error("Error sending reminder:", error);
-      res.status(500).json({ error: "Failed to send reminder", details: String(error) });
-    }
-  });
-
-  startScheduler(60);
 
   return httpServer;
 }
