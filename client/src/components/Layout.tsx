@@ -25,11 +25,11 @@ export function Layout({ children }: LayoutProps) {
       {/* Sidebar / Topbar */}
       <aside className="w-full md:w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0 flex flex-col">
         <div className="p-6 flex-1">
-          <div className="mb-8 px-2">
+          <div className="mb-8">
             <img 
               src={logoUrl} 
               alt="Artisan Tile" 
-              className="w-full h-auto rounded-sm mix-blend-multiply" 
+              className="w-full h-auto rounded-sm mix-blend-multiply scale-[1.5] origin-center" 
             />
           </div>
 
