@@ -98,215 +98,112 @@ export async function createAgreementGoogleDoc(options: {
     
     const agreementText = getAgreementText();
     
-    const requests: any[] = [];
-    let currentIndex = 1;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: 'ARTISAN TILE\n'
-      }
-    });
-    currentIndex += 13;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: 'Sample Checkout Agreement\n\n'
-      }
-    });
-    currentIndex += 28;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: 'CUSTOMER INFORMATION:\n'
-      }
-    });
-    currentIndex += 22;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: `Name: ${options.customerName}\n`
-      }
-    });
-    currentIndex += 7 + options.customerName.length;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: `Email: ${options.customerEmail}\n`
-      }
-    });
-    currentIndex += 8 + options.customerEmail.length;
-    
-    if (options.customerPhone) {
-      requests.push({
-        insertText: {
-          location: { index: currentIndex },
-          text: `Phone: ${options.customerPhone}\n`
-        }
-      });
-      currentIndex += 8 + options.customerPhone.length;
-    }
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: '\nSAMPLE DETAILS:\n'
-      }
-    });
-    currentIndex += 17;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: `Sample: ${options.sampleName}\n`
-      }
-    });
-    currentIndex += 9 + options.sampleName.length;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: `Checkout Date: ${options.checkoutDate}\n`
-      }
-    });
-    currentIndex += 16 + options.checkoutDate.length;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: `Due Date: ${options.dueDate}\n`
-      }
-    });
-    currentIndex += 11 + options.dueDate.length;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: '\n─────────────────────────────────────────\n\n'
-      }
-    });
-    currentIndex += 46;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: 'CUSTOMER ACKNOWLEDGMENT:\n'
-      }
-    });
-    currentIndex += 25;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: '[X] I agree to the sample policy and authorize storing my card on file\n\n'
-      }
-    });
-    currentIndex += 73;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: 'I authorize Artisan Tile to store my card on file and charge it for the full retail price of the sample if it is not returned by the due date or is returned damaged.\n\n'
-      }
-    });
-    currentIndex += 170;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: 'TERMS AND CONDITIONS:\n\n'
-      }
-    });
-    currentIndex += 23;
-    
-    const terms = [
-      '1. The sample(s) listed above are loaned to the customer for evaluation purposes only.\n\n',
-      '2. The customer agrees to return the sample(s) in the same condition as received by the due date specified.\n\n',
-      '3. If the sample(s) are not returned by the due date, or are returned damaged, the customer authorizes Artisan Tile to charge the full retail price to the card on file.\n\n',
-      '4. The customer is responsible for the care and safekeeping of the sample(s) while in their possession.\n\n',
-      '5. Artisan Tile reserves the right to pursue collection of any unpaid charges.\n\n',
-    ];
-    
-    for (const term of terms) {
-      requests.push({
-        insertText: {
-          location: { index: currentIndex },
-          text: term
-        }
-      });
-      currentIndex += term.length;
-    }
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: '─────────────────────────────────────────\n\n'
-      }
-    });
-    currentIndex += 45;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: 'CUSTOMER SIGNATURE:\n'
-      }
-    });
-    currentIndex += 20;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: '[Signature on file - see image below]\n\n'
-      }
-    });
-    currentIndex += 40;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: `Signed on: ${signedAt.toLocaleString()}\n\n`
-      }
-    });
-    currentIndex += 12 + signedAt.toLocaleString().length + 2;
-    
-    requests.push({
-      insertText: {
-        location: { index: currentIndex },
-        text: `Document generated: ${new Date().toLocaleString()}\n`
-      }
-    });
-    
+    const fullText = `ARTISAN TILE
+Sample Checkout Agreement
+
+════════════════════════════════════════
+
+CUSTOMER INFORMATION:
+Name: ${options.customerName}
+Email: ${options.customerEmail}${options.customerPhone ? `\nPhone: ${options.customerPhone}` : ''}
+
+SAMPLE DETAILS:
+Sample: ${options.sampleName}
+Checkout Date: ${options.checkoutDate}
+Due Date: ${options.dueDate}
+
+════════════════════════════════════════
+
+CUSTOMER ACKNOWLEDGMENT:
+
+[X] I agree to the sample policy and authorize storing my card on file
+
+I authorize Artisan Tile to store my card on file and charge it for the full retail price of the sample if it is not returned by the due date or is returned damaged.
+
+════════════════════════════════════════
+
+TERMS AND CONDITIONS:
+
+1. The sample(s) listed above are loaned to the customer for evaluation purposes only.
+
+2. The customer agrees to return the sample(s) in the same condition as received by the due date specified.
+
+3. If the sample(s) are not returned by the due date, or are returned damaged, the customer authorizes Artisan Tile to charge the full retail price to the card on file.
+
+4. The customer is responsible for the care and safekeeping of the sample(s) while in their possession.
+
+5. Artisan Tile reserves the right to pursue collection of any unpaid charges.
+
+════════════════════════════════════════
+
+CUSTOMER SIGNATURE:
+
+[Signature on file]
+
+Signed on: ${signedAt.toLocaleString()}
+
+────────────────────────────────────────
+Document generated: ${new Date().toLocaleString()}
+`;
+
     await docs.documents.batchUpdate({
       documentId,
-      requestBody: { requests }
+      requestBody: {
+        requests: [
+          {
+            insertText: {
+              location: { index: 1 },
+              text: fullText
+            }
+          }
+        ]
+      }
     });
+    
+    const titleEndIndex = 1 + 'ARTISAN TILE'.length;
+    const subtitleStart = titleEndIndex + 1;
+    const subtitleEnd = subtitleStart + 'Sample Checkout Agreement'.length;
     
     await docs.documents.batchUpdate({
       documentId,
       requestBody: {
         requests: [
           {
-            updateParagraphStyle: {
-              range: { startIndex: 1, endIndex: 13 },
-              paragraphStyle: {
-                namedStyleType: 'HEADING_1',
-                alignment: 'CENTER'
+            updateTextStyle: {
+              range: { startIndex: 1, endIndex: titleEndIndex },
+              textStyle: {
+                bold: true,
+                fontSize: { magnitude: 24, unit: 'PT' }
               },
-              fields: 'namedStyleType,alignment'
+              fields: 'bold,fontSize'
             }
           },
           {
             updateParagraphStyle: {
-              range: { startIndex: 14, endIndex: 40 },
+              range: { startIndex: 1, endIndex: titleEndIndex },
               paragraphStyle: {
-                namedStyleType: 'HEADING_2',
                 alignment: 'CENTER'
               },
-              fields: 'namedStyleType,alignment'
+              fields: 'alignment'
+            }
+          },
+          {
+            updateTextStyle: {
+              range: { startIndex: subtitleStart, endIndex: subtitleEnd },
+              textStyle: {
+                bold: true,
+                fontSize: { magnitude: 16, unit: 'PT' }
+              },
+              fields: 'bold,fontSize'
+            }
+          },
+          {
+            updateParagraphStyle: {
+              range: { startIndex: subtitleStart, endIndex: subtitleEnd },
+              paragraphStyle: {
+                alignment: 'CENTER'
+              },
+              fields: 'alignment'
             }
           }
         ]
