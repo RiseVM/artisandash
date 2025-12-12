@@ -547,15 +547,18 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                   </Button>
                 </div>
                 
-                <div className="border-2 border-dashed rounded-lg bg-white touch-none" style={{ height: '200px' }}>
+                <div className="border-2 border-dashed rounded-lg bg-white touch-none overflow-hidden" style={{ height: '200px' }}>
                   <SignatureCanvas
                     ref={signatureRef}
                     canvasProps={{
-                      className: 'w-full h-full rounded-lg',
+                      width: 500,
+                      height: 200,
+                      className: 'rounded-lg',
                       style: { width: '100%', height: '100%', touchAction: 'none' }
                     }}
                     onEnd={handleSignatureEnd}
                     penColor="black"
+                    backgroundColor="rgb(255, 255, 255)"
                     data-testid="signature-canvas"
                   />
                 </div>
