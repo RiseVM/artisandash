@@ -119,3 +119,22 @@ export const insertEmailNotificationSchema = createInsertSchema(emailNotificatio
 
 export type InsertEmailNotification = z.infer<typeof insertEmailNotificationSchema>;
 export type EmailNotification = typeof emailNotifications.$inferSelect;
+
+// Signed agreements storage
+export const signedAgreements = pgTable("signed_agreements", {
+  id: serial("id").primaryKey(),
+  customer_id: integer("customer_id").references(() => customers.id).notNull(),
+  checkout_id: integer("checkout_id").references(() => checkouts.id),
+  document_title: text("document_title").notNull(),
+  signature_data: text("signature_data").notNull(),
+  signed_at: timestamp("signed_at").defaultNow().notNull(),
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id),
+});
+
+export const insertSignedAgreementSchema = createInsertSchema(signedAgreements).omit({
+  id: true,
+  signed_at: true,
+});
+
+export type InsertSignedAgreement = z.infer<typeof insertSignedAgreementSchema>;
+export type SignedAgreement = typeof signedAgreements.$inferSelect;

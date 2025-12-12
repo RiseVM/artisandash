@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
@@ -283,6 +283,75 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error sending reminder:", error);
       res.status(500).json({ error: "Failed to send reminder", details: String(error) });
+    }
+  });
+
+  // Signed Agreements
+  app.get("/api/agreements", isAuthenticated, async (req, res) => {
+    try {
+      const agreements = await storage.getSignedAgreements();
+      res.json(agreements);
+    } catch (error) {
+      console.error("Error fetching agreements:", error);
+      res.status(500).json({ error: "Failed to fetch agreements" });
+    }
+  });
+
+  app.get("/api/agreements/customer/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = parseInt(req.params.customerId);
+      const agreements = await storage.getSignedAgreementsByCustomer(customerId);
+      res.json(agreements);
+    } catch (error) {
+      console.error("Error fetching customer agreements:", error);
+      res.status(500).json({ error: "Failed to fetch customer agreements" });
+    }
+  });
+
+  app.get("/api/agreements/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const agreement = await storage.getSignedAgreement(id);
+      if (!agreement) return res.status(404).json({ error: "Agreement not found" });
+      res.json(agreement);
+    } catch (error) {
+      console.error("Error fetching agreement:", error);
+      res.status(500).json({ error: "Failed to fetch agreement" });
+    }
+  });
+
+  app.post("/api/agreements", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertSignedAgreementSchema.parse(req.body);
+      
+      if (!data.signature_data || data.signature_data.trim().length === 0) {
+        return res.status(400).json({ error: "Signature data is required" });
+      }
+      
+      const agreement = await storage.createSignedAgreement({
+        ...data,
+        created_by_user_id: userId,
+      });
+      res.status(201).json(agreement);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating agreement:", error);
+      res.status(500).json({ error: "Failed to create agreement" });
+    }
+  });
+
+  app.delete("/api/agreements/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteSignedAgreement(id);
+      if (!deleted) return res.status(404).json({ error: "Agreement not found" });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting agreement:", error);
+      res.status(500).json({ error: "Failed to delete agreement" });
     }
   });
 

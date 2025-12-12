@@ -11,6 +11,7 @@ import { EditSample } from "@/pages/EditSample";
 import { Inventory } from "@/pages/Inventory";
 import { Customers } from "@/pages/Customers";
 import { Calendar } from "@/pages/Calendar";
+import { Agreements } from "@/pages/Agreements";
 import { Landing } from "@/pages/Landing";
 import { LoginFailed } from "@/pages/LoginFailed";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,6 +42,7 @@ function Router() {
             <Route path="/inventory" component={Inventory} />
             <Route path="/customers" component={Customers} />
             <Route path="/calendar" component={Calendar} />
+            <Route path="/agreements" component={Agreements} />
             <Route component={NotFound} />
           </Switch>
         </Layout>

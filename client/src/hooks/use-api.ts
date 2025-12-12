@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { Customer, Inventory, Checkout, CheckoutView, InsertCustomer, InsertInventory, InsertCheckout } from "@shared/schema";
+import type { Customer, Inventory, Checkout, CheckoutView, InsertCustomer, InsertInventory, InsertCheckout, SignedAgreement, InsertSignedAgreement } from "@shared/schema";
 
 export function useCustomers() {
   return useQuery<Customer[]>({
@@ -132,6 +132,49 @@ export function useDeleteCheckout() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/checkouts"] });
+    },
+  });
+}
+
+export function useSignedAgreements() {
+  return useQuery<SignedAgreement[]>({
+    queryKey: ["/api/agreements"],
+  });
+}
+
+export function useSignedAgreementsByCustomer(customerId: number) {
+  return useQuery<SignedAgreement[]>({
+    queryKey: ["/api/agreements/customer", customerId],
+    queryFn: async () => {
+      const res = await fetch(`/api/agreements/customer/${customerId}`);
+      if (!res.ok) throw new Error("Failed to fetch agreements");
+      return res.json();
+    },
+    enabled: !!customerId,
+  });
+}
+
+export function useCreateSignedAgreement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: InsertSignedAgreement) => {
+      const res = await apiRequest("POST", "/api/agreements", data);
+      return res.json() as Promise<SignedAgreement>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agreements"] });
+    },
+  });
+}
+
+export function useDeleteSignedAgreement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/agreements/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/agreements"] });
     },
   });
 }
