@@ -132,11 +132,5 @@ export async function registerRoutes(
     }
   });
 
-  // Stripe payment endpoint (placeholder for now)
-  app.post("/api/payments/charge", async (req, res) => {
-    // TODO: Implement Stripe payment processing
-    res.status(501).json({ error: "Stripe integration pending" });
-  });
-
   return httpServer;
 }
