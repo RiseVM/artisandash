@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { Customer, Inventory, Checkout, CheckoutView, InsertCustomer, InsertInventory, InsertCheckout, SignedAgreement, InsertSignedAgreement } from "@shared/schema";
+import type { Customer, Inventory, Checkout, CheckoutView, InsertCustomer, InsertInventory, InsertCheckout, SignedAgreement, InsertSignedAgreement, Contract, InsertContract } from "@shared/schema";
 
 export function useCustomers() {
   return useQuery<Customer[]>({
@@ -175,6 +175,37 @@ export function useDeleteSignedAgreement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/agreements"] });
+    },
+  });
+}
+
+export function useContracts() {
+  return useQuery<Contract[]>({
+    queryKey: ["/api/contracts"],
+  });
+}
+
+export function useCreateContract() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: InsertContract) => {
+      const res = await apiRequest("POST", "/api/contracts", data);
+      return res.json() as Promise<Contract>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+    },
+  });
+}
+
+export function useDeleteContract() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/contracts/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
     },
   });
 }

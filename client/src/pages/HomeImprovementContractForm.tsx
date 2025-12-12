@@ -1,0 +1,223 @@
+import { useState, useRef } from "react";
+import { useLocation } from "wouter";
+import SignatureCanvas from "react-signature-canvas";
+import { useCreateContract } from "@/hooks/use-api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Loader2, Home } from "lucide-react";
+
+export function HomeImprovementContractForm() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const createContractMutation = useCreateContract();
+  const sigCanvas = useRef<SignatureCanvas>(null);
+
+  const [formData, setFormData] = useState({
+    date: new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' }),
+    ownerName1: "",
+    ownerName2: "",
+    ownerAddress: "",
+    propertyAddress: "",
+    workDescription: "",
+    laborPrice: "",
+    materialsPrice: "",
+    totalContractPrice: "",
+    startDate: "",
+    completionDate: "",
+  });
+
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => {
+      const updated = { ...prev, [name]: value };
+      if (name === 'laborPrice' || name === 'materialsPrice') {
+        const labor = parseFloat(name === 'laborPrice' ? value : prev.laborPrice) || 0;
+        const materials = parseFloat(name === 'materialsPrice' ? value : prev.materialsPrice) || 0;
+        updated.totalContractPrice = (labor + materials).toFixed(2);
+      }
+      return updated;
+    });
+  };
+
+  const clearSignature = () => {
+    sigCanvas.current?.clear();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.ownerName1 || !customerEmail) {
+      toast({ title: "Please fill in required fields", variant: "destructive" });
+      return;
+    }
+
+    const signatureData = sigCanvas.current?.toDataURL("image/png");
+    if (!signatureData || sigCanvas.current?.isEmpty()) {
+      toast({ title: "Signature is required", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await createContractMutation.mutateAsync({
+        contract_type: "home_improvement",
+        customer_name: formData.ownerName1,
+        customer_email: customerEmail,
+        customer_phone: customerPhone || null,
+        customer_address: formData.ownerAddress || null,
+        property_address: formData.propertyAddress || null,
+        form_data: formData,
+        signature_data: signatureData,
+      });
+
+      toast({ title: "Contract created successfully!" });
+      setLocation("/contracts");
+    } catch (err) {
+      toast({ title: "Error creating contract", variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" onClick={() => setLocation("/contracts")} data-testid="button-back">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Contracts
+        </Button>
+      </div>
+
+      <div>
+        <h1 className="text-2xl font-serif font-bold text-primary" data-testid="text-page-title">
+          Home Improvement Contract
+        </h1>
+        <p className="text-muted-foreground">Fill out the contract details below</p>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Home className="h-5 w-5" />
+              Contract Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="date">Date</Label>
+                <Input id="date" name="date" value={formData.date} onChange={handleInputChange} data-testid="input-date" />
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-3">Property Owner Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="ownerName1">Owner Name 1 *</Label>
+                  <Input id="ownerName1" name="ownerName1" value={formData.ownerName1} onChange={handleInputChange} required data-testid="input-owner-name-1" />
+                </div>
+                <div>
+                  <Label htmlFor="ownerName2">Owner Name 2 (if applicable)</Label>
+                  <Input id="ownerName2" name="ownerName2" value={formData.ownerName2} onChange={handleInputChange} data-testid="input-owner-name-2" />
+                </div>
+                <div>
+                  <Label htmlFor="customerEmail">Email *</Label>
+                  <Input id="customerEmail" type="email" value={customerEmail} onChange={(e) => setCustomerEmail(e.target.value)} required data-testid="input-email" />
+                </div>
+                <div>
+                  <Label htmlFor="customerPhone">Phone</Label>
+                  <Input id="customerPhone" type="tel" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} data-testid="input-phone" />
+                </div>
+                <div>
+                  <Label htmlFor="ownerAddress">Owner Address</Label>
+                  <Input id="ownerAddress" name="ownerAddress" value={formData.ownerAddress} onChange={handleInputChange} data-testid="input-owner-address" />
+                </div>
+                <div>
+                  <Label htmlFor="propertyAddress">Property Address (where work performed)</Label>
+                  <Input id="propertyAddress" name="propertyAddress" value={formData.propertyAddress} onChange={handleInputChange} data-testid="input-property-address" />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-3">Description of Work</h3>
+              <Textarea
+                id="workDescription"
+                name="workDescription"
+                value={formData.workDescription}
+                onChange={handleInputChange}
+                placeholder="Describe the home improvement work to be performed..."
+                rows={4}
+                data-testid="input-work-description"
+              />
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-3">Pricing</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="laborPrice">Labor ($)</Label>
+                  <Input id="laborPrice" name="laborPrice" type="number" step="0.01" value={formData.laborPrice} onChange={handleInputChange} data-testid="input-labor-price" />
+                </div>
+                <div>
+                  <Label htmlFor="materialsPrice">Materials ($)</Label>
+                  <Input id="materialsPrice" name="materialsPrice" type="number" step="0.01" value={formData.materialsPrice} onChange={handleInputChange} data-testid="input-materials-price" />
+                </div>
+                <div>
+                  <Label htmlFor="totalContractPrice">Total Contract Price</Label>
+                  <Input id="totalContractPrice" name="totalContractPrice" value={formData.totalContractPrice} readOnly className="bg-muted" data-testid="input-total" />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-3">Project Timeline</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="startDate">Estimated Start Date</Label>
+                  <Input id="startDate" name="startDate" type="date" value={formData.startDate} onChange={handleInputChange} data-testid="input-start-date" />
+                </div>
+                <div>
+                  <Label htmlFor="completionDate">Estimated Completion Date</Label>
+                  <Input id="completionDate" name="completionDate" type="date" value={formData.completionDate} onChange={handleInputChange} data-testid="input-completion-date" />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-3">Customer Signature *</h3>
+              <div className="border rounded-md bg-white p-2">
+                <SignatureCanvas
+                  ref={sigCanvas}
+                  canvasProps={{
+                    className: "w-full h-32 border border-dashed border-gray-300 rounded",
+                    "data-testid": "signature-canvas"
+                  }}
+                />
+              </div>
+              <Button type="button" variant="outline" size="sm" className="mt-2" onClick={clearSignature} data-testid="button-clear-signature">
+                Clear Signature
+              </Button>
+            </div>
+
+            <div className="flex justify-end gap-4 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setLocation("/contracts")} data-testid="button-cancel">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createContractMutation.isPending} data-testid="button-submit">
+                {createContractMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Create Contract
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </form>
+    </div>
+  );
+}
