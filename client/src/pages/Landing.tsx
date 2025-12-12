@@ -6,17 +6,16 @@ export function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8 text-center">
-        <div>
-          <img 
-            src="/logo.jpg" 
-            alt="Artisan Tile Kitchen & Bath" 
-            className="w-full mx-auto mb-4 mix-blend-multiply"
-          />
-          <p className="text-xl text-muted-foreground">Sample Tracker</p>
-        </div>
-        
-        <Card className="mt-8">
-          <CardHeader>
+        <Card>
+          <CardHeader className="pb-2">
+            <img 
+              src="/logo.jpg" 
+              alt="Artisan Tile Kitchen & Bath" 
+              className="w-full mx-auto mix-blend-multiply"
+            />
+            <p className="text-xl text-muted-foreground text-center">Sample Tracker</p>
+          </CardHeader>
+          <CardHeader className="pt-0">
             <CardTitle>Welcome</CardTitle>
             <CardDescription>
               Track sample checkouts, manage customers, and monitor inventory.
@@ -49,7 +48,7 @@ export function Landing() {
           </CardContent>
         </Card>
         
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground mt-4">
           Staff Portal
         </p>
       </div>
