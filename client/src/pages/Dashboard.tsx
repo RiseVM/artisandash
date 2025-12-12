@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useStore, CheckoutView } from "@/lib/store";
+import { useStore, CheckoutView, Checkout } from "@/lib/store";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -31,6 +33,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { 
   Search, 
   Bell, 
@@ -44,9 +53,10 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 export function Dashboard() {
-  const { checkouts, getCheckoutView, updateCheckout, checkOverdue } = useStore();
+  const { checkouts, customers, inventory, getCheckoutView, updateCheckout, checkOverdue } = useStore();
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<'due_asc' | 'due_desc' | 'name_asc'>('due_asc');
+  const [editingCheckout, setEditingCheckout] = useState<CheckoutView | null>(null);
   const { toast } = useToast();
 
   const handleRunReminders = () => {
@@ -63,6 +73,17 @@ export function Dashboard() {
       title: "Status Updated",
       description: `Checkout #${id} marked as ${newStatus.replace('_', ' ')}.`,
     });
+  };
+
+  const handleUpdateCheckout = () => {
+    if (!editingCheckout) return;
+    updateCheckout(editingCheckout.id, {
+      due_date: editingCheckout.due_date,
+      status: editingCheckout.status,
+      notes: editingCheckout.notes,
+    });
+    setEditingCheckout(null);
+    toast({ title: "Checkout Updated", description: "Changes saved successfully." });
   };
 
   // Convert checkouts to views (with customer/item data)
@@ -96,19 +117,23 @@ export function Dashboard() {
             <TableHead>Dates</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Notes</TableHead>
-            {showActions && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="h-24 text-center">
+              <TableCell colSpan={5} className="h-24 text-center">
                 No samples found.
               </TableCell>
             </TableRow>
           ) : (
             data.map((sample) => (
-              <TableRow key={sample.id} className="group">
+              <TableRow 
+                key={sample.id} 
+                className="group cursor-pointer hover:bg-muted/50"
+                onClick={() => setEditingCheckout(sample)}
+                data-testid={`row-checkout-${sample.id}`}
+              >
                 <TableCell>
                   <div className="font-medium">{sample.customer.name}</div>
                   <div className="text-xs text-muted-foreground">{sample.customer.email}</div>
@@ -131,7 +156,7 @@ export function Dashboard() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                    <Select 
                       defaultValue={sample.status} 
                       onValueChange={(val: any) => handleStatusChange(sample.id, val)}
@@ -153,17 +178,6 @@ export function Dashboard() {
                     {sample.notes || "—"}
                   </p>
                 </TableCell>
-                {showActions && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Link href={`/edit/${sample.id}`}>
-                        <Button size="icon" variant="ghost" className="h-8 w-8" title="Edit">
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </div>
-                  </TableCell>
-                )}
               </TableRow>
             ))
           )}
@@ -185,7 +199,7 @@ export function Dashboard() {
             Run Checks
           </Button>
           <Link href="/new">
-            <Button>
+            <Button data-testid="button-new-checkout">
               <Plus className="mr-2 h-4 w-4" />
               New Checkout
             </Button>
@@ -201,13 +215,14 @@ export function Dashboard() {
               className="pl-8 bg-card"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              data-testid="input-search-checkouts"
             />
           </div>
           
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[180px]" data-testid="select-sort-order">
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
               <SelectContent>
@@ -221,8 +236,8 @@ export function Dashboard() {
 
       <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-4">
-          <TabsTrigger value="active">Active ({activeCheckouts.length})</TabsTrigger>
-          <TabsTrigger value="returned">Returned History ({returnedCheckouts.length})</TabsTrigger>
+          <TabsTrigger value="active" data-testid="tab-active">Active ({activeCheckouts.length})</TabsTrigger>
+          <TabsTrigger value="returned" data-testid="tab-returned">Returned History ({returnedCheckouts.length})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="active">
@@ -241,6 +256,92 @@ export function Dashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editingCheckout} onOpenChange={(open) => !open && setEditingCheckout(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Checkout</DialogTitle>
+          </DialogHeader>
+          {editingCheckout && (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-sm">Customer</Label>
+                <div className="font-medium">{editingCheckout.customer.name}</div>
+                <div className="text-xs text-muted-foreground">{editingCheckout.customer.email}</div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-muted-foreground text-sm">Sample</Label>
+                <div className="font-medium">{editingCheckout.item.name}</div>
+                <div className="text-xs text-muted-foreground">{editingCheckout.item.sku}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="checkout-date">Checkout Date</Label>
+                  <Input 
+                    id="checkout-date"
+                    type="date" 
+                    value={editingCheckout.checkout_date} 
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="due-date">Due Date</Label>
+                  <Input 
+                    id="due-date"
+                    type="date" 
+                    value={editingCheckout.due_date} 
+                    onChange={(e) => setEditingCheckout({...editingCheckout, due_date: e.target.value})}
+                    data-testid="input-edit-due-date"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="status">Status</Label>
+                <Select 
+                  value={editingCheckout.status} 
+                  onValueChange={(val: any) => setEditingCheckout({...editingCheckout, status: val})}
+                >
+                  <SelectTrigger data-testid="select-edit-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="checked_out">Checked Out</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                    <SelectItem value="returned">Returned</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea 
+                  id="notes"
+                  value={editingCheckout.notes || ""} 
+                  onChange={(e) => setEditingCheckout({...editingCheckout, notes: e.target.value})}
+                  placeholder="Add notes..."
+                  className="resize-none"
+                  data-testid="textarea-edit-notes"
+                />
+              </div>
+
+              {editingCheckout.auth_notes && (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground text-sm">Payment Info</Label>
+                  <div className="text-xs bg-muted p-2 rounded">{editingCheckout.auth_notes}</div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCheckout(null)}>Cancel</Button>
+            <Button onClick={handleUpdateCheckout} data-testid="button-save-checkout">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -66,7 +66,7 @@ export function Customers() {
         </div>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button data-testid="button-add-customer">
               <Plus className="mr-2 h-4 w-4" />
               Add Customer
             </Button>
@@ -81,7 +81,8 @@ export function Customers() {
                 <Input 
                   className="col-span-3" 
                   value={newCustomer.name} 
-                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})} 
+                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                  data-testid="input-new-customer-name"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -89,7 +90,8 @@ export function Customers() {
                 <Input 
                   className="col-span-3" 
                   value={newCustomer.email} 
-                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})} 
+                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                  data-testid="input-new-customer-email"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -97,12 +99,13 @@ export function Customers() {
                 <Input 
                   className="col-span-3" 
                   value={newCustomer.phone} 
-                  onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})} 
+                  onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
+                  data-testid="input-new-customer-phone"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleAddCustomer}>Save Customer</Button>
+              <Button onClick={handleAddCustomer} data-testid="button-save-new-customer">Save Customer</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -119,6 +122,7 @@ export function Customers() {
                 className="pl-8"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                data-testid="input-search-customers"
               />
             </div>
           </div>
@@ -131,12 +135,16 @@ export function Customers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredCustomers.map((customer) => (
-                  <TableRow key={customer.id}>
+                  <TableRow 
+                    key={customer.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setEditingCustomer({...customer})}
+                    data-testid={`row-customer-${customer.id}`}
+                  >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
@@ -145,15 +153,6 @@ export function Customers() {
                     </TableCell>
                     <TableCell>{customer.email}</TableCell>
                     <TableCell>{customer.phone || "—"}</TableCell>
-                    <TableCell className="text-right">
-                      <Button 
-                        size="icon" 
-                        variant="ghost" 
-                        onClick={() => setEditingCustomer(customer)}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -162,7 +161,6 @@ export function Customers() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingCustomer} onOpenChange={(open) => !open && setEditingCustomer(null)}>
         <DialogContent>
           <DialogHeader>
@@ -174,7 +172,8 @@ export function Customers() {
               <Input 
                 className="col-span-3" 
                 value={editingCustomer?.name || ""} 
-                onChange={(e) => setEditingCustomer({...editingCustomer, name: e.target.value})} 
+                onChange={(e) => setEditingCustomer({...editingCustomer, name: e.target.value})}
+                data-testid="input-edit-customer-name"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -182,7 +181,8 @@ export function Customers() {
               <Input 
                 className="col-span-3" 
                 value={editingCustomer?.email || ""} 
-                onChange={(e) => setEditingCustomer({...editingCustomer, email: e.target.value})} 
+                onChange={(e) => setEditingCustomer({...editingCustomer, email: e.target.value})}
+                data-testid="input-edit-customer-email"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -190,12 +190,14 @@ export function Customers() {
               <Input 
                 className="col-span-3" 
                 value={editingCustomer?.phone || ""} 
-                onChange={(e) => setEditingCustomer({...editingCustomer, phone: e.target.value})} 
+                onChange={(e) => setEditingCustomer({...editingCustomer, phone: e.target.value})}
+                data-testid="input-edit-customer-phone"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleUpdateCustomer}>Save Changes</Button>
+            <Button variant="outline" onClick={() => setEditingCustomer(null)}>Cancel</Button>
+            <Button onClick={handleUpdateCustomer} data-testid="button-save-customer">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
