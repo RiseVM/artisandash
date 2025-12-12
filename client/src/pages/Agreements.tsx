@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
-import { Search, FileText, Trash2, Eye, Loader2 } from "lucide-react";
+import { Search, FileText, Trash2, Eye, Loader2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { SignedAgreement } from "@shared/schema";
 
@@ -91,6 +91,7 @@ export function Agreements() {
                   <TableHead>Document Title</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Signed Date</TableHead>
+                  <TableHead>Google Drive</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -103,6 +104,22 @@ export function Agreements() {
                       {agreement.signed_at 
                         ? format(new Date(agreement.signed_at), 'MMM d, yyyy h:mm a')
                         : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {(agreement as any).google_drive_link ? (
+                        <a 
+                          href={(agreement as any).google_drive_link} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline flex items-center gap-1"
+                          data-testid={`link-drive-${agreement.id}`}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View in Drive
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -154,6 +171,24 @@ export function Agreements() {
                 </p>
               </div>
             </div>
+            
+            {(selectedAgreement as any)?.google_drive_link && (
+              <div>
+                <span className="text-sm text-muted-foreground">Google Drive:</span>
+                <p>
+                  <a 
+                    href={(selectedAgreement as any).google_drive_link} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline flex items-center gap-1"
+                    data-testid="link-drive-detail"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    View in Google Drive
+                  </a>
+                </p>
+              </div>
+            )}
             
             <div>
               <p className="text-sm text-muted-foreground mb-2">Signature:</p>

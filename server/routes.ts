@@ -6,6 +6,7 @@ import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder } from "./emailService";
+import { uploadSignatureToGoogleDrive } from "./googleDriveService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -329,9 +330,27 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Signature data is required" });
       }
       
+      const customer = await storage.getCustomer(data.customer_id);
+      const customerName = customer?.name || "Unknown Customer";
+      
+      let googleDriveFileId: string | null = null;
+      let googleDriveLink: string | null = null;
+      
+      try {
+        const driveResult = await uploadSignatureToGoogleDrive(customerName, data.signature_data);
+        if (driveResult) {
+          googleDriveFileId = driveResult.fileId;
+          googleDriveLink = driveResult.webViewLink;
+        }
+      } catch (driveError) {
+        console.error("Failed to upload to Google Drive (continuing without):", driveError);
+      }
+      
       const agreement = await storage.createSignedAgreement({
         ...data,
         created_by_user_id: userId,
+        google_drive_file_id: googleDriveFileId,
+        google_drive_link: googleDriveLink,
       });
       res.status(201).json(agreement);
     } catch (error) {
