@@ -1,36 +1,80 @@
 import { create } from 'zustand';
 import { format, addDays } from 'date-fns';
 
-export interface Sample {
+// Entities
+export interface InventoryItem {
   id: number;
-  customer_name: string;
-  customer_email: string;
-  customer_phone?: string;
-  sample_name: string;
+  name: string;
+  sku?: string;
+  category?: string;
+  total_quantity: number; // For future tracking
+}
+
+export interface Customer {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  stripe_customer_id?: string;
+}
+
+export interface Checkout {
+  id: number;
+  customer_id: number;
+  inventory_item_id: number;
   checkout_date: string;
   due_date: string;
   status: 'checked_out' | 'overdue' | 'returned';
   notes?: string;
   auth_notes?: string;
-  stripe_customer_id?: string;
+}
+
+// Denormalized view for UI convenience
+export interface CheckoutView extends Checkout {
+  customer: Customer;
+  item: InventoryItem;
 }
 
 interface StoreState {
-  samples: Sample[];
-  addSample: (sample: Omit<Sample, 'id' | 'status' | 'checkout_date'>) => void;
-  updateSample: (id: number, sample: Partial<Sample>) => void;
-  markReturned: (id: number) => void;
+  inventory: InventoryItem[];
+  customers: Customer[];
+  checkouts: Checkout[];
+
+  // Actions
+  addInventoryItem: (item: Omit<InventoryItem, 'id'>) => InventoryItem;
+  updateInventoryItem: (id: number, item: Partial<InventoryItem>) => void;
+  
+  addCustomer: (customer: Omit<Customer, 'id'>) => Customer;
+  updateCustomer: (id: number, customer: Partial<Customer>) => void;
+
+  addCheckout: (checkout: Omit<Checkout, 'id' | 'status' | 'checkout_date'>) => void;
+  updateCheckout: (id: number, checkout: Partial<Checkout>) => void;
+  
+  // Helpers
+  getCheckoutView: (checkout: Checkout) => CheckoutView;
   checkOverdue: () => void;
 }
 
-// Initial mock data
-const INITIAL_SAMPLES: Sample[] = [
+// Initial Mock Data
+const INITIAL_INVENTORY: InventoryItem[] = [
+  { id: 1, name: "Carrara Marble Hexagon", sku: "CM-HEX-01", total_quantity: 10, category: "Marble" },
+  { id: 2, name: "Slate Subway Tile", sku: "SL-SUB-02", total_quantity: 25, category: "Slate" },
+  { id: 3, name: "Terracotta Pavers", sku: "TC-PAV-03", total_quantity: 5, category: "Terracotta" },
+  { id: 4, name: "Zellige White 4x4", sku: "ZE-WHT-04", total_quantity: 50, category: "Ceramic" },
+  { id: 5, name: "Blue Limestone Field", sku: "BL-LST-05", total_quantity: 12, category: "Limestone" },
+];
+
+const INITIAL_CUSTOMERS: Customer[] = [
+  { id: 1, name: "Alice Wright", email: "alice@example.com", phone: "555-0123", stripe_customer_id: "cus_A1" },
+  { id: 2, name: "Bob Builder", email: "bob@construction.com", phone: "555-0124" },
+  { id: 3, name: "Catherine DeGroot", email: "cat@design.studio", phone: "555-0125" },
+];
+
+const INITIAL_CHECKOUTS: Checkout[] = [
   {
     id: 1,
-    customer_name: "Alice Wright",
-    customer_email: "alice@example.com",
-    customer_phone: "555-0123",
-    sample_name: "Carrara Marble Hexagon",
+    customer_id: 1,
+    inventory_item_id: 1,
     checkout_date: format(addDays(new Date(), -5), 'yyyy-MM-dd'),
     due_date: format(addDays(new Date(), 2), 'yyyy-MM-dd'),
     status: 'checked_out',
@@ -39,9 +83,8 @@ const INITIAL_SAMPLES: Sample[] = [
   },
   {
     id: 2,
-    customer_name: "Bob Builder",
-    customer_email: "bob@construction.com",
-    sample_name: "Slate Subway Tile",
+    customer_id: 2,
+    inventory_item_id: 2,
     checkout_date: format(addDays(new Date(), -10), 'yyyy-MM-dd'),
     due_date: format(addDays(new Date(), -3), 'yyyy-MM-dd'),
     status: 'overdue',
@@ -50,9 +93,8 @@ const INITIAL_SAMPLES: Sample[] = [
   },
   {
     id: 3,
-    customer_name: "Catherine DeGroot",
-    customer_email: "cat@design.studio",
-    sample_name: "Terracotta Pavers",
+    customer_id: 3,
+    inventory_item_id: 3,
     checkout_date: format(addDays(new Date(), -14), 'yyyy-MM-dd'),
     due_date: format(addDays(new Date(), -7), 'yyyy-MM-dd'),
     status: 'returned',
@@ -61,31 +103,68 @@ const INITIAL_SAMPLES: Sample[] = [
   }
 ];
 
-export const useStore = create<StoreState>((set) => ({
-  samples: INITIAL_SAMPLES,
-  addSample: (newSample) => set((state) => {
-    const id = Math.max(0, ...state.samples.map(s => s.id)) + 1;
-    const sample: Sample = {
-      ...newSample,
+export const useStore = create<StoreState>((set, get) => ({
+  inventory: INITIAL_INVENTORY,
+  customers: INITIAL_CUSTOMERS,
+  checkouts: INITIAL_CHECKOUTS,
+
+  addInventoryItem: (newItem) => {
+    let createdItem: InventoryItem | undefined;
+    set((state) => {
+      const id = Math.max(0, ...state.inventory.map(i => i.id)) + 1;
+      createdItem = { ...newItem, id };
+      return { inventory: [...state.inventory, createdItem] };
+    });
+    return createdItem!;
+  },
+
+  updateInventoryItem: (id, updatedFields) => set((state) => ({
+    inventory: state.inventory.map((i) => i.id === id ? { ...i, ...updatedFields } : i)
+  })),
+
+  addCustomer: (newCustomer) => {
+    let createdCustomer: Customer | undefined;
+    set((state) => {
+      const id = Math.max(0, ...state.customers.map(c => c.id)) + 1;
+      createdCustomer = { ...newCustomer, id };
+      return { customers: [...state.customers, createdCustomer] };
+    });
+    return createdCustomer!;
+  },
+
+  updateCustomer: (id, updatedFields) => set((state) => ({
+    customers: state.customers.map((c) => c.id === id ? { ...c, ...updatedFields } : c)
+  })),
+
+  addCheckout: (newCheckout) => set((state) => {
+    const id = Math.max(0, ...state.checkouts.map(c => c.id)) + 1;
+    const checkout: Checkout = {
+      ...newCheckout,
       id,
       status: 'checked_out',
       checkout_date: format(new Date(), 'yyyy-MM-dd'),
     };
-    return { samples: [...state.samples, sample] };
+    return { checkouts: [...state.checkouts, checkout] };
   }),
-  updateSample: (id, updatedFields) => set((state) => ({
-    samples: state.samples.map((s) => s.id === id ? { ...s, ...updatedFields } : s)
+
+  updateCheckout: (id, updatedFields) => set((state) => ({
+    checkouts: state.checkouts.map((c) => c.id === id ? { ...c, ...updatedFields } : c)
   })),
-  markReturned: (id) => set((state) => ({
-    samples: state.samples.map((s) => s.id === id ? { ...s, status: 'returned' } : s)
-  })),
+
+  getCheckoutView: (checkout) => {
+    const state = get();
+    const customer = state.customers.find(c => c.id === checkout.customer_id) || { id: 0, name: 'Unknown', email: '' };
+    const item = state.inventory.find(i => i.id === checkout.inventory_item_id) || { id: 0, name: 'Unknown Item', total_quantity: 0 };
+    return { ...checkout, customer, item };
+  },
+
   checkOverdue: () => set((state) => {
     const today = format(new Date(), 'yyyy-MM-dd');
     return {
-      samples: state.samples.map((s) => {
-        if (s.status === 'returned') return s;
-        if (s.due_date < today) return { ...s, status: 'overdue' };
-        return s;
+      checkouts: state.checkouts.map((c) => {
+        if (c.status === 'returned') return c;
+        if (c.due_date < today) return { ...c, status: 'overdue' };
+        return c;
       })
     };
   })

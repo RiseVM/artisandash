@@ -14,52 +14,71 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sample } from "@/lib/store";
+import { useStore, Checkout } from "@/lib/store";
 import { useLocation } from "wouter";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useState } from "react";
 
 const formSchema = z.object({
-  customer_name: z.string().min(2, "Name must be at least 2 characters"),
-  customer_email: z.string().email("Invalid email address"),
-  customer_phone: z.string().optional(),
-  sample_name: z.string().min(2, "Sample name is required"),
+  customer_id: z.number({ required_error: "Please select a customer" }),
+  inventory_item_id: z.number({ required_error: "Please select a sample" }),
   due_date: z.string().min(1, "Due date is required"),
   notes: z.string().optional(),
   auth_notes: z.string().optional(),
-  stripe_customer_id: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 interface SampleFormProps {
-  initialData?: Sample;
-  onSubmit: (data: Omit<Sample, 'id' | 'status' | 'checkout_date'>) => void;
+  initialData?: Checkout;
+  onSubmit: (data: any) => void;
   title: string;
 }
 
 export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const [, setLocation] = useLocation();
+  const { customers, inventory, addCustomer, addInventoryItem } = useStore();
   
+  // Combobox states
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [itemOpen, setItemOpen] = useState(false);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: initialData ? {
-      customer_name: initialData.customer_name,
-      customer_email: initialData.customer_email,
-      customer_phone: initialData.customer_phone || "",
-      sample_name: initialData.sample_name,
+      customer_id: initialData.customer_id,
+      inventory_item_id: initialData.inventory_item_id,
       due_date: initialData.due_date,
       notes: initialData.notes || "",
       auth_notes: initialData.auth_notes || "",
-      stripe_customer_id: initialData.stripe_customer_id || "",
     } : {
-      customer_name: "",
-      customer_email: "",
-      customer_phone: "",
-      sample_name: "",
+      customer_id: undefined,
+      inventory_item_id: undefined,
       due_date: format(new Date(), 'yyyy-MM-dd'),
       notes: "",
       auth_notes: "",
-      stripe_customer_id: "",
     },
   });
 
@@ -83,13 +102,80 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
-                  name="customer_name"
+                  name="customer_id"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Customer Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Jane Doe" {...field} />
-                      </FormControl>
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Customer</FormLabel>
+                      <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? customers.find(
+                                    (customer) => customer.id === field.value
+                                  )?.name
+                                : "Select customer"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[250px] p-0">
+                          <Command>
+                            <CommandInput placeholder="Search customer..." />
+                            <CommandList>
+                              <CommandEmpty>
+                                <div className="p-2">
+                                  <p className="text-sm text-muted-foreground mb-2">No customer found.</p>
+                                  <Button 
+                                    size="sm" 
+                                    className="w-full"
+                                    onClick={() => {
+                                      // Quick create stub - ideally would open a modal
+                                      const name = prompt("Enter new customer name:");
+                                      if(name) {
+                                        const newC = addCustomer({ name, email: "pending@email.com" });
+                                        form.setValue("customer_id", newC.id);
+                                        setCustomerOpen(false);
+                                      }
+                                    }}
+                                  >
+                                    + Create New
+                                  </Button>
+                                </div>
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {customers.map((customer) => (
+                                  <CommandItem
+                                    value={customer.name}
+                                    key={customer.id}
+                                    onSelect={() => {
+                                      form.setValue("customer_id", customer.id);
+                                      setCustomerOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        customer.id === field.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    {customer.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -97,13 +183,79 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
 
                 <FormField
                   control={form.control}
-                  name="customer_email"
+                  name="inventory_item_id"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input placeholder="jane@example.com" {...field} />
-                      </FormControl>
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Sample Item</FormLabel>
+                      <Popover open={itemOpen} onOpenChange={setItemOpen}>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between",
+                                !field.value && "text-muted-foreground"
+                              )}
+                            >
+                              {field.value
+                                ? inventory.find(
+                                    (item) => item.id === field.value
+                                  )?.name
+                                : "Select sample"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[250px] p-0">
+                          <Command>
+                            <CommandInput placeholder="Search inventory..." />
+                            <CommandList>
+                              <CommandEmpty>
+                                <div className="p-2">
+                                  <p className="text-sm text-muted-foreground mb-2">Item not found.</p>
+                                  <Button 
+                                    size="sm" 
+                                    className="w-full"
+                                    onClick={() => {
+                                      const name = prompt("Enter new item name:");
+                                      if(name) {
+                                        const newI = addInventoryItem({ name, total_quantity: 1 });
+                                        form.setValue("inventory_item_id", newI.id);
+                                        setItemOpen(false);
+                                      }
+                                    }}
+                                  >
+                                    + Create New
+                                  </Button>
+                                </div>
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {inventory.map((item) => (
+                                  <CommandItem
+                                    value={item.name}
+                                    key={item.id}
+                                    onSelect={() => {
+                                      form.setValue("inventory_item_id", item.id);
+                                      setItemOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        item.id === field.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    {item.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -111,50 +263,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="customer_phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="555-0123" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="stripe_customer_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Stripe Customer ID (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="cus_..." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="sample_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sample Description</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g. Carrara Marble Hexagon" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 <FormField
                   control={form.control}
                   name="due_date"
@@ -168,6 +276,12 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                     </FormItem>
                   )}
                 />
+
+                <div className="flex items-end pb-2">
+                   <p className="text-xs text-muted-foreground">
+                     Tip: You can manage full customer details and inventory items in their respective tabs.
+                   </p>
+                </div>
               </div>
 
               <FormField

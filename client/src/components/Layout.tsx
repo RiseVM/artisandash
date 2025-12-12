@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { PlusCircle, LayoutDashboard } from "lucide-react";
+import { PlusCircle, LayoutDashboard, Users, Package, ShoppingBag } from "lucide-react";
 import logoUrl from "@assets/1_1765497247808.jpg";
 
 interface LayoutProps {
@@ -13,14 +13,16 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/inventory", label: "Inventory", icon: Package },
+    { href: "/customers", label: "Customers", icon: Users },
     { href: "/new", label: "New Checkout", icon: PlusCircle },
   ];
 
   return (
     <div className="min-h-screen bg-background font-sans text-foreground flex flex-col md:flex-row">
       {/* Sidebar / Topbar */}
-      <aside className="w-full md:w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0">
-        <div className="p-6">
+      <aside className="w-full md:w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0 flex flex-col">
+        <div className="p-6 flex-1">
           <div className="mb-8 px-2">
             <img 
               src={logoUrl} 
@@ -52,7 +54,7 @@ export function Layout({ children }: LayoutProps) {
           </nav>
         </div>
         
-        <div className="mt-auto p-6 border-t border-sidebar-border hidden md:block">
+        <div className="p-6 border-t border-sidebar-border hidden md:block">
           <p className="text-xs text-sidebar-foreground/50">
             © 2025 Artisan Tile Kitchen & Bath
             <br />
@@ -63,7 +65,7 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto bg-slate-50/50">
-        <div className="container max-w-5xl mx-auto p-6 md:p-10">
+        <div className="container max-w-6xl mx-auto p-6 md:p-10">
           {children}
         </div>
       </main>

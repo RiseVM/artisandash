@@ -8,6 +8,8 @@ import { Layout } from "@/components/Layout";
 import { Dashboard } from "@/pages/Dashboard";
 import { NewSample } from "@/pages/NewSample";
 import { EditSample } from "@/pages/EditSample";
+import { Inventory } from "@/pages/Inventory";
+import { Customers } from "@/pages/Customers";
 
 function Router() {
   return (
@@ -16,6 +18,8 @@ function Router() {
         <Route path="/" component={Dashboard} />
         <Route path="/new" component={NewSample} />
         <Route path="/edit/:id" component={EditSample} />
+        <Route path="/inventory" component={Inventory} />
+        <Route path="/customers" component={Customers} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

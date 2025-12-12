@@ -3,11 +3,11 @@ import { SampleForm } from "@/components/SampleForm";
 import { useToast } from "@/hooks/use-toast";
 
 export function NewSample() {
-  const addSample = useStore((state) => state.addSample);
+  const addCheckout = useStore((state) => state.addCheckout);
   const { toast } = useToast();
 
   const handleSubmit = (data: any) => {
-    addSample(data);
+    addCheckout(data);
     toast({
       title: "Checkout Created",
       description: "The new sample checkout has been saved.",

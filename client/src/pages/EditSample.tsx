@@ -10,11 +10,11 @@ export function EditSample() {
   const [, params] = useRoute("/edit/:id");
   const id = params ? parseInt(params.id) : 0;
   
-  const sample = useStore((state) => state.samples.find((s) => s.id === id));
-  const updateSample = useStore((state) => state.updateSample);
+  const checkout = useStore((state) => state.checkouts.find((c) => c.id === id));
+  const updateCheckout = useStore((state) => state.updateCheckout);
   const { toast } = useToast();
 
-  if (!sample) {
+  if (!checkout) {
     return (
       <div className="text-center py-12">
         <h2 className="text-xl font-bold mb-2">Sample Not Found</h2>
@@ -29,7 +29,7 @@ export function EditSample() {
   }
 
   const handleSubmit = (data: any) => {
-    updateSample(id, data);
+    updateCheckout(id, data);
     toast({
       title: "Sample Updated",
       description: "The sample details have been updated.",
@@ -39,7 +39,7 @@ export function EditSample() {
   return (
     <SampleForm 
       title="Edit Sample" 
-      initialData={sample}
+      initialData={checkout}
       onSubmit={handleSubmit} 
     />
   );
