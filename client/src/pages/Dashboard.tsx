@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useCheckouts, useCustomers, useInventory, useUpdateCheckout } from "@/hooks/use-api";
+import { useCheckouts, useCustomers, useInventory, useUpdateCheckout, useDeleteCheckout } from "@/hooks/use-api";
 import type { CheckoutView, Customer, Inventory } from "@shared/schema";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,8 @@ import {
   Filter,
   Check,
   ChevronsUpDown,
-  Loader2
+  Loader2,
+  Trash2
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -87,6 +88,7 @@ export function Dashboard() {
   const { data: customers = [] } = useCustomers();
   const { data: inventory = [] } = useInventory();
   const updateCheckoutMutation = useUpdateCheckout();
+  const deleteCheckoutMutation = useDeleteCheckout();
   
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<'due_asc' | 'due_desc' | 'name_asc'>('due_asc');
@@ -626,12 +628,33 @@ export function Dashboard() {
               )}
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingCheckout(null)}>Cancel</Button>
-            <Button onClick={handleUpdateCheckout} disabled={updateCheckoutMutation.isPending} data-testid="button-save-checkout">
-              {updateCheckoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save Changes
+          <DialogFooter className="flex justify-between">
+            <Button 
+              variant="destructive" 
+              onClick={async () => {
+                if (!editingCheckout) return;
+                if (!confirm("Are you sure you want to cancel/delete this checkout?")) return;
+                try {
+                  await deleteCheckoutMutation.mutateAsync(editingCheckout.id);
+                  setEditingCheckout(null);
+                  toast({ title: "Checkout Cancelled", description: "The checkout has been deleted." });
+                } catch (err) {
+                  toast({ title: "Error", description: "Failed to delete checkout.", variant: "destructive" });
+                }
+              }} 
+              disabled={deleteCheckoutMutation.isPending}
+              data-testid="button-delete-checkout"
+            >
+              {deleteCheckoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Cancel Checkout
             </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setEditingCheckout(null)}>Close</Button>
+              <Button onClick={handleUpdateCheckout} disabled={updateCheckoutMutation.isPending} data-testid="button-save-checkout">
+                {updateCheckoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save Changes
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

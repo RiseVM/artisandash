@@ -46,6 +46,19 @@ export function useUpdateCustomer() {
   });
 }
 
+export function useDeleteCustomer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/customers/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/checkouts"] });
+    },
+  });
+}
+
 export function useCreateInventory() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -72,6 +85,19 @@ export function useUpdateInventory() {
   });
 }
 
+export function useDeleteInventory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/inventory/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/checkouts"] });
+    },
+  });
+}
+
 export function useCreateCheckout() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -91,6 +117,18 @@ export function useUpdateCheckout() {
     mutationFn: async ({ id, data }: { id: number; data: Partial<InsertCheckout> }) => {
       const res = await apiRequest("PATCH", `/api/checkouts/${id}`, data);
       return res.json() as Promise<Checkout>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/checkouts"] });
+    },
+  });
+}
+
+export function useDeleteCheckout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/checkouts/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/checkouts"] });

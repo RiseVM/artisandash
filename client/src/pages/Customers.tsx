@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useCustomers, useCreateCustomer, useUpdateCustomer } from "@/hooks/use-api";
+import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from "@/hooks/use-api";
 import type { Customer } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2 } from "lucide-react";
+import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const ADMIN_PASSWORD = "@Artisan1200";
@@ -36,6 +36,7 @@ export function Customers() {
   const { data: customers = [], isLoading } = useCustomers();
   const createCustomerMutation = useCreateCustomer();
   const updateCustomerMutation = useUpdateCustomer();
+  const deleteCustomerMutation = useDeleteCustomer();
   
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -177,6 +178,18 @@ export function Customers() {
     setShowCardForm(false);
     setIsAdminVerified(false);
     setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
+  };
+
+  const handleDeleteCustomer = async () => {
+    if (!editingCustomer) return;
+    if (!confirm(`Are you sure you want to delete ${editingCustomer.name}?`)) return;
+    try {
+      await deleteCustomerMutation.mutateAsync(editingCustomer.id);
+      handleCloseEditDialog();
+      toast({ title: "Customer Deleted", description: `${editingCustomer.name} has been deleted.` });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to delete customer.", variant: "destructive" });
+    }
   };
 
   if (isLoading) {
@@ -550,12 +563,23 @@ export function Customers() {
               )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseEditDialog}>Cancel</Button>
-            <Button onClick={handleUpdateCustomer} disabled={updateCustomerMutation.isPending} data-testid="button-save-customer">
-              {updateCustomerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save Changes
+          <DialogFooter className="flex justify-between">
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteCustomer} 
+              disabled={deleteCustomerMutation.isPending}
+              data-testid="button-delete-customer"
+            >
+              {deleteCustomerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete
             </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleCloseEditDialog}>Cancel</Button>
+              <Button onClick={handleUpdateCustomer} disabled={updateCustomerMutation.isPending} data-testid="button-save-customer">
+                {updateCustomerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save Changes
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

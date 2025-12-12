@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useInventory, useCreateInventory, useUpdateInventory } from "@/hooks/use-api";
+import { useInventory, useCreateInventory, useUpdateInventory, useDeleteInventory } from "@/hooks/use-api";
 import type { Inventory } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,13 +26,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Edit2, Package, Loader2 } from "lucide-react";
+import { Search, Plus, Edit2, Package, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function Inventory() {
   const { data: inventory = [], isLoading } = useInventory();
   const createInventoryMutation = useCreateInventory();
   const updateInventoryMutation = useUpdateInventory();
+  const deleteInventoryMutation = useDeleteInventory();
   
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -80,6 +81,18 @@ export function Inventory() {
       toast({ title: "Item Updated", description: "Inventory item details updated." });
     } catch (err) {
       toast({ title: "Error", description: "Failed to update item. Please try again.", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!editingItem) return;
+    if (!confirm(`Are you sure you want to delete ${editingItem.name}?`)) return;
+    try {
+      await deleteInventoryMutation.mutateAsync(editingItem.id);
+      setEditingItem(null);
+      toast({ title: "Item Deleted", description: `${editingItem.name} has been deleted.` });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" });
     }
   };
 
@@ -238,12 +251,23 @@ export function Inventory() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
-            <Button onClick={handleUpdateItem} disabled={updateInventoryMutation.isPending} data-testid="button-save-edit-item">
-              {updateInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save Changes
+          <DialogFooter className="flex justify-between">
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteItem} 
+              disabled={deleteInventoryMutation.isPending}
+              data-testid="button-delete-item"
+            >
+              {deleteInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete
             </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+              <Button onClick={handleUpdateItem} disabled={updateInventoryMutation.isPending} data-testid="button-save-edit-item">
+                {updateInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save Changes
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

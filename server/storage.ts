@@ -29,12 +29,14 @@ export interface IStorage {
   getCustomer(id: number): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomer(id: number, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
+  deleteCustomer(id: number): Promise<boolean>;
 
   // Inventory
   getInventory(): Promise<Inventory[]>;
   getInventoryItem(id: number): Promise<Inventory | undefined>;
   createInventoryItem(item: InsertInventory): Promise<Inventory>;
   updateInventoryItem(id: number, item: Partial<InsertInventory>): Promise<Inventory | undefined>;
+  deleteInventoryItem(id: number): Promise<boolean>;
 
   // Checkouts
   getCheckouts(): Promise<Checkout[]>;
@@ -43,6 +45,7 @@ export interface IStorage {
   getCheckoutViews(): Promise<CheckoutView[]>;
   createCheckout(checkout: InsertCheckout): Promise<Checkout>;
   updateCheckout(id: number, checkout: Partial<InsertCheckout>): Promise<Checkout | undefined>;
+  deleteCheckout(id: number): Promise<boolean>;
 
   // Email notifications
   getNotificationsByCheckout(checkoutId: number): Promise<EmailNotification[]>;
@@ -92,6 +95,11 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async deleteCustomer(id: number): Promise<boolean> {
+    const result = await db.delete(customers).where(eq(customers.id, id)).returning();
+    return result.length > 0;
+  }
+
   // Inventory
   async getInventory(): Promise<Inventory[]> {
     return db.select().from(inventory);
@@ -110,6 +118,11 @@ export class DatabaseStorage implements IStorage {
   async updateInventoryItem(id: number, item: Partial<InsertInventory>): Promise<Inventory | undefined> {
     const result = await db.update(inventory).set(item).where(eq(inventory.id, id)).returning();
     return result[0];
+  }
+
+  async deleteInventoryItem(id: number): Promise<boolean> {
+    const result = await db.delete(inventory).where(eq(inventory.id, id)).returning();
+    return result.length > 0;
   }
 
   // Checkouts
@@ -169,6 +182,11 @@ export class DatabaseStorage implements IStorage {
   async updateCheckout(id: number, checkout: Partial<InsertCheckout>): Promise<Checkout | undefined> {
     const result = await db.update(checkouts).set({ ...checkout, updated_at: new Date() }).where(eq(checkouts.id, id)).returning();
     return result[0];
+  }
+
+  async deleteCheckout(id: number): Promise<boolean> {
+    const result = await db.delete(checkouts).where(eq(checkouts.id, id)).returning();
+    return result.length > 0;
   }
 
   // Email notifications

@@ -67,6 +67,17 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/customers/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteCustomer(id);
+      if (!deleted) return res.status(404).json({ error: "Customer not found" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete customer" });
+    }
+  });
+
   // Inventory
   app.get("/api/inventory", async (req, res) => {
     const items = await storage.getInventory();
@@ -108,6 +119,17 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/inventory/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteInventoryItem(id);
+      if (!deleted) return res.status(404).json({ error: "Item not found" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete inventory item" });
+    }
+  });
+
   // Checkouts
   app.get("/api/checkouts", async (req, res) => {
     const checkoutViews = await storage.getCheckoutViews();
@@ -146,6 +168,17 @@ export async function registerRoutes(
         return res.status(400).json({ error: error.errors });
       }
       res.status(500).json({ error: "Failed to update checkout" });
+    }
+  });
+
+  app.delete("/api/checkouts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteCheckout(id);
+      if (!deleted) return res.status(404).json({ error: "Checkout not found" });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete checkout" });
     }
   });
 
