@@ -62,6 +62,7 @@ export function Customers() {
     name: "", 
     email: "", 
     phone: "",
+    notes: "",
     card_number: "",
     card_exp: "",
     card_cvc: "",
@@ -119,6 +120,7 @@ export function Customers() {
         name: newCustomer.name,
         email: newCustomer.email,
         phone: newCustomer.phone || null,
+        notes: newCustomer.notes || null,
         card_last4: last4 || null,
         card_brand: brand || null,
         card_exp_month: month || null,
@@ -127,7 +129,7 @@ export function Customers() {
         card_cvc: newCustomer.card_cvc || null,
       });
       setIsAddOpen(false);
-      setNewCustomer({ name: "", email: "", phone: "", card_number: "", card_exp: "", card_cvc: "" });
+      setNewCustomer({ name: "", email: "", phone: "", notes: "", card_number: "", card_exp: "", card_cvc: "" });
       toast({ title: "Customer Added", description: `${newCustomer.name} added.` });
     } catch (err) {
       toast({ title: "Error", description: "Failed to add customer. Please try again.", variant: "destructive" });
@@ -142,6 +144,7 @@ export function Customers() {
         name: editingCustomer.name,
         email: editingCustomer.email,
         phone: editingCustomer.phone,
+        notes: editingCustomer.notes,
       };
 
       if (editCardInfo.card_number) {
@@ -206,11 +209,12 @@ export function Customers() {
   };
 
   const handleExportCSV = () => {
-    const headers = ["Name", "Email", "Phone"];
+    const headers = ["Name", "Email", "Phone", "Notes"];
     const rows = customers.map(c => [
       c.name,
       c.email,
-      c.phone || ""
+      c.phone || "",
+      c.notes || ""
     ]);
     
     const csvContent = [
@@ -288,6 +292,16 @@ export function Customers() {
                   value={newCustomer.phone} 
                   onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
                   data-testid="input-new-customer-phone"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Notes</Label>
+                <Input 
+                  className="col-span-3" 
+                  placeholder="Optional notes about this customer"
+                  value={newCustomer.notes} 
+                  onChange={(e) => setNewCustomer({...newCustomer, notes: e.target.value})}
+                  data-testid="input-new-customer-notes"
                 />
               </div>
 
@@ -434,6 +448,16 @@ export function Customers() {
                 value={editingCustomer?.phone || ""} 
                 onChange={(e) => setEditingCustomer(editingCustomer ? {...editingCustomer, phone: e.target.value} : null)}
                 data-testid="input-edit-customer-phone"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Notes</Label>
+              <Input 
+                className="col-span-3" 
+                placeholder="Optional notes about this customer"
+                value={editingCustomer?.notes || ""} 
+                onChange={(e) => setEditingCustomer(editingCustomer ? {...editingCustomer, notes: e.target.value} : null)}
+                data-testid="input-edit-customer-notes"
               />
             </div>
 

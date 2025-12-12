@@ -33,6 +33,7 @@ export const customers = pgTable("customers", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone"),
+  notes: text("notes"),
   stripe_customer_id: text("stripe_customer_id"),
   stripe_payment_method_id: text("stripe_payment_method_id"),
   card_last4: text("card_last4"),
