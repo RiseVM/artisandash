@@ -6,7 +6,7 @@ import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder } from "./emailService";
-import { createAgreementGoogleDoc, getAgreementText } from "./googleDocsService";
+import { uploadAgreementToGoogleDrive, getAgreementText } from "./googleDriveService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -354,7 +354,7 @@ export async function registerRoutes(
       let agreementText: string | null = getAgreementText();
       
       try {
-        const docsResult = await createAgreementGoogleDoc({
+        const driveResult = await uploadAgreementToGoogleDrive({
           customerName,
           customerEmail,
           customerPhone,
@@ -363,13 +363,13 @@ export async function registerRoutes(
           dueDate,
           signatureDataUrl: data.signature_data,
         });
-        if (docsResult) {
-          googleDriveFileId = docsResult.fileId;
-          googleDriveLink = docsResult.webViewLink;
-          agreementText = docsResult.agreementText;
+        if (driveResult) {
+          googleDriveFileId = driveResult.fileId;
+          googleDriveLink = driveResult.webViewLink;
+          agreementText = driveResult.agreementText;
         }
-      } catch (docsError) {
-        console.error("Failed to create Google Doc (continuing without):", docsError);
+      } catch (driveError) {
+        console.error("Failed to upload PDF to Google Drive (continuing without):", driveError);
       }
       
       const agreement = await storage.createSignedAgreement({
