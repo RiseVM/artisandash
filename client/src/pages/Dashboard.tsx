@@ -321,7 +321,7 @@ export function Dashboard() {
               )}
               <TableHead>Customer</TableHead>
               <TableHead>Sample</TableHead>
-              <TableHead>Dates & Reminders</TableHead>
+              <TableHead>Due & Remind</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Notes</TableHead>
               <TableHead>Created By</TableHead>
@@ -363,40 +363,34 @@ export function Dashboard() {
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="text-xs space-y-1">
-                      <div className="flex justify-between w-32">
-                        <span className="text-muted-foreground">Out:</span> 
-                        <span>{format(new Date(sample.checkout_date), 'MMM d')}</span>
-                      </div>
-                      <div className="flex justify-between w-32 font-medium">
-                        <span className="text-muted-foreground">Due:</span> 
+                      <div className="font-medium">
+                        <span className="text-muted-foreground">Due: </span>
                         <span className={sample.status === 'overdue' ? "text-red-600" : ""}>
                           {format(new Date(sample.due_date), 'MMM d')}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => handleSendReminder(sample.id, sample.customer.email)}
-                          disabled={sendingReminderId === sample.id}
-                          data-testid={`button-send-reminder-${sample.id}`}
-                        >
-                          {sendingReminderId === sample.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <>
-                              <Mail className="h-3 w-3 mr-1" />
-                              Remind
-                            </>
-                          )}
-                        </Button>
-                      </div>
                       {sample.last_reminder_sent && (
-                        <div className="text-muted-foreground text-[10px] mt-1">
-                          Last sent: {format(new Date(sample.last_reminder_sent), 'MMM d, h:mm a')}
+                        <div className="text-muted-foreground text-[10px]">
+                          Reminded: {format(new Date(sample.last_reminder_sent), 'MMM d, h:mm a')}
                         </div>
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs mt-1"
+                        onClick={() => handleSendReminder(sample.id, sample.customer.email)}
+                        disabled={sendingReminderId === sample.id}
+                        data-testid={`button-send-reminder-${sample.id}`}
+                      >
+                        {sendingReminderId === sample.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            <Mail className="h-3 w-3 mr-1" />
+                            Remind
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
