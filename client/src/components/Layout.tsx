@@ -14,9 +14,9 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
-    { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/customers", label: "Customers", icon: Users },
+    { href: "/inventory", label: "Inventory", icon: Package },
+    { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/new", label: "New Checkout", icon: PlusCircle },
   ];
 
