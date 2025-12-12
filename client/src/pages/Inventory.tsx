@@ -51,7 +51,7 @@ export function Inventory() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useToast();
 
-  const [newItem, setNewItem] = useState({ name: "", sku: "", category: "", total_quantity: 10 });
+  const [newItem, setNewItem] = useState({ name: "", color: "", vendor: "", size: "", total_quantity: 1 });
 
   const checkedOutToMap = useMemo(() => {
     const map: Record<number, { customerName: string; status: string }> = {};
@@ -68,8 +68,9 @@ export function Inventory() {
 
   const filteredInventory = inventory.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase()) ||
-    (item.sku && item.sku.toLowerCase().includes(search.toLowerCase())) ||
-    (item.category && item.category.toLowerCase().includes(search.toLowerCase()))
+    (item.color && item.color.toLowerCase().includes(search.toLowerCase())) ||
+    (item.vendor && item.vendor.toLowerCase().includes(search.toLowerCase())) ||
+    (item.size && item.size.toLowerCase().includes(search.toLowerCase()))
   );
 
   const handleAddItem = async () => {
@@ -77,12 +78,13 @@ export function Inventory() {
     try {
       await createInventoryMutation.mutateAsync({
         name: newItem.name,
-        sku: newItem.sku || null,
-        category: newItem.category || null,
+        color: newItem.color || null,
+        vendor: newItem.vendor || null,
+        size: newItem.size || null,
         total_quantity: newItem.total_quantity,
       });
       setIsAddOpen(false);
-      setNewItem({ name: "", sku: "", category: "", total_quantity: 10 });
+      setNewItem({ name: "", color: "", vendor: "", size: "", total_quantity: 1 });
       toast({ title: "Item Added", description: `${newItem.name} added to inventory.` });
     } catch (err) {
       toast({ title: "Error", description: "Failed to add item. Please try again.", variant: "destructive" });
@@ -96,8 +98,9 @@ export function Inventory() {
         id: editingItem.id,
         data: {
           name: editingItem.name,
-          sku: editingItem.sku,
-          category: editingItem.category,
+          color: editingItem.color,
+          vendor: editingItem.vendor,
+          size: editingItem.size,
           total_quantity: editingItem.total_quantity,
         }
       });
@@ -133,13 +136,13 @@ export function Inventory() {
       });
     const nextNumber = Math.max(0, ...existingNumbers) + 1;
     const newName = `${baseName}-${nextNumber}`;
-    const newSku = editingItem.sku ? `${editingItem.sku}-${nextNumber}` : null;
     
     try {
       await createInventoryMutation.mutateAsync({
         name: newName,
-        sku: newSku,
-        category: editingItem.category || null,
+        color: editingItem.color || null,
+        vendor: editingItem.vendor || null,
+        size: editingItem.size || null,
         total_quantity: 1,
       });
       setEditingItem(null);
@@ -186,21 +189,30 @@ export function Inventory() {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">SKU</Label>
+                <Label className="text-right">Color</Label>
                 <Input 
                   className="col-span-3" 
-                  value={newItem.sku} 
-                  onChange={(e) => setNewItem({...newItem, sku: e.target.value})}
-                  data-testid="input-new-item-sku"
+                  value={newItem.color} 
+                  onChange={(e) => setNewItem({...newItem, color: e.target.value})}
+                  data-testid="input-new-item-color"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Category</Label>
+                <Label className="text-right">Vendor</Label>
                 <Input 
                   className="col-span-3" 
-                  value={newItem.category} 
-                  onChange={(e) => setNewItem({...newItem, category: e.target.value})}
-                  data-testid="input-new-item-category"
+                  value={newItem.vendor} 
+                  onChange={(e) => setNewItem({...newItem, vendor: e.target.value})}
+                  data-testid="input-new-item-vendor"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Size</Label>
+                <Input 
+                  className="col-span-3" 
+                  value={newItem.size} 
+                  onChange={(e) => setNewItem({...newItem, size: e.target.value})}
+                  data-testid="input-new-item-size"
                 />
               </div>
             </div>
@@ -236,8 +248,9 @@ export function Inventory() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Color</TableHead>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Size</TableHead>
                   <TableHead>Checked Out To</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -256,8 +269,9 @@ export function Inventory() {
                         {item.name}
                       </div>
                     </TableCell>
-                    <TableCell>{item.sku || "—"}</TableCell>
-                    <TableCell>{item.category || "—"}</TableCell>
+                    <TableCell>{item.color || "—"}</TableCell>
+                    <TableCell>{item.vendor || "—"}</TableCell>
+                    <TableCell>{item.size || "—"}</TableCell>
                     <TableCell>
                       {checkedOutToMap[item.id] ? (
                         <div className="flex items-center gap-2">
@@ -307,21 +321,30 @@ export function Inventory() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">SKU</Label>
+              <Label className="text-right">Color</Label>
               <Input 
                 className="col-span-3" 
-                value={editingItem?.sku || ""} 
-                onChange={(e) => setEditingItem(editingItem ? {...editingItem, sku: e.target.value} : null)}
-                data-testid="input-edit-item-sku"
+                value={editingItem?.color || ""} 
+                onChange={(e) => setEditingItem(editingItem ? {...editingItem, color: e.target.value} : null)}
+                data-testid="input-edit-item-color"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Category</Label>
+              <Label className="text-right">Vendor</Label>
               <Input 
                 className="col-span-3" 
-                value={editingItem?.category || ""} 
-                onChange={(e) => setEditingItem(editingItem ? {...editingItem, category: e.target.value} : null)}
-                data-testid="input-edit-item-category"
+                value={editingItem?.vendor || ""} 
+                onChange={(e) => setEditingItem(editingItem ? {...editingItem, vendor: e.target.value} : null)}
+                data-testid="input-edit-item-vendor"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Size</Label>
+              <Input 
+                className="col-span-3" 
+                value={editingItem?.size || ""} 
+                onChange={(e) => setEditingItem(editingItem ? {...editingItem, size: e.target.value} : null)}
+                data-testid="input-edit-item-size"
               />
             </div>
           </div>

@@ -48,8 +48,9 @@ export const customers = pgTable("customers", {
 export const inventory = pgTable("inventory", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  sku: text("sku"),
-  category: text("category"),
+  color: text("color"),
+  vendor: text("vendor"),
+  size: text("size"),
   total_quantity: integer("total_quantity").default(1).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
