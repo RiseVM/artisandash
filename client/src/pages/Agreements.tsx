@@ -4,6 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { Search, FileText, Trash2, Eye, Loader2, ExternalLink } from "lucide-react";
@@ -18,6 +27,7 @@ export function Agreements() {
   
   const [search, setSearch] = useState("");
   const [selectedAgreement, setSelectedAgreement] = useState<SignedAgreement | null>(null);
+  const [deleteAgreement, setDeleteAgreement] = useState<SignedAgreement | null>(null);
 
   const getCustomerName = (customerId: number) => {
     const customer = customers.find(c => c.id === customerId);
@@ -33,11 +43,12 @@ export function Agreements() {
     );
   });
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this agreement?")) return;
+  const handleDelete = async () => {
+    if (!deleteAgreement) return;
     try {
-      await deleteAgreementMutation.mutateAsync(id);
+      await deleteAgreementMutation.mutateAsync(deleteAgreement.id);
       toast({ title: "Agreement deleted" });
+      setDeleteAgreement(null);
     } catch (err) {
       toast({ title: "Error deleting agreement", variant: "destructive" });
     }
@@ -135,7 +146,7 @@ export function Agreements() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleDelete(agreement.id)}
+                          onClick={() => setDeleteAgreement(agreement)}
                           className="text-destructive hover:text-destructive"
                           data-testid={`button-delete-agreement-${agreement.id}`}
                         >
@@ -219,6 +230,20 @@ export function Agreements() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteAgreement} onOpenChange={() => setDeleteAgreement(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this agreement?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
