@@ -67,7 +67,8 @@ import {
   Check,
   ChevronsUpDown,
   Loader2,
-  Trash2
+  Trash2,
+  Mail
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -97,7 +98,39 @@ export function Dashboard() {
   const [itemOpen, setItemOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isBulkReturning, setIsBulkReturning] = useState(false);
+  const [sendingReminderId, setSendingReminderId] = useState<number | null>(null);
   const { toast } = useToast();
+
+  const handleSendReminder = async (checkoutId: number, customerEmail: string) => {
+    setSendingReminderId(checkoutId);
+    try {
+      const response = await fetch(`/api/checkouts/${checkoutId}/send-reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        toast({
+          title: "Reminder Sent",
+          description: `Email sent to ${customerEmail}`,
+        });
+      } else {
+        toast({
+          title: "Failed to Send",
+          description: data.message || "Could not send reminder email",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to send reminder. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingReminderId(null);
+    }
+  };
 
   const toggleSelection = (id: number) => {
     setSelectedIds(prev => {
@@ -289,12 +322,13 @@ export function Dashboard() {
               <TableHead>Status</TableHead>
               <TableHead>Created By</TableHead>
               <TableHead>Notes</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={showCheckboxes ? 7 : 6} className="h-24 text-center">
+                <TableCell colSpan={showCheckboxes ? 8 : 7} className="h-24 text-center">
                   No samples found.
                 </TableCell>
               </TableRow>
@@ -378,6 +412,24 @@ export function Dashboard() {
                     <p className="truncate text-xs text-muted-foreground" title={sample.notes || ""}>
                       {sample.notes || "—"}
                     </p>
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSendReminder(sample.id, sample.customer.email)}
+                      disabled={sendingReminderId === sample.id}
+                      data-testid={`button-send-reminder-${sample.id}`}
+                    >
+                      {sendingReminderId === sample.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Mail className="h-4 w-4 mr-1" />
+                          Remind
+                        </>
+                      )}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))

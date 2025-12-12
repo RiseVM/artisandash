@@ -221,6 +221,34 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/checkouts/:id/send-reminder", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const checkoutView = await storage.getCheckoutView(id);
+      
+      if (!checkoutView) {
+        return res.status(404).json({ error: "Checkout not found" });
+      }
+      
+      const success = await sendSampleReminder(
+        checkoutView.customer.email,
+        checkoutView.customer.name,
+        checkoutView.item.name,
+        checkoutView.due_date,
+        "7_day_reminder"
+      );
+      
+      if (success) {
+        res.json({ success: true, message: `Reminder sent to ${checkoutView.customer.email}` });
+      } else {
+        res.status(500).json({ success: false, message: "Failed to send reminder" });
+      }
+    } catch (error) {
+      console.error("Error sending reminder:", error);
+      res.status(500).json({ error: "Failed to send reminder", details: String(error) });
+    }
+  });
+
   startScheduler(60);
 
   return httpServer;
