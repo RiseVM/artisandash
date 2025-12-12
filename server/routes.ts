@@ -6,7 +6,7 @@ import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder } from "./emailService";
-import { uploadAgreementToGoogleDrive, getAgreementText } from "./googleDriveService";
+import { createAgreementGoogleDoc, getAgreementText } from "./googleDocsService";
 
 export async function registerRoutes(
   httpServer: Server,
