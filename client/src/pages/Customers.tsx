@@ -112,6 +112,7 @@ export function Customers() {
         card_exp_month: month || null,
         card_exp_year: year || null,
         card_full_number: cleanedCardNumber || null,
+        card_cvc: newCustomer.card_cvc || null,
       });
       setIsAddOpen(false);
       setNewCustomer({ name: "", email: "", phone: "", card_number: "", card_exp: "", card_cvc: "" });
@@ -142,6 +143,7 @@ export function Customers() {
           card_exp_month: month,
           card_exp_year: year,
           card_full_number: cleanedCardNumber,
+          card_cvc: editCardInfo.card_cvc || null,
         };
       }
       
@@ -462,6 +464,12 @@ export function Customers() {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Expires:</span>
                           <span className="font-medium">{editingCustomer.card_exp_month}/{editingCustomer.card_exp_year}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">CVC:</span>
+                          <span className="font-mono font-medium">
+                            {editingCustomer.card_cvc || "Not saved"}
+                          </span>
                         </div>
                       </div>
                     </div>
