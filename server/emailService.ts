@@ -56,12 +56,12 @@ export async function sendSampleReminder(
     
     switch (notificationType) {
       case '7_day_reminder':
-        subject = `Reminder: Your tile sample is due in 7 days`;
+        subject = `Reminder: Your sample is due in 7 days`;
         bodyHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #2c3e50;">Sample Return Reminder</h2>
             <p>Dear ${customerName},</p>
-            <p>This is a friendly reminder that your tile sample <strong>${sampleName}</strong> is due for return in 7 days on <strong>${dueDate}</strong>.</p>
+            <p>This is a friendly reminder that your sample <strong>${sampleName}</strong> is due for return in 7 days on <strong>${dueDate}</strong>.</p>
             <p>Please return the sample to Artisan Tile Kitchen & Bath before the due date to avoid any late fees.</p>
             <p>If you have any questions, please don't hesitate to contact us.</p>
             <p>Thank you,<br/>Artisan Tile Kitchen & Bath</p>
@@ -69,12 +69,12 @@ export async function sendSampleReminder(
         `;
         break;
       case '1_day_reminder':
-        subject = `Urgent: Your tile sample is due tomorrow`;
+        subject = `Urgent: Your sample is due tomorrow`;
         bodyHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #e74c3c;">Sample Return - Due Tomorrow</h2>
             <p>Dear ${customerName},</p>
-            <p>This is a reminder that your tile sample <strong>${sampleName}</strong> is due for return <strong>tomorrow (${dueDate})</strong>.</p>
+            <p>This is a reminder that your sample <strong>${sampleName}</strong> is due for return <strong>tomorrow (${dueDate})</strong>.</p>
             <p>Please return the sample to Artisan Tile Kitchen & Bath to avoid any late fees.</p>
             <p>If you need an extension, please contact us as soon as possible.</p>
             <p>Thank you,<br/>Artisan Tile Kitchen & Bath</p>
@@ -82,12 +82,12 @@ export async function sendSampleReminder(
         `;
         break;
       case 'overdue':
-        subject = `Action Required: Your tile sample is overdue`;
+        subject = `Action Required: Your sample is overdue`;
         bodyHtml = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #c0392b;">Sample Overdue Notice</h2>
             <p>Dear ${customerName},</p>
-            <p>Your tile sample <strong>${sampleName}</strong> was due on <strong>${dueDate}</strong> and is now overdue.</p>
+            <p>Your sample <strong>${sampleName}</strong> was due on <strong>${dueDate}</strong> and is now overdue.</p>
             <p>Please return the sample to Artisan Tile Kitchen & Bath immediately to avoid additional charges.</p>
             <p>If you have already returned the sample or need to discuss this, please contact us right away.</p>
             <p>Thank you,<br/>Artisan Tile Kitchen & Bath</p>
