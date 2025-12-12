@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -147,6 +148,18 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to update checkout" });
     }
   });
+
+  app.post("/api/notifications/send", isAuthenticated, async (req, res) => {
+    try {
+      const results = await checkAndSendNotifications();
+      res.json(results);
+    } catch (error) {
+      console.error("Error sending notifications:", error);
+      res.status(500).json({ error: "Failed to send notifications" });
+    }
+  });
+
+  startScheduler(60);
 
   return httpServer;
 }

@@ -4,6 +4,7 @@ import {
   inventory, 
   checkouts,
   users,
+  emailNotifications,
   type Customer,
   type Inventory,
   type Checkout,
@@ -12,9 +13,11 @@ import {
   type InsertCheckout,
   type CheckoutView,
   type User,
-  type UpsertUser
+  type UpsertUser,
+  type InsertEmailNotification,
+  type EmailNotification
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   // Users (for Replit Auth)
@@ -40,6 +43,11 @@ export interface IStorage {
   getCheckoutViews(): Promise<CheckoutView[]>;
   createCheckout(checkout: InsertCheckout): Promise<Checkout>;
   updateCheckout(id: number, checkout: Partial<InsertCheckout>): Promise<Checkout | undefined>;
+
+  // Email notifications
+  getNotificationsByCheckout(checkoutId: number): Promise<EmailNotification[]>;
+  hasNotificationBeenSent(checkoutId: number, notificationType: string): Promise<boolean>;
+  createNotification(notification: InsertEmailNotification): Promise<EmailNotification>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -160,6 +168,26 @@ export class DatabaseStorage implements IStorage {
 
   async updateCheckout(id: number, checkout: Partial<InsertCheckout>): Promise<Checkout | undefined> {
     const result = await db.update(checkouts).set({ ...checkout, updated_at: new Date() }).where(eq(checkouts.id, id)).returning();
+    return result[0];
+  }
+
+  // Email notifications
+  async getNotificationsByCheckout(checkoutId: number): Promise<EmailNotification[]> {
+    return db.select().from(emailNotifications).where(eq(emailNotifications.checkout_id, checkoutId));
+  }
+
+  async hasNotificationBeenSent(checkoutId: number, notificationType: string): Promise<boolean> {
+    const result = await db.select().from(emailNotifications).where(
+      and(
+        eq(emailNotifications.checkout_id, checkoutId),
+        eq(emailNotifications.notification_type, notificationType)
+      )
+    );
+    return result.length > 0;
+  }
+
+  async createNotification(notification: InsertEmailNotification): Promise<EmailNotification> {
+    const result = await db.insert(emailNotifications).values(notification).returning();
     return result[0];
   }
 }

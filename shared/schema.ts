@@ -97,3 +97,19 @@ export type CheckoutView = Checkout & {
   customer: Customer;
   item: Inventory;
 };
+
+// Email notification tracking
+export const emailNotifications = pgTable("email_notifications", {
+  id: serial("id").primaryKey(),
+  checkout_id: integer("checkout_id").references(() => checkouts.id).notNull(),
+  notification_type: text("notification_type").notNull(), // 7_day_reminder | 1_day_reminder | overdue
+  sent_at: timestamp("sent_at").defaultNow().notNull(),
+});
+
+export const insertEmailNotificationSchema = createInsertSchema(emailNotifications).omit({
+  id: true,
+  sent_at: true,
+});
+
+export type InsertEmailNotification = z.infer<typeof insertEmailNotificationSchema>;
+export type EmailNotification = typeof emailNotifications.$inferSelect;
