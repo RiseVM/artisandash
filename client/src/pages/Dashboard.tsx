@@ -489,9 +489,10 @@ export function Dashboard() {
       </div>
 
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-4">
+        <TabsList className="grid w-full grid-cols-3 mb-4">
           <TabsTrigger value="active" data-testid="tab-active">Active ({activeCheckouts.length})</TabsTrigger>
-          <TabsTrigger value="all" data-testid="tab-all">All Checkouts ({checkouts.length})</TabsTrigger>
+          <TabsTrigger value="all" data-testid="tab-all">All ({checkouts.length})</TabsTrigger>
+          <TabsTrigger value="returned" data-testid="tab-returned">Returned ({returnedCheckouts.length})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="active">
@@ -530,6 +531,14 @@ export function Dashboard() {
           <Card>
             <CardContent className="pt-6">
               <CheckoutTable data={filterAndSort(checkouts)} showCheckboxes={true} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="returned">
+          <Card>
+            <CardContent className="pt-6">
+              <CheckoutTable data={returnedCheckouts} />
             </CardContent>
           </Card>
         </TabsContent>
