@@ -10,7 +10,7 @@ export function Landing() {
           <img 
             src="/logo.jpg" 
             alt="Artisan Tile Kitchen & Bath" 
-            className="w-full mx-auto mb-4"
+            className="w-full mx-auto mb-4 mix-blend-multiply"
           />
           <p className="text-xl text-muted-foreground">Sample Tracker</p>
         </div>
