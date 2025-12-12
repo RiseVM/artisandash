@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useInventory, useCreateInventory, useUpdateInventory, useDeleteInventory } from "@/hooks/use-api";
+import { useState, useMemo } from "react";
+import { useInventory, useCreateInventory, useUpdateInventory, useDeleteInventory, useCheckouts } from "@/hooks/use-api";
 import type { Inventory } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,11 +35,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Edit2, Package, Loader2, Trash2, Copy } from "lucide-react";
+import { Search, Plus, Edit2, Package, Loader2, Trash2, Copy, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function Inventory() {
   const { data: inventory = [], isLoading } = useInventory();
+  const { data: checkouts = [] } = useCheckouts();
   const createInventoryMutation = useCreateInventory();
   const updateInventoryMutation = useUpdateInventory();
   const deleteInventoryMutation = useDeleteInventory();
@@ -51,6 +52,19 @@ export function Inventory() {
   const { toast } = useToast();
 
   const [newItem, setNewItem] = useState({ name: "", sku: "", category: "", total_quantity: 10 });
+
+  const checkedOutToMap = useMemo(() => {
+    const map: Record<number, { customerName: string; status: string }> = {};
+    for (const checkout of checkouts) {
+      if (checkout.status === 'checked_out' || checkout.status === 'overdue') {
+        map[checkout.inventory_item_id] = {
+          customerName: checkout.customer.name,
+          status: checkout.status
+        };
+      }
+    }
+    return map;
+  }, [checkouts]);
 
   const filteredInventory = inventory.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -224,6 +238,7 @@ export function Inventory() {
                   <TableHead>Name</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Checked Out To</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -238,6 +253,21 @@ export function Inventory() {
                     </TableCell>
                     <TableCell>{item.sku || "—"}</TableCell>
                     <TableCell>{item.category || "—"}</TableCell>
+                    <TableCell>
+                      {checkedOutToMap[item.id] ? (
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className={checkedOutToMap[item.id].status === 'overdue' ? 'text-destructive font-medium' : ''}>
+                            {checkedOutToMap[item.id].customerName}
+                          </span>
+                          {checkedOutToMap[item.id].status === 'overdue' && (
+                            <span className="text-xs text-destructive">(Overdue)</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">Available</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button 
                         size="icon" 
