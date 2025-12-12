@@ -122,8 +122,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCustomer(id: number): Promise<boolean> {
-    // First delete all checkouts for this customer (they should all be returned at this point)
+    // Get all checkout IDs for this customer
+    const customerCheckouts = await db.select({ id: checkouts.id }).from(checkouts).where(eq(checkouts.customer_id, id));
+    const checkoutIds = customerCheckouts.map(c => c.id);
+    
+    // Delete email notifications for these checkouts
+    if (checkoutIds.length > 0) {
+      for (const checkoutId of checkoutIds) {
+        await db.delete(emailNotifications).where(eq(emailNotifications.checkout_id, checkoutId));
+      }
+    }
+    
+    // Delete signed agreements for this customer
+    await db.delete(signedAgreements).where(eq(signedAgreements.customer_id, id));
+    
+    // Delete all checkouts for this customer
     await db.delete(checkouts).where(eq(checkouts.customer_id, id));
+    
+    // Finally delete the customer
     const result = await db.delete(customers).where(eq(customers.id, id)).returning();
     return result.length > 0;
   }
