@@ -175,10 +175,10 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       });
       
       setCardVerified(true);
-      form.setValue("auth_notes", `Verified Card (Ending in 4242) - charged $1.00`);
+      form.setValue("auth_notes", `Card on file (Ending in 4242)`);
       toast({
         title: "Card Verified",
-        description: "$1.00 sample fee processed. Card saved to customer file.",
+        description: "Card saved to customer file for sample checkout.",
       });
     } catch (err) {
       toast({
@@ -474,10 +474,10 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                     </FormControl>
                     <div className="space-y-1 leading-none">
                       <FormLabel>
-                        I agree to the sample policy and authorize the $1.00 fee
+                        I agree to the sample policy and authorize storing my card on file
                       </FormLabel>
                       <FormDescription>
-                        I understand that a $1.00 fee will be charged. I authorize Artisan Tile to charge this card for the full retail price of the sample if it is not returned by the due date or is returned damaged.
+                        I authorize Artisan Tile to store my card on file and charge it for the full retail price of the sample if it is not returned by the due date or is returned damaged.
                       </FormDescription>
                       <FormMessage />
                     </div>
@@ -578,10 +578,10 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                       {isProcessingCard ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing $1.00 Charge...
+                          Saving Card...
                         </>
                       ) : (
-                        "Charge $1.00 Fee & Verify Card"
+                        "Save Card on File"
                       )}
                     </Button>
                     {!paymentAgreement && (
@@ -595,7 +595,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                       </p>
                     )}
                     <p className="text-xs text-center text-muted-foreground">
-                      This will securely save the card for future charges if the sample is not returned.
+                      Your card will be stored securely in case of issues with sample return.
                     </p>
                   </div>
                 ) : (
@@ -605,7 +605,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                       Card Verified
                     </div>
                     <p className="text-sm text-green-600">
-                      $1.00 fee collected. Card ending in 4242 is securely stored.
+                      Card ending in 4242 is securely stored on file.
                     </p>
                     <Button 
                       variant="link" 
