@@ -35,7 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Edit2, Package, Loader2, Trash2 } from "lucide-react";
+import { Search, Plus, Edit2, Package, Loader2, Trash2, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function Inventory() {
@@ -105,6 +105,33 @@ export function Inventory() {
       setShowDeleteConfirm(false);
       const errorMsg = err?.message || "Failed to delete item.";
       toast({ title: "Failed to Delete Item", description: `${errorMsg} Return all samples first.`, variant: "destructive" });
+    }
+  };
+
+  const handleDuplicateItem = async () => {
+    if (!editingItem) return;
+    const baseName = editingItem.name.replace(/-\d+$/, '');
+    const existingNumbers = inventory
+      .filter(item => item.name === baseName || item.name.startsWith(baseName + '-'))
+      .map(item => {
+        const match = item.name.match(/-(\d+)$/);
+        return match ? parseInt(match[1]) : 0;
+      });
+    const nextNumber = Math.max(0, ...existingNumbers) + 1;
+    const newName = `${baseName}-${nextNumber}`;
+    const newSku = editingItem.sku ? `${editingItem.sku}-${nextNumber}` : null;
+    
+    try {
+      await createInventoryMutation.mutateAsync({
+        name: newName,
+        sku: newSku,
+        category: editingItem.category || null,
+        total_quantity: 1,
+      });
+      setEditingItem(null);
+      toast({ title: "Item Duplicated", description: `Created ${newName}` });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to duplicate item.", variant: "destructive" });
     }
   };
 
@@ -264,15 +291,26 @@ export function Inventory() {
             </div>
           </div>
           <DialogFooter className="flex justify-between">
-            <Button 
-              variant="destructive" 
-              onClick={() => setShowDeleteConfirm(true)} 
-              disabled={deleteInventoryMutation.isPending}
-              data-testid="button-delete-item"
-            >
-              {deleteInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-              Delete
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="destructive" 
+                onClick={() => setShowDeleteConfirm(true)} 
+                disabled={deleteInventoryMutation.isPending}
+                data-testid="button-delete-item"
+              >
+                {deleteInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Delete
+              </Button>
+              <Button 
+                variant="secondary" 
+                onClick={handleDuplicateItem} 
+                disabled={createInventoryMutation.isPending}
+                data-testid="button-duplicate-item"
+              >
+                {createInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                Duplicate
+              </Button>
+            </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
               <Button onClick={handleUpdateItem} disabled={updateInventoryMutation.isPending} data-testid="button-save-edit-item">

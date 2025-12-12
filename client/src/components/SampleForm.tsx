@@ -31,7 +31,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { useCustomers, useInventory, useCreateCustomer, useCreateInventory, useCreateCheckout, useUpdateCustomer } from "@/hooks/use-api";
+import { useCustomers, useInventory, useCreateCustomer, useCreateInventory, useCreateCheckout, useUpdateCustomer, useCheckouts } from "@/hooks/use-api";
 import type { Checkout } from "@shared/schema";
 import { useLocation } from "wouter";
 import { Calendar, Check, ChevronsUpDown, CreditCard, Lock, Loader2, Plus, PenLine, RotateCcw } from "lucide-react";
@@ -76,6 +76,13 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const [, setLocation] = useLocation();
   const { data: customers = [] } = useCustomers();
   const { data: inventory = [] } = useInventory();
+  const { data: checkouts = [] } = useCheckouts();
+  
+  const checkedOutItemIds = checkouts
+    .filter(c => c.status === 'checked_out' || c.status === 'overdue')
+    .map(c => c.inventory_item_id);
+  
+  const availableInventory = inventory.filter(item => !checkedOutItemIds.includes(item.id));
   const createCustomerMutation = useCreateCustomer();
   const createInventoryMutation = useCreateInventory();
   const updateCustomerMutation = useUpdateCustomer();
@@ -393,7 +400,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                                   <p className="text-sm text-muted-foreground p-2">Item not found.</p>
                                 </CommandEmpty>
                                 <CommandGroup>
-                                  {inventory
+                                  {availableInventory
                                     .filter(item => !selectedItemIds.includes(item.id))
                                     .map((item) => (
                                       <CommandItem
