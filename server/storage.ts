@@ -122,6 +122,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCustomer(id: number): Promise<boolean> {
+    // First delete all checkouts for this customer (they should all be returned at this point)
+    await db.delete(checkouts).where(eq(checkouts.customer_id, id));
     const result = await db.delete(customers).where(eq(customers.id, id)).returning();
     return result.length > 0;
   }
