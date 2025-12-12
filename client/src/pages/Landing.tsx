@@ -5,8 +5,8 @@ import { Package, Users, ClipboardList } from "lucide-react";
 export function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted flex flex-col items-center justify-center p-4">
-      <div className="max-w-2xl w-full space-y-8 text-center">
-        <div>
+      <div className="w-full space-y-8 text-center flex flex-col items-center">
+        <div className="max-w-2xl w-full">
           <img 
             src="/logo.jpg" 
             alt="Artisan Tile Kitchen & Bath" 
@@ -15,7 +15,7 @@ export function Landing() {
           <p className="text-xl text-muted-foreground">Sample Tracker</p>
         </div>
         
-        <Card className="mt-8">
+        <Card className="mt-8 max-w-md w-full">
           <CardHeader>
             <CardTitle>Welcome</CardTitle>
             <CardDescription>
