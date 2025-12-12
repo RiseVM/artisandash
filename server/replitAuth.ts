@@ -129,12 +129,58 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/logout", (req, res) => {
     req.logout(() => {
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-        }).href
-      );
+      res.redirect("/");
+    });
+  });
+
+  // Email/password login for @artisantilect.com users
+  const EMAIL_PASSWORD = "@Artisan1200";
+  
+  app.post("/api/login/email", async (req, res) => {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+    
+    const normalizedEmail = email.toLowerCase().trim();
+    
+    if (!normalizedEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
+      return res.status(401).json({ message: `Only @${ALLOWED_DOMAIN} email addresses are allowed` });
+    }
+    
+    if (password !== EMAIL_PASSWORD) {
+      return res.status(401).json({ message: "Invalid password" });
+    }
+    
+    // Create a unique user ID based on email
+    const userId = `email_${normalizedEmail.replace(/[^a-z0-9]/g, '_')}`;
+    const firstName = normalizedEmail.split('@')[0];
+    
+    // Upsert user in database
+    await storage.upsertUser({
+      id: userId,
+      email: normalizedEmail,
+      firstName: firstName,
+      lastName: null,
+      profileImageUrl: null,
+    });
+    
+    // Create session manually
+    const user: any = {
+      claims: {
+        sub: userId,
+        email: normalizedEmail,
+        first_name: firstName,
+      },
+      expires_at: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 1 week
+    };
+    
+    req.login(user, (err) => {
+      if (err) {
+        return res.status(500).json({ message: "Login failed" });
+      }
+      return res.json({ success: true, user: { id: userId, email: normalizedEmail, firstName } });
     });
   });
 }
