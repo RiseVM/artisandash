@@ -94,7 +94,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
   const [showNewItemDialog, setShowNewItemDialog] = useState(false);
   const [newCustomerData, setNewCustomerData] = useState({ name: "", email: "", phone: "" });
-  const [newItemData, setNewItemData] = useState({ name: "", sku: "", category: "" });
+  const [newItemData, setNewItemData] = useState({ name: "", color: "", vendor: "", size: "" });
 
   const [isProcessingCard, setIsProcessingCard] = useState(false);
   const [cardVerified, setCardVerified] = useState(!!initialData?.auth_notes);
@@ -235,13 +235,14 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
     }
     const newI = await createInventoryMutation.mutateAsync({ 
       name: newItemData.name, 
-      sku: newItemData.sku || null, 
-      category: newItemData.category || null,
+      color: newItemData.color || null, 
+      vendor: newItemData.vendor || null,
+      size: newItemData.size || null,
       total_quantity: 1 
     });
     addItemToList(newI.id);
     setShowNewItemDialog(false);
-    setNewItemData({ name: "", sku: "", category: "" });
+    setNewItemData({ name: "", color: "", vendor: "", size: "" });
     toast({ title: "Item Created", description: `${newI.name} added to checkout.` });
   };
 
@@ -766,21 +767,30 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">SKU</Label>
+              <Label className="text-right">Color</Label>
               <Input 
                 className="col-span-3" 
-                value={newItemData.sku} 
-                onChange={(e) => setNewItemData({...newItemData, sku: e.target.value})}
-                data-testid="input-inline-item-sku"
+                value={newItemData.color} 
+                onChange={(e) => setNewItemData({...newItemData, color: e.target.value})}
+                data-testid="input-inline-item-color"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Category</Label>
+              <Label className="text-right">Vendor</Label>
               <Input 
                 className="col-span-3" 
-                value={newItemData.category} 
-                onChange={(e) => setNewItemData({...newItemData, category: e.target.value})}
-                data-testid="input-inline-item-category"
+                value={newItemData.vendor} 
+                onChange={(e) => setNewItemData({...newItemData, vendor: e.target.value})}
+                data-testid="input-inline-item-vendor"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Size</Label>
+              <Input 
+                className="col-span-3" 
+                value={newItemData.size} 
+                onChange={(e) => setNewItemData({...newItemData, size: e.target.value})}
+                data-testid="input-inline-item-size"
               />
             </div>
           </div>
