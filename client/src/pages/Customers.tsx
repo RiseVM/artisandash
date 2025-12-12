@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2, Trash2 } from "lucide-react";
+import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2, Trash2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const ADMIN_PASSWORD = "@Artisan1200";
@@ -205,6 +205,34 @@ export function Customers() {
     }
   };
 
+  const handleExportCSV = () => {
+    const headers = ["Name", "Email", "Phone", "Card Brand", "Card Last 4"];
+    const rows = customers.map(c => [
+      c.name,
+      c.email,
+      c.phone || "",
+      c.card_brand || "",
+      c.card_last4 || ""
+    ]);
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `customers_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast({ title: "Export Complete", description: `${customers.length} customers exported to CSV.` });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -220,13 +248,18 @@ export function Customers() {
           <h1 className="text-2xl font-serif font-bold text-primary">Customers</h1>
           <p className="text-muted-foreground">Manage your client list.</p>
         </div>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-customer">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Customer
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportCSV} data-testid="button-export-customers">
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-customer">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Customer
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Add Customer</DialogTitle>
@@ -306,7 +339,8 @@ export function Customers() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <Card>
