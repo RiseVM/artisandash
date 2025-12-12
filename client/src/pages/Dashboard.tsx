@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useCheckouts, useCustomers, useInventory, useUpdateCheckout, useDeleteCheckout } from "@/hooks/use-api";
+import { useQueryClient } from "@tanstack/react-query";
 import type { CheckoutView, Customer, Inventory } from "@shared/schema";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -90,6 +91,7 @@ export function Dashboard() {
   const { data: inventory = [] } = useInventory();
   const updateCheckoutMutation = useUpdateCheckout();
   const deleteCheckoutMutation = useDeleteCheckout();
+  const queryClient = useQueryClient();
   
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<'due_asc' | 'due_desc' | 'name_asc'>('due_asc');
@@ -110,6 +112,7 @@ export function Dashboard() {
       });
       const data = await response.json();
       if (response.ok) {
+        queryClient.invalidateQueries({ queryKey: ['/api/checkouts'] });
         toast({
           title: "Reminder Sent",
           description: `Email sent to ${customerEmail}`,
@@ -318,17 +321,16 @@ export function Dashboard() {
               )}
               <TableHead>Customer</TableHead>
               <TableHead>Sample</TableHead>
-              <TableHead>Dates</TableHead>
+              <TableHead>Dates & Reminders</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Notes</TableHead>
               <TableHead>Created By</TableHead>
-              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={showCheckboxes ? 8 : 7} className="h-24 text-center">
+                <TableCell colSpan={showCheckboxes ? 7 : 6} className="h-24 text-center">
                   No samples found.
                 </TableCell>
               </TableRow>
@@ -359,7 +361,7 @@ export function Dashboard() {
                     <div className="font-medium">{sample.item.name}</div>
                     <div className="text-xs text-muted-foreground">{sample.item.sku}</div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="text-xs space-y-1">
                       <div className="flex justify-between w-32">
                         <span className="text-muted-foreground">Out:</span> 
@@ -371,6 +373,30 @@ export function Dashboard() {
                           {format(new Date(sample.due_date), 'MMM d')}
                         </span>
                       </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => handleSendReminder(sample.id, sample.customer.email)}
+                          disabled={sendingReminderId === sample.id}
+                          data-testid={`button-send-reminder-${sample.id}`}
+                        >
+                          {sendingReminderId === sample.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <>
+                              <Mail className="h-3 w-3 mr-1" />
+                              Remind
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      {sample.last_reminder_sent && (
+                        <div className="text-muted-foreground text-[10px] mt-1">
+                          Last sent: {format(new Date(sample.last_reminder_sent), 'MMM d, h:mm a')}
+                        </div>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
@@ -412,24 +438,6 @@ export function Dashboard() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSendReminder(sample.id, sample.customer.email)}
-                      disabled={sendingReminderId === sample.id}
-                      data-testid={`button-send-reminder-${sample.id}`}
-                    >
-                      {sendingReminderId === sample.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Mail className="h-4 w-4 mr-1" />
-                          Remind
-                        </>
-                      )}
-                    </Button>
                   </TableCell>
                 </TableRow>
               ))

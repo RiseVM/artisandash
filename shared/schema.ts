@@ -64,6 +64,7 @@ export const checkouts = pgTable("checkouts", {
   auth_notes: text("auth_notes"),
   stripe_payment_intent_id: text("stripe_payment_intent_id"),
   created_by_user_id: varchar("created_by_user_id").references(() => users.id),
+  last_reminder_sent: timestamp("last_reminder_sent"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });

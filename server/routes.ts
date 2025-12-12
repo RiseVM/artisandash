@@ -239,6 +239,7 @@ export async function registerRoutes(
       );
       
       if (success) {
+        await storage.updateCheckout(id, { last_reminder_sent: new Date() } as any);
         res.json({ success: true, message: `Reminder sent to ${checkoutView.customer.email}` });
       } else {
         res.status(500).json({ success: false, message: "Failed to send reminder" });
