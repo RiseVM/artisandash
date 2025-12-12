@@ -206,13 +206,11 @@ export function Customers() {
   };
 
   const handleExportCSV = () => {
-    const headers = ["Name", "Email", "Phone", "Card Brand", "Card Last 4"];
+    const headers = ["Name", "Email", "Phone"];
     const rows = customers.map(c => [
       c.name,
       c.email,
-      c.phone || "",
-      c.card_brand || "",
-      c.card_last4 || ""
+      c.phone || ""
     ]);
     
     const csvContent = [
