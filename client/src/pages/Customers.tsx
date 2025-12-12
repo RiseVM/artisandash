@@ -30,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const ADMIN_PASSWORD = "admin123";
+const ADMIN_PASSWORD = "@Artisan1200";
 
 export function Customers() {
   const { data: customers = [], isLoading } = useCustomers();
