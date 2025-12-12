@@ -244,7 +244,12 @@ export function Inventory() {
               </TableHeader>
               <TableBody>
                 {filteredInventory.map((item) => (
-                  <TableRow key={item.id} data-testid={`row-inventory-${item.id}`}>
+                  <TableRow 
+                    key={item.id} 
+                    data-testid={`row-inventory-${item.id}`}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setEditingItem({...item})}
+                  >
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <Package className="h-4 w-4 text-muted-foreground" />
@@ -272,7 +277,7 @@ export function Inventory() {
                       <Button 
                         size="icon" 
                         variant="ghost" 
-                        onClick={() => setEditingItem({...item})}
+                        onClick={(e) => { e.stopPropagation(); setEditingItem({...item}); }}
                         data-testid={`button-edit-item-${item.id}`}
                       >
                         <Edit2 className="h-4 w-4" />
