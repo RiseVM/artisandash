@@ -58,7 +58,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="p-6 border-t border-sidebar-border hidden md:block space-y-4">
           <Button 
             variant="ghost" 
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground"
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground cursor-pointer"
             onClick={() => window.location.href = "/api/logout"}
             data-testid="button-logout"
           >
