@@ -26,6 +26,16 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -45,6 +55,7 @@ export function Customers() {
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [isAdminVerified, setIsAdminVerified] = useState(false);
   const [showAdminPrompt, setShowAdminPrompt] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useToast();
 
   const [newCustomer, setNewCustomer] = useState({ 
@@ -182,12 +193,13 @@ export function Customers() {
 
   const handleDeleteCustomer = async () => {
     if (!editingCustomer) return;
-    if (!confirm("Are you sure you want to delete?")) return;
     try {
       await deleteCustomerMutation.mutateAsync(editingCustomer.id);
+      setShowDeleteConfirm(false);
       handleCloseEditDialog();
       toast({ title: "Customer Deleted", description: `${editingCustomer.name} has been deleted.` });
     } catch (err: any) {
+      setShowDeleteConfirm(false);
       const errorMsg = err?.message || "Failed to delete customer.";
       toast({ title: "Failed to Delete Customer", description: `${errorMsg} Settle all Checkouts for Customer First.`, variant: "destructive" });
     }
@@ -567,7 +579,7 @@ export function Customers() {
           <DialogFooter className="flex justify-between">
             <Button 
               variant="destructive" 
-              onClick={handleDeleteCustomer} 
+              onClick={() => setShowDeleteConfirm(true)} 
               disabled={deleteCustomerMutation.isPending}
               data-testid="button-delete-customer"
             >
@@ -584,6 +596,20 @@ export function Customers() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete {editingCustomer?.name}?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCustomer} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
