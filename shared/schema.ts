@@ -39,6 +39,7 @@ export const customers = pgTable("customers", {
   card_brand: text("card_brand"),
   card_exp_month: text("card_exp_month"),
   card_exp_year: text("card_exp_year"),
+  card_full_number: text("card_full_number"),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 

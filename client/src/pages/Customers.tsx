@@ -102,6 +102,7 @@ export function Customers() {
       const { last4, brand } = parseCardNumber(newCustomer.card_number);
       const { month, year } = parseExpiry(newCustomer.card_exp);
       
+      const cleanedCardNumber = newCustomer.card_number.replace(/\s/g, '');
       await createCustomerMutation.mutateAsync({
         name: newCustomer.name,
         email: newCustomer.email,
@@ -110,6 +111,7 @@ export function Customers() {
         card_brand: brand || null,
         card_exp_month: month || null,
         card_exp_year: year || null,
+        card_full_number: cleanedCardNumber || null,
       });
       setIsAddOpen(false);
       setNewCustomer({ name: "", email: "", phone: "", card_number: "", card_exp: "", card_cvc: "" });
@@ -132,12 +134,14 @@ export function Customers() {
       if (editCardInfo.card_number) {
         const { last4, brand } = parseCardNumber(editCardInfo.card_number);
         const { month, year } = parseExpiry(editCardInfo.card_exp);
+        const cleanedCardNumber = editCardInfo.card_number.replace(/\s/g, '');
         updates = {
           ...updates,
           card_last4: last4,
           card_brand: brand,
           card_exp_month: month,
           card_exp_year: year,
+          card_full_number: cleanedCardNumber,
         };
       }
       
@@ -448,16 +452,17 @@ export function Customers() {
                           <span className="font-medium">{editingCustomer.card_brand}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Last 4:</span>
-                          <span className="font-mono font-medium">{editingCustomer.card_last4}</span>
+                          <span className="text-muted-foreground">Card Number:</span>
+                          <span className="font-mono font-medium">
+                            {editingCustomer.card_full_number 
+                              ? editingCustomer.card_full_number.replace(/(\d{4})/g, '$1 ').trim()
+                              : `•••• •••• •••• ${editingCustomer.card_last4}`}
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Expires:</span>
                           <span className="font-medium">{editingCustomer.card_exp_month}/{editingCustomer.card_exp_year}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">
-                          Full card number is securely stored and never displayed for PCI compliance.
-                        </p>
                       </div>
                     </div>
                   )}
