@@ -4,18 +4,18 @@ import { Package, Users, ClipboardList } from "lucide-react";
 
 export function Landing() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted flex flex-col items-center justify-center p-4">
-      <div className="w-full space-y-8 text-center flex flex-col items-center">
-        <div className="max-w-2xl w-full">
+    <div className="h-screen bg-gradient-to-b from-background to-muted flex flex-col items-center justify-center p-4 overflow-hidden">
+      <div className="w-full text-center flex flex-col items-center gap-4">
+        <div className="max-w-lg w-full">
           <img 
             src="/logo.jpg" 
             alt="Artisan Tile Kitchen & Bath" 
-            className="w-full mx-auto mb-4 mix-blend-multiply"
+            className="w-full mx-auto mix-blend-multiply"
           />
-          <p className="text-xl text-muted-foreground">Sample Tracker</p>
+          <p className="text-lg text-muted-foreground mt-2">Sample Tracker</p>
         </div>
         
-        <Card className="mt-8 max-w-md w-full">
+        <Card className="max-w-md w-full">
           <CardHeader>
             <CardTitle>Welcome</CardTitle>
             <CardDescription>
@@ -49,7 +49,7 @@ export function Landing() {
           </CardContent>
         </Card>
         
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground mt-2">
           Staff Portal
         </p>
       </div>
