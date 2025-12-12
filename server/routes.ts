@@ -1,12 +1,13 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder } from "./emailService";
-import { uploadAgreementToGoogleDrive, getAgreementText } from "./googleDriveService";
+import { sendSampleReminder, sendContractEmail } from "./emailService";
+import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
+import { generateContractPdf } from "./contractPdfService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -398,6 +399,104 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting agreement:", error);
       res.status(500).json({ error: "Failed to delete agreement" });
+    }
+  });
+
+  // Contracts (Custom Cabinetry and Home Improvement)
+  app.get("/api/contracts", isAuthenticated, async (req, res) => {
+    try {
+      const contractList = await storage.getContracts();
+      res.json(contractList);
+    } catch (error) {
+      console.error("Error fetching contracts:", error);
+      res.status(500).json({ error: "Failed to fetch contracts" });
+    }
+  });
+
+  app.get("/api/contracts/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const contract = await storage.getContract(id);
+      if (!contract) return res.status(404).json({ error: "Contract not found" });
+      res.json(contract);
+    } catch (error) {
+      console.error("Error fetching contract:", error);
+      res.status(500).json({ error: "Failed to fetch contract" });
+    }
+  });
+
+  app.post("/api/contracts", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const data = insertContractSchema.parse(req.body);
+      
+      if (!data.signature_data || data.signature_data.trim().length === 0) {
+        return res.status(400).json({ error: "Signature data is required" });
+      }
+      
+      // Generate PDF
+      const pdfBuffer = await generateContractPdf(data.contract_type, data.form_data as Record<string, any>, data.signature_data);
+      
+      // Upload to Google Drive
+      let googleDriveFileId: string | null = null;
+      let googleDriveLink: string | null = null;
+      
+      try {
+        const driveResult = await uploadContractToGoogleDrive({
+          customerName: data.customer_name,
+          contractType: data.contract_type,
+          pdfBuffer,
+        });
+        if (driveResult) {
+          googleDriveFileId = driveResult.fileId;
+          googleDriveLink = driveResult.webViewLink;
+        }
+      } catch (driveError) {
+        console.error("Failed to upload contract PDF to Google Drive:", driveError);
+      }
+      
+      // Send email to customer
+      let emailSent = "no";
+      try {
+        const emailSuccess = await sendContractEmail(
+          data.customer_email,
+          data.customer_name,
+          data.contract_type,
+          pdfBuffer
+        );
+        emailSent = emailSuccess ? "yes" : "no";
+      } catch (emailError) {
+        console.error("Failed to send contract email:", emailError);
+      }
+      
+      // Save to database
+      const contract = await storage.createContract({
+        ...data,
+        created_by_user_id: userId,
+        google_drive_file_id: googleDriveFileId,
+        google_drive_link: googleDriveLink,
+        email_sent: emailSent,
+      });
+      
+      res.status(201).json(contract);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating contract:", error);
+      res.status(500).json({ error: "Failed to create contract" });
+    }
+  });
+
+  app.delete("/api/contracts/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteContract(id);
+      if (!deleted) return res.status(404).json({ error: "Contract not found" });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting contract:", error);
+      res.status(500).json({ error: "Failed to delete contract" });
     }
   });
 

@@ -110,3 +110,49 @@ export async function sendSampleReminder(
     return false;
   }
 }
+
+export async function sendContractEmail(
+  customerEmail: string,
+  customerName: string,
+  contractType: string,
+  pdfBuffer: Buffer
+): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+    
+    const contractTypeName = contractType === 'custom_cabinetry' 
+      ? 'Cabinet Design and Layout Agreement' 
+      : 'Home Improvement Contract';
+    
+    const subject = `Your ${contractTypeName} from Artisan Tile`;
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">${contractTypeName}</h2>
+        <p>Dear ${customerName},</p>
+        <p>Thank you for choosing Artisan Tile Kitchen & Bath. Please find your signed ${contractTypeName.toLowerCase()} attached to this email.</p>
+        <p>If you have any questions about your contract, please don't hesitate to contact us.</p>
+        <p>Thank you for your business!</p>
+        <p>Best regards,<br/>Artisan Tile Kitchen & Bath<br/>1200 Boston Post Road<br/>Guilford, CT 06437</p>
+      </div>
+    `;
+
+    const result = await client.emails.send({
+      from: fromEmail || 'noreply@artisantile.com',
+      to: customerEmail,
+      subject,
+      html: bodyHtml,
+      attachments: [
+        {
+          filename: `${contractTypeName.replace(/\s+/g, '_')}.pdf`,
+          content: pdfBuffer.toString('base64'),
+        }
+      ],
+    });
+
+    console.log(`Contract email sent to ${customerEmail}:`, result);
+    return true;
+  } catch (error) {
+    console.error(`Failed to send contract email to ${customerEmail}:`, error);
+    return false;
+  }
+}

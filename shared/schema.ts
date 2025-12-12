@@ -51,6 +51,8 @@ export const inventory = pgTable("inventory", {
   color: text("color"),
   vendor: text("vendor"),
   size: text("size"),
+  sku: text("sku"),
+  category: text("category"),
   total_quantity: integer("total_quantity").default(1).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });

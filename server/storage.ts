@@ -6,6 +6,7 @@ import {
   users,
   emailNotifications,
   signedAgreements,
+  contracts,
   type Customer,
   type Inventory,
   type Checkout,
@@ -18,7 +19,9 @@ import {
   type InsertEmailNotification,
   type EmailNotification,
   type InsertSignedAgreement,
-  type SignedAgreement
+  type SignedAgreement,
+  type InsertContract,
+  type Contract
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -61,6 +64,13 @@ export interface IStorage {
   getSignedAgreement(id: number): Promise<SignedAgreement | undefined>;
   createSignedAgreement(agreement: InsertSignedAgreement): Promise<SignedAgreement>;
   deleteSignedAgreement(id: number): Promise<boolean>;
+
+  // Contracts
+  getContracts(): Promise<Contract[]>;
+  getContract(id: number): Promise<Contract | undefined>;
+  createContract(contract: InsertContract): Promise<Contract>;
+  updateContract(id: number, contract: Partial<InsertContract>): Promise<Contract | undefined>;
+  deleteContract(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -299,6 +309,31 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSignedAgreement(id: number): Promise<boolean> {
     const result = await db.delete(signedAgreements).where(eq(signedAgreements.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Contracts
+  async getContracts(): Promise<Contract[]> {
+    return db.select().from(contracts).orderBy(desc(contracts.signed_at));
+  }
+
+  async getContract(id: number): Promise<Contract | undefined> {
+    const result = await db.select().from(contracts).where(eq(contracts.id, id));
+    return result[0];
+  }
+
+  async createContract(contract: InsertContract): Promise<Contract> {
+    const result = await db.insert(contracts).values(contract).returning();
+    return result[0];
+  }
+
+  async updateContract(id: number, contract: Partial<InsertContract>): Promise<Contract | undefined> {
+    const result = await db.update(contracts).set(contract).where(eq(contracts.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteContract(id: number): Promise<boolean> {
+    const result = await db.delete(contracts).where(eq(contracts.id, id)).returning();
     return result.length > 0;
   }
 }
