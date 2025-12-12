@@ -16,6 +16,11 @@ export interface Customer {
   email: string;
   phone?: string;
   stripe_customer_id?: string;
+  stripe_payment_method_id?: string;
+  card_last4?: string;
+  card_brand?: string;
+  card_exp_month?: string;
+  card_exp_year?: string;
 }
 
 export interface Checkout {
@@ -65,9 +70,9 @@ const INITIAL_INVENTORY: InventoryItem[] = [
 ];
 
 const INITIAL_CUSTOMERS: Customer[] = [
-  { id: 1, name: "Alice Wright", email: "alice@example.com", phone: "555-0123", stripe_customer_id: "cus_A1" },
+  { id: 1, name: "Alice Wright", email: "alice@example.com", phone: "555-0123", stripe_customer_id: "cus_A1", card_last4: "4242", card_brand: "Visa", card_exp_month: "12", card_exp_year: "2026" },
   { id: 2, name: "Bob Builder", email: "bob@construction.com", phone: "555-0124" },
-  { id: 3, name: "Catherine DeGroot", email: "cat@design.studio", phone: "555-0125" },
+  { id: 3, name: "Catherine DeGroot", email: "cat@design.studio", phone: "555-0125", card_last4: "1234", card_brand: "Mastercard", card_exp_month: "06", card_exp_year: "2025" },
 ];
 
 const INITIAL_CHECKOUTS: Checkout[] = [

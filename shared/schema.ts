@@ -9,6 +9,11 @@ export const customers = pgTable("customers", {
   email: text("email").notNull(),
   phone: text("phone"),
   stripe_customer_id: text("stripe_customer_id"),
+  stripe_payment_method_id: text("stripe_payment_method_id"),
+  card_last4: text("card_last4"),
+  card_brand: text("card_brand"),
+  card_exp_month: text("card_exp_month"),
+  card_exp_year: text("card_exp_year"),
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
