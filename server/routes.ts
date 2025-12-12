@@ -176,6 +176,14 @@ export async function registerRoutes(
     try {
       const userId = req.user.claims.sub;
       const data = insertCheckoutSchema.parse(req.body);
+      
+      const activeCheckouts = await storage.getActiveCheckoutsByInventoryItem(data.inventory_item_id);
+      if (activeCheckouts.length > 0) {
+        return res.status(400).json({ 
+          error: "This sample is already checked out. It must be returned first." 
+        });
+      }
+      
       const checkout = await storage.createCheckout({
         ...data,
         created_by_user_id: userId,
