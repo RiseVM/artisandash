@@ -25,6 +25,15 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Search, Plus, Edit2, Package, Loader2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +47,7 @@ export function Inventory() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Inventory | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useToast();
 
   const [newItem, setNewItem] = useState({ name: "", sku: "", category: "", total_quantity: 10 });
@@ -86,13 +96,15 @@ export function Inventory() {
 
   const handleDeleteItem = async () => {
     if (!editingItem) return;
-    if (!confirm(`Are you sure you want to delete ${editingItem.name}?`)) return;
     try {
       await deleteInventoryMutation.mutateAsync(editingItem.id);
+      setShowDeleteConfirm(false);
       setEditingItem(null);
       toast({ title: "Item Deleted", description: `${editingItem.name} has been deleted.` });
-    } catch (err) {
-      toast({ title: "Error", description: "Failed to delete item.", variant: "destructive" });
+    } catch (err: any) {
+      setShowDeleteConfirm(false);
+      const errorMsg = err?.message || "Failed to delete item.";
+      toast({ title: "Failed to Delete Item", description: `${errorMsg} Return all samples first.`, variant: "destructive" });
     }
   };
 
@@ -254,7 +266,7 @@ export function Inventory() {
           <DialogFooter className="flex justify-between">
             <Button 
               variant="destructive" 
-              onClick={handleDeleteItem} 
+              onClick={() => setShowDeleteConfirm(true)} 
               disabled={deleteInventoryMutation.isPending}
               data-testid="button-delete-item"
             >
@@ -271,6 +283,20 @@ export function Inventory() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete {editingItem?.name}?</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteItem} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
