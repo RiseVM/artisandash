@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -24,7 +25,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { useStore, Checkout } from "@/lib/store";
 import { useLocation } from "wouter";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, CreditCard, Lock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -40,6 +41,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   customer_id: z.number({ required_error: "Please select a customer" }),
@@ -47,6 +49,9 @@ const formSchema = z.object({
   due_date: z.string().min(1, "Due date is required"),
   notes: z.string().optional(),
   auth_notes: z.string().optional(),
+  payment_agreement: z.boolean().default(false).refine((val) => val === true, {
+    message: "You must agree to the sample policy terms.",
+  }),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -60,10 +65,15 @@ interface SampleFormProps {
 export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const [, setLocation] = useLocation();
   const { customers, inventory, addCustomer, addInventoryItem } = useStore();
+  const { toast } = useToast();
   
   // Combobox states
   const [customerOpen, setCustomerOpen] = useState(false);
   const [itemOpen, setItemOpen] = useState(false);
+
+  // Mock Payment State
+  const [isProcessingCard, setIsProcessingCard] = useState(false);
+  const [cardVerified, setCardVerified] = useState(!!initialData?.auth_notes);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -73,16 +83,40 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       due_date: initialData.due_date,
       notes: initialData.notes || "",
       auth_notes: initialData.auth_notes || "",
+      payment_agreement: true,
     } : {
       customer_id: undefined,
       inventory_item_id: undefined,
       due_date: format(new Date(), 'yyyy-MM-dd'),
       notes: "",
       auth_notes: "",
+      payment_agreement: false,
     },
   });
 
+  const handleChargeCard = () => {
+    setIsProcessingCard(true);
+    // Simulate API call
+    setTimeout(() => {
+      setIsProcessingCard(false);
+      setCardVerified(true);
+      form.setValue("auth_notes", `Verified Card (Ending in 4242) - charged $1.00`);
+      toast({
+        title: "Card Verified",
+        description: "$1.00 sample fee processed successfully.",
+      });
+    }, 1500);
+  };
+
   const handleSubmit = (data: FormValues) => {
+    if (!cardVerified && !initialData) {
+      toast({
+        title: "Payment Required",
+        description: "Please verify a card to proceed with checkout.",
+        variant: "destructive",
+      });
+      return;
+    }
     onSubmit(data);
     setLocation("/");
   };
@@ -276,31 +310,108 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                     </FormItem>
                   )}
                 />
+              </div>
 
-                <div className="flex items-end pb-2">
-                   <p className="text-xs text-muted-foreground">
-                     Tip: You can manage full customer details and inventory items in their respective tabs.
-                   </p>
+              {/* Secure Payment Section */}
+              <div className="rounded-lg border bg-card p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                   <Lock className="h-4 w-4 text-green-600" />
+                   <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Secure Payment Method</h3>
                 </div>
+
+                {!cardVerified ? (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        placeholder="Card number" 
+                        className="pl-9 font-mono"
+                        maxLength={19}
+                        onChange={(e) => {
+                          // Simple formatting for visual effect
+                          let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '')
+                          let matches = v.match(/\d{4,16}/g);
+                          let match = matches && matches[0] || ''
+                          let parts = []
+                          for (let i=0, len=match.length; i<len; i+=4) {
+                            parts.push(match.substring(i, i+4))
+                          }
+                          if (parts.length) {
+                            e.target.value = parts.join(' ')
+                          } else {
+                            e.target.value = v
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <Input placeholder="MM / YY" className="font-mono text-center" maxLength={5} />
+                      <Input placeholder="CVC" className="font-mono text-center" maxLength={3} type="password" />
+                      <Input placeholder="Zip Code" className="font-mono text-center" maxLength={5} />
+                    </div>
+
+                    <Button 
+                      type="button" 
+                      className="w-full" 
+                      onClick={handleChargeCard}
+                      disabled={isProcessingCard}
+                    >
+                      {isProcessingCard ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing $1.00 Charge...
+                        </>
+                      ) : (
+                        "Charge $1.00 Fee & Verify Card"
+                      )}
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      This will securely save the card for future charges if the sample is not returned.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-md p-4 text-center">
+                    <div className="flex items-center justify-center gap-2 text-green-700 font-medium mb-1">
+                      <Check className="h-5 w-5" />
+                      Card Verified
+                    </div>
+                    <p className="text-sm text-green-600">
+                      $1.00 fee collected. Card ending in 4242 is securely stored.
+                    </p>
+                    <Button 
+                      variant="link" 
+                      className="text-xs text-muted-foreground h-auto p-0 mt-2"
+                      onClick={() => {
+                        setCardVerified(false);
+                        form.setValue("auth_notes", "");
+                      }}
+                    >
+                      Use a different card
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <FormField
                 control={form.control}
-                name="auth_notes"
+                name="payment_agreement"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Card / Authorization Notes</FormLabel>
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                     <FormControl>
-                      <Textarea 
-                        placeholder="Auth code, payment link, or card last 4 digits." 
-                        className="resize-none"
-                        {...field} 
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Do not store full credit card numbers here.
-                    </FormDescription>
-                    <FormMessage />
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        I agree to the sample policy
+                      </FormLabel>
+                      <FormDescription>
+                        I understand that a $1.00 fee has been charged. I authorize Artisan Tile to charge this card for the full retail price of the sample if it is not returned by the due date or is returned damaged.
+                      </FormDescription>
+                      <FormMessage />
+                    </div>
                   </FormItem>
                 )}
               />
@@ -327,7 +438,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 <Button type="button" variant="outline" onClick={() => setLocation("/")}>
                   Cancel
                 </Button>
-                <Button type="submit">Save Sample Checkout</Button>
+                <Button type="submit" disabled={!cardVerified}>Save Sample Checkout</Button>
               </div>
             </form>
           </Form>
