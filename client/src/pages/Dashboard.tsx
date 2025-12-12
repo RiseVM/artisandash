@@ -320,8 +320,8 @@ export function Dashboard() {
               <TableHead>Sample</TableHead>
               <TableHead>Dates</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Created By</TableHead>
               <TableHead>Notes</TableHead>
+              <TableHead>Created By</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -390,6 +390,11 @@ export function Dashboard() {
                         </SelectContent>
                       </Select>
                   </TableCell>
+                  <TableCell className="max-w-[200px]">
+                    <p className="truncate text-xs text-muted-foreground" title={sample.notes || ""}>
+                      {sample.notes || "—"}
+                    </p>
+                  </TableCell>
                   <TableCell>
                     <div className="text-sm">
                       {sample.createdByUser ? (
@@ -407,11 +412,6 @@ export function Dashboard() {
                         <span className="text-muted-foreground">—</span>
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell className="max-w-[200px]">
-                    <p className="truncate text-xs text-muted-foreground" title={sample.notes || ""}>
-                      {sample.notes || "—"}
-                    </p>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Button
