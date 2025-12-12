@@ -182,13 +182,14 @@ export function Customers() {
 
   const handleDeleteCustomer = async () => {
     if (!editingCustomer) return;
-    if (!confirm(`Are you sure you want to delete ${editingCustomer.name}?`)) return;
+    if (!confirm("Are you sure you want to delete?")) return;
     try {
       await deleteCustomerMutation.mutateAsync(editingCustomer.id);
       handleCloseEditDialog();
       toast({ title: "Customer Deleted", description: `${editingCustomer.name} has been deleted.` });
-    } catch (err) {
-      toast({ title: "Error", description: "Failed to delete customer.", variant: "destructive" });
+    } catch (err: any) {
+      const errorMsg = err?.message || "Failed to delete customer.";
+      toast({ title: "Failed to Delete Customer", description: `${errorMsg} Settle all Checkouts for Customer First.`, variant: "destructive" });
     }
   };
 
