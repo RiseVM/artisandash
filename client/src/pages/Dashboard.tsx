@@ -116,6 +116,7 @@ export function Dashboard() {
         toast({
           title: "Reminder Sent",
           description: `Email sent to ${customerEmail}`,
+          duration: 1000,
         });
       } else {
         toast({
