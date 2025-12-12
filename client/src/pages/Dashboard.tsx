@@ -481,8 +481,8 @@ export function Dashboard() {
       <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-4">
           <TabsTrigger value="active" data-testid="tab-active">Active ({activeCheckouts.length})</TabsTrigger>
-          <TabsTrigger value="all" data-testid="tab-all">All ({checkouts.length})</TabsTrigger>
           <TabsTrigger value="returned" data-testid="tab-returned">Returned ({returnedCheckouts.length})</TabsTrigger>
+          <TabsTrigger value="all" data-testid="tab-all">All ({checkouts.length})</TabsTrigger>
         </TabsList>
         
         <TabsContent value="active">
