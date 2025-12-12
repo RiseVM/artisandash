@@ -3,17 +3,24 @@ import {
   customers, 
   inventory, 
   checkouts,
+  users,
   type Customer,
   type Inventory,
   type Checkout,
   type InsertCustomer,
   type InsertInventory,
   type InsertCheckout,
-  type CheckoutView
+  type CheckoutView,
+  type User,
+  type UpsertUser
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
+  // Users (for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+
   // Customers
   getCustomers(): Promise<Customer[]>;
   getCustomer(id: number): Promise<Customer | undefined>;
@@ -36,6 +43,27 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // Users (for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
   // Customers
   async getCustomers(): Promise<Customer[]> {
     return db.select().from(customers);

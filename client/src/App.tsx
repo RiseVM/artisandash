@@ -10,8 +10,25 @@ import { NewSample } from "@/pages/NewSample";
 import { EditSample } from "@/pages/EditSample";
 import { Inventory } from "@/pages/Inventory";
 import { Customers } from "@/pages/Customers";
+import { Landing } from "@/pages/Landing";
+import { useAuth } from "@/hooks/useAuth";
+import { Loader2 } from "lucide-react";
 
 function Router() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Landing />;
+  }
+
   return (
     <Layout>
       <Switch>
