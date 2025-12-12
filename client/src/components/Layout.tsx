@@ -1,7 +1,8 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { PlusCircle, LayoutDashboard, Users, Package, ShoppingBag } from "lucide-react";
+import { PlusCircle, LayoutDashboard, Users, Package, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import logoUrl from "@assets/1_1765497247808.jpg";
 
 interface LayoutProps {
@@ -54,7 +55,16 @@ export function Layout({ children }: LayoutProps) {
           </nav>
         </div>
         
-        <div className="p-6 border-t border-sidebar-border hidden md:block">
+        <div className="p-6 border-t border-sidebar-border hidden md:block space-y-4">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground"
+            onClick={() => window.location.href = "/api/logout"}
+            data-testid="button-logout"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Log Out
+          </Button>
           <p className="text-xs text-sidebar-foreground/50">
             © 2025 Artisan Tile Kitchen & Bath
             <br />
