@@ -127,6 +127,8 @@ export const signedAgreements = pgTable("signed_agreements", {
   checkout_id: integer("checkout_id").references(() => checkouts.id),
   document_title: text("document_title").notNull(),
   signature_data: text("signature_data").notNull(),
+  google_drive_file_id: text("google_drive_file_id"),
+  google_drive_link: text("google_drive_link"),
   signed_at: timestamp("signed_at").defaultNow().notNull(),
   created_by_user_id: varchar("created_by_user_id").references(() => users.id),
 });
