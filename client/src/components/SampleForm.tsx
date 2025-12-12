@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Form,
   FormControl,
@@ -22,10 +23,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { useStore, Checkout } from "@/lib/store";
 import { useLocation } from "wouter";
-import { Check, ChevronsUpDown, CreditCard, Lock, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, CreditCard, Lock, Loader2, Plus, PenLine, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -40,8 +48,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+import SignatureCanvas from "react-signature-canvas";
 
 const formSchema = z.object({
   customer_id: z.number({ required_error: "Please select a customer" }),
@@ -71,9 +80,19 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const [customerOpen, setCustomerOpen] = useState(false);
   const [itemOpen, setItemOpen] = useState(false);
 
-  // Mock Payment State
+  // New customer/item dialogs
+  const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
+  const [showNewItemDialog, setShowNewItemDialog] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState({ name: "", email: "", phone: "" });
+  const [newItemData, setNewItemData] = useState({ name: "", sku: "", category: "" });
+
+  // Payment State
   const [isProcessingCard, setIsProcessingCard] = useState(false);
   const [cardVerified, setCardVerified] = useState(!!initialData?.auth_notes);
+
+  // Signature
+  const signatureRef = useRef<SignatureCanvas>(null);
+  const [hasSignature, setHasSignature] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -94,9 +113,18 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
     },
   });
 
+  const paymentAgreement = form.watch("payment_agreement");
+
   const handleChargeCard = () => {
+    if (!paymentAgreement) {
+      toast({
+        title: "Agreement Required",
+        description: "Please agree to the sample policy before processing payment.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsProcessingCard(true);
-    // Simulate API call
     setTimeout(() => {
       setIsProcessingCard(false);
       setCardVerified(true);
@@ -108,6 +136,50 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
     }, 1500);
   };
 
+  const handleCreateCustomer = () => {
+    if (!newCustomerData.name || !newCustomerData.email) {
+      toast({ title: "Required Fields", description: "Name and email are required.", variant: "destructive" });
+      return;
+    }
+    const newC = addCustomer({ 
+      name: newCustomerData.name, 
+      email: newCustomerData.email, 
+      phone: newCustomerData.phone 
+    });
+    form.setValue("customer_id", newC.id);
+    setShowNewCustomerDialog(false);
+    setNewCustomerData({ name: "", email: "", phone: "" });
+    toast({ title: "Customer Created", description: `${newC.name} added and selected.` });
+  };
+
+  const handleCreateItem = () => {
+    if (!newItemData.name) {
+      toast({ title: "Required Fields", description: "Item name is required.", variant: "destructive" });
+      return;
+    }
+    const newI = addInventoryItem({ 
+      name: newItemData.name, 
+      sku: newItemData.sku || undefined, 
+      category: newItemData.category || undefined,
+      total_quantity: 1 
+    });
+    form.setValue("inventory_item_id", newI.id);
+    setShowNewItemDialog(false);
+    setNewItemData({ name: "", sku: "", category: "" });
+    toast({ title: "Item Created", description: `${newI.name} added and selected.` });
+  };
+
+  const clearSignature = () => {
+    signatureRef.current?.clear();
+    setHasSignature(false);
+  };
+
+  const handleSignatureEnd = () => {
+    if (signatureRef.current && !signatureRef.current.isEmpty()) {
+      setHasSignature(true);
+    }
+  };
+
   const handleSubmit = (data: FormValues) => {
     if (!cardVerified && !initialData) {
       toast({
@@ -117,7 +189,17 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       });
       return;
     }
-    onSubmit(data);
+    if (!hasSignature && !initialData) {
+      toast({
+        title: "Signature Required",
+        description: "Please sign to acknowledge the sample policy.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const signatureData = signatureRef.current?.toDataURL() || "";
+    onSubmit({ ...data, signature: signatureData });
     setLocation("/");
   };
 
@@ -140,76 +222,72 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Customer</FormLabel>
-                      <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "w-full justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value
-                                ? customers.find(
-                                    (customer) => customer.id === field.value
-                                  )?.name
-                                : "Select customer"}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[250px] p-0">
-                          <Command>
-                            <CommandInput placeholder="Search customer..." />
-                            <CommandList>
-                              <CommandEmpty>
-                                <div className="p-2">
-                                  <p className="text-sm text-muted-foreground mb-2">No customer found.</p>
-                                  <Button 
-                                    size="sm" 
-                                    className="w-full"
-                                    onClick={() => {
-                                      // Quick create stub - ideally would open a modal
-                                      const name = prompt("Enter new customer name:");
-                                      if(name) {
-                                        const newC = addCustomer({ name, email: "pending@email.com" });
-                                        form.setValue("customer_id", newC.id);
+                      <div className="flex gap-2">
+                        <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "flex-1 justify-between",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                                data-testid="select-customer"
+                              >
+                                {field.value
+                                  ? customers.find(
+                                      (customer) => customer.id === field.value
+                                    )?.name
+                                  : "Select customer"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[250px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search customer..." />
+                              <CommandList>
+                                <CommandEmpty>
+                                  <p className="text-sm text-muted-foreground p-2">No customer found.</p>
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  {customers.map((customer) => (
+                                    <CommandItem
+                                      value={customer.name}
+                                      key={customer.id}
+                                      onSelect={() => {
+                                        form.setValue("customer_id", customer.id);
                                         setCustomerOpen(false);
-                                      }
-                                    }}
-                                  >
-                                    + Create New
-                                  </Button>
-                                </div>
-                              </CommandEmpty>
-                              <CommandGroup>
-                                {customers.map((customer) => (
-                                  <CommandItem
-                                    value={customer.name}
-                                    key={customer.id}
-                                    onSelect={() => {
-                                      form.setValue("customer_id", customer.id);
-                                      setCustomerOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        customer.id === field.value
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
-                                    {customer.name}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          customer.id === field.value
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                        )}
+                                      />
+                                      {customer.name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => setShowNewCustomerDialog(true)}
+                          title="Add new customer"
+                          data-testid="button-new-customer"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -221,75 +299,72 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Sample Item</FormLabel>
-                      <Popover open={itemOpen} onOpenChange={setItemOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              className={cn(
-                                "w-full justify-between",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value
-                                ? inventory.find(
-                                    (item) => item.id === field.value
-                                  )?.name
-                                : "Select sample"}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[250px] p-0">
-                          <Command>
-                            <CommandInput placeholder="Search inventory..." />
-                            <CommandList>
-                              <CommandEmpty>
-                                <div className="p-2">
-                                  <p className="text-sm text-muted-foreground mb-2">Item not found.</p>
-                                  <Button 
-                                    size="sm" 
-                                    className="w-full"
-                                    onClick={() => {
-                                      const name = prompt("Enter new item name:");
-                                      if(name) {
-                                        const newI = addInventoryItem({ name, total_quantity: 1 });
-                                        form.setValue("inventory_item_id", newI.id);
+                      <div className="flex gap-2">
+                        <Popover open={itemOpen} onOpenChange={setItemOpen}>
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "flex-1 justify-between",
+                                  !field.value && "text-muted-foreground"
+                                )}
+                                data-testid="select-item"
+                              >
+                                {field.value
+                                  ? inventory.find(
+                                      (item) => item.id === field.value
+                                    )?.name
+                                  : "Select sample"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[250px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search inventory..." />
+                              <CommandList>
+                                <CommandEmpty>
+                                  <p className="text-sm text-muted-foreground p-2">Item not found.</p>
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  {inventory.map((item) => (
+                                    <CommandItem
+                                      value={item.name}
+                                      key={item.id}
+                                      onSelect={() => {
+                                        form.setValue("inventory_item_id", item.id);
                                         setItemOpen(false);
-                                      }
-                                    }}
-                                  >
-                                    + Create New
-                                  </Button>
-                                </div>
-                              </CommandEmpty>
-                              <CommandGroup>
-                                {inventory.map((item) => (
-                                  <CommandItem
-                                    value={item.name}
-                                    key={item.id}
-                                    onSelect={() => {
-                                      form.setValue("inventory_item_id", item.id);
-                                      setItemOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        item.id === field.value
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
-                                    {item.name}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          item.id === field.value
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                        )}
+                                      />
+                                      {item.name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="icon"
+                          onClick={() => setShowNewItemDialog(true)}
+                          title="Add new item"
+                          data-testid="button-new-item"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -304,13 +379,38 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                     <FormItem>
                       <FormLabel>Due Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input type="date" {...field} data-testid="input-due-date" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="payment_agreement"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-amber-50 dark:bg-amber-950">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-agreement"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        I agree to the sample policy and authorize the $1.00 fee
+                      </FormLabel>
+                      <FormDescription>
+                        I understand that a $1.00 fee will be charged. I authorize Artisan Tile to charge this card for the full retail price of the sample if it is not returned by the due date or is returned damaged.
+                      </FormDescription>
+                      <FormMessage />
+                    </div>
+                  </FormItem>
+                )}
+              />
 
               {/* Secure Payment Section */}
               <div className="rounded-lg border bg-card p-6 shadow-sm">
@@ -327,8 +427,8 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                         placeholder="Card number" 
                         className="pl-9 font-mono"
                         maxLength={19}
+                        data-testid="input-card-number"
                         onChange={(e) => {
-                          // Simple formatting for visual effect
                           let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '')
                           let matches = v.match(/\d{4,16}/g);
                           let match = matches && matches[0] || ''
@@ -345,16 +445,17 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                       />
                     </div>
                     <div className="grid grid-cols-3 gap-4">
-                      <Input placeholder="MM / YY" className="font-mono text-center" maxLength={5} />
-                      <Input placeholder="CVC" className="font-mono text-center" maxLength={3} type="password" />
-                      <Input placeholder="Zip Code" className="font-mono text-center" maxLength={5} />
+                      <Input placeholder="MM / YY" className="font-mono text-center" maxLength={7} data-testid="input-card-exp" />
+                      <Input placeholder="CVC" className="font-mono text-center" maxLength={4} type="password" data-testid="input-card-cvc" />
+                      <Input placeholder="Zip Code" className="font-mono text-center" maxLength={5} data-testid="input-card-zip" />
                     </div>
 
                     <Button 
                       type="button" 
                       className="w-full" 
                       onClick={handleChargeCard}
-                      disabled={isProcessingCard}
+                      disabled={isProcessingCard || !paymentAgreement}
+                      data-testid="button-charge-card"
                     >
                       {isProcessingCard ? (
                         <>
@@ -365,6 +466,11 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                         "Charge $1.00 Fee & Verify Card"
                       )}
                     </Button>
+                    {!paymentAgreement && (
+                      <p className="text-xs text-center text-amber-600">
+                        Please agree to the sample policy above to enable payment processing.
+                      </p>
+                    )}
                     <p className="text-xs text-center text-muted-foreground">
                       This will securely save the card for future charges if the sample is not returned.
                     </p>
@@ -392,29 +498,47 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 )}
               </div>
 
-              <FormField
-                control={form.control}
-                name="payment_agreement"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>
-                        I agree to the sample policy
-                      </FormLabel>
-                      <FormDescription>
-                        I understand that a $1.00 fee has been charged. I authorize Artisan Tile to charge this card for the full retail price of the sample if it is not returned by the due date or is returned damaged.
-                      </FormDescription>
-                      <FormMessage />
-                    </div>
-                  </FormItem>
+              {/* Signature Section */}
+              <div className="rounded-lg border bg-card p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <PenLine className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Customer Signature</h3>
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={clearSignature}
+                    data-testid="button-clear-signature"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                </div>
+                
+                <div className="border-2 border-dashed rounded-lg bg-white touch-none" style={{ height: '200px' }}>
+                  <SignatureCanvas
+                    ref={signatureRef}
+                    canvasProps={{
+                      className: 'w-full h-full rounded-lg',
+                      style: { width: '100%', height: '100%', touchAction: 'none' }
+                    }}
+                    onEnd={handleSignatureEnd}
+                    penColor="black"
+                    data-testid="signature-canvas"
+                  />
+                </div>
+                <p className="text-xs text-center text-muted-foreground mt-2">
+                  Sign above using your finger or stylus to acknowledge the sample policy.
+                </p>
+                {hasSignature && (
+                  <div className="flex items-center justify-center gap-1 mt-2 text-green-600 text-sm">
+                    <Check className="h-4 w-4" />
+                    Signature captured
+                  </div>
                 )}
-              />
+              </div>
 
               <FormField
                 control={form.control}
@@ -426,7 +550,8 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                       <Textarea 
                         placeholder="Any additional context..." 
                         className="resize-none"
-                        {...field} 
+                        {...field}
+                        data-testid="textarea-notes"
                       />
                     </FormControl>
                     <FormMessage />
@@ -435,15 +560,107 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
               />
 
               <div className="flex justify-end gap-4">
-                <Button type="button" variant="outline" onClick={() => setLocation("/")}>
+                <Button type="button" variant="outline" onClick={() => setLocation("/")} data-testid="button-cancel">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={!cardVerified}>Save Sample Checkout</Button>
+                <Button type="submit" disabled={!cardVerified || !hasSignature} data-testid="button-submit">
+                  Save Sample Checkout
+                </Button>
               </div>
             </form>
           </Form>
         </CardContent>
       </Card>
+
+      {/* New Customer Dialog */}
+      <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Name *</Label>
+              <Input 
+                className="col-span-3" 
+                value={newCustomerData.name}
+                onChange={(e) => setNewCustomerData({...newCustomerData, name: e.target.value})}
+                placeholder="Customer name"
+                data-testid="input-new-customer-name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Email *</Label>
+              <Input 
+                className="col-span-3" 
+                value={newCustomerData.email}
+                onChange={(e) => setNewCustomerData({...newCustomerData, email: e.target.value})}
+                placeholder="email@example.com"
+                data-testid="input-new-customer-email"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Phone</Label>
+              <Input 
+                className="col-span-3" 
+                value={newCustomerData.phone}
+                onChange={(e) => setNewCustomerData({...newCustomerData, phone: e.target.value})}
+                placeholder="555-1234"
+                data-testid="input-new-customer-phone"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewCustomerDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateCustomer} data-testid="button-save-new-customer">Create & Select</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Item Dialog */}
+      <Dialog open={showNewItemDialog} onOpenChange={setShowNewItemDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Sample Item</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Name *</Label>
+              <Input 
+                className="col-span-3" 
+                value={newItemData.name}
+                onChange={(e) => setNewItemData({...newItemData, name: e.target.value})}
+                placeholder="Item name"
+                data-testid="input-new-item-name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">SKU</Label>
+              <Input 
+                className="col-span-3" 
+                value={newItemData.sku}
+                onChange={(e) => setNewItemData({...newItemData, sku: e.target.value})}
+                placeholder="ABC-123"
+                data-testid="input-new-item-sku"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Category</Label>
+              <Input 
+                className="col-span-3" 
+                value={newItemData.category}
+                onChange={(e) => setNewItemData({...newItemData, category: e.target.value})}
+                placeholder="Marble, Ceramic, etc."
+                data-testid="input-new-item-category"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewItemDialog(false)}>Cancel</Button>
+            <Button onClick={handleCreateItem} data-testid="button-save-new-item">Create & Select</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
