@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, FileText } from "lucide-react";
 
@@ -25,12 +26,13 @@ export function CabinetryContractForm() {
     totalAmount: "",
     deposit: "",
     balance: "",
+    workDescription: "",
   });
 
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => {
       const updated = { ...prev, [name]: value };
@@ -166,6 +168,19 @@ export function CabinetryContractForm() {
                   <Input id="balance" name="balance" value={formData.balance} readOnly className="bg-muted" data-testid="input-balance" />
                 </div>
               </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-3">Exhibit A - Work to be Performed</h3>
+              <Textarea
+                id="workDescription"
+                name="workDescription"
+                value={formData.workDescription}
+                onChange={handleInputChange}
+                placeholder="Describe the custom cabinetry and/or furniture to be designed, fabricated, and delivered..."
+                rows={6}
+                data-testid="input-work-description"
+              />
             </div>
 
             <div className="border-t pt-4">

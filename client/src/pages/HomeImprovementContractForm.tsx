@@ -28,6 +28,7 @@ export function HomeImprovementContractForm() {
     totalContractPrice: "",
     startDate: "",
     completionDate: "",
+    contractorDisclosure: "",
   });
 
   const [customerEmail, setCustomerEmail] = useState("");
@@ -188,6 +189,22 @@ export function HomeImprovementContractForm() {
                   <Input id="completionDate" name="completionDate" type="date" value={formData.completionDate} onChange={handleInputChange} data-testid="input-completion-date" />
                 </div>
               </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h3 className="font-semibold mb-3">Contractor Disclosure Statement</h3>
+              <p className="text-sm text-muted-foreground mb-2">
+                Any facts regarding claims or lawsuits the contractor is a party to (leave blank if none)
+              </p>
+              <Textarea
+                id="contractorDisclosure"
+                name="contractorDisclosure"
+                value={formData.contractorDisclosure}
+                onChange={handleInputChange}
+                placeholder="None."
+                rows={2}
+                data-testid="input-contractor-disclosure"
+              />
             </div>
 
             <div className="border-t pt-4">
