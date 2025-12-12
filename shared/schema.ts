@@ -63,6 +63,7 @@ export const checkouts = pgTable("checkouts", {
   notes: text("notes"),
   auth_notes: text("auth_notes"),
   stripe_payment_intent_id: text("stripe_payment_intent_id"),
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -98,6 +99,7 @@ export type Checkout = typeof checkouts.$inferSelect;
 export type CheckoutView = Checkout & {
   customer: Customer;
   item: Inventory;
+  createdByUser?: User | null;
 };
 
 // Email notification tracking

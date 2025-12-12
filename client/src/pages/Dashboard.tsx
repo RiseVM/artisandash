@@ -287,13 +287,14 @@ export function Dashboard() {
               <TableHead>Sample</TableHead>
               <TableHead>Dates</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Created By</TableHead>
               <TableHead>Notes</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={showCheckboxes ? 6 : 5} className="h-24 text-center">
+                <TableCell colSpan={showCheckboxes ? 7 : 6} className="h-24 text-center">
                   No samples found.
                 </TableCell>
               </TableRow>
@@ -354,6 +355,24 @@ export function Dashboard() {
                           <SelectItem value="returned">Returned</SelectItem>
                         </SelectContent>
                       </Select>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      {sample.createdByUser ? (
+                        <>
+                          <div className="font-medium">
+                            {sample.createdByUser.firstName || sample.createdByUser.email?.split('@')[0] || '—'}
+                          </div>
+                          {sample.createdByUser.email && (
+                            <div className="text-xs text-muted-foreground truncate max-w-[120px]" title={sample.createdByUser.email}>
+                              {sample.createdByUser.email}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="max-w-[200px]">
                     <p className="truncate text-xs text-muted-foreground" title={sample.notes || ""}>

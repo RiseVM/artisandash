@@ -143,10 +143,14 @@ export async function registerRoutes(
     res.json(checkoutView);
   });
 
-  app.post("/api/checkouts", async (req, res) => {
+  app.post("/api/checkouts", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const data = insertCheckoutSchema.parse(req.body);
-      const checkout = await storage.createCheckout(data);
+      const checkout = await storage.createCheckout({
+        ...data,
+        created_by_user_id: userId,
+      });
       res.status(201).json(checkout);
     } catch (error) {
       if (error instanceof z.ZodError) {

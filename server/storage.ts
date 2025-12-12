@@ -141,10 +141,12 @@ export class DatabaseStorage implements IStorage {
         checkout: checkouts,
         customer: customers,
         item: inventory,
+        user: users,
       })
       .from(checkouts)
       .innerJoin(customers, eq(checkouts.customer_id, customers.id))
       .innerJoin(inventory, eq(checkouts.inventory_item_id, inventory.id))
+      .leftJoin(users, eq(checkouts.created_by_user_id, users.id))
       .where(eq(checkouts.id, id));
 
     if (!result[0]) return undefined;
@@ -153,6 +155,7 @@ export class DatabaseStorage implements IStorage {
       ...result[0].checkout,
       customer: result[0].customer,
       item: result[0].item,
+      createdByUser: result[0].user || null,
     };
   }
 
@@ -162,15 +165,18 @@ export class DatabaseStorage implements IStorage {
         checkout: checkouts,
         customer: customers,
         item: inventory,
+        user: users,
       })
       .from(checkouts)
       .innerJoin(customers, eq(checkouts.customer_id, customers.id))
-      .innerJoin(inventory, eq(checkouts.inventory_item_id, inventory.id));
+      .innerJoin(inventory, eq(checkouts.inventory_item_id, inventory.id))
+      .leftJoin(users, eq(checkouts.created_by_user_id, users.id));
 
     return result.map((row: any) => ({
       ...row.checkout,
       customer: row.customer,
       item: row.item,
+      createdByUser: row.user || null,
     }));
   }
 
