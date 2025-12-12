@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useStore } from "@/lib/store";
+import { useInventory, useCreateInventory, useUpdateInventory } from "@/hooks/use-api";
+import type { Inventory } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,14 +26,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Edit2, Package } from "lucide-react";
+import { Search, Plus, Edit2, Package, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function Inventory() {
-  const { inventory, addInventoryItem, updateInventoryItem } = useStore();
+  const { data: inventory = [], isLoading } = useInventory();
+  const createInventoryMutation = useCreateInventory();
+  const updateInventoryMutation = useUpdateInventory();
+  
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<Inventory | null>(null);
   const { toast } = useToast();
 
   const [newItem, setNewItem] = useState({ name: "", sku: "", category: "", total_quantity: 10 });
@@ -43,20 +47,49 @@ export function Inventory() {
     (item.category && item.category.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (!newItem.name) return;
-    addInventoryItem(newItem);
-    setIsAddOpen(false);
-    setNewItem({ name: "", sku: "", category: "", total_quantity: 10 });
-    toast({ title: "Item Added", description: `${newItem.name} added to inventory.` });
+    try {
+      await createInventoryMutation.mutateAsync({
+        name: newItem.name,
+        sku: newItem.sku || null,
+        category: newItem.category || null,
+        total_quantity: newItem.total_quantity,
+      });
+      setIsAddOpen(false);
+      setNewItem({ name: "", sku: "", category: "", total_quantity: 10 });
+      toast({ title: "Item Added", description: `${newItem.name} added to inventory.` });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to add item. Please try again.", variant: "destructive" });
+    }
   };
 
-  const handleUpdateItem = () => {
+  const handleUpdateItem = async () => {
     if (!editingItem) return;
-    updateInventoryItem(editingItem.id, editingItem);
-    setEditingItem(null);
-    toast({ title: "Item Updated", description: "Inventory item details updated." });
+    try {
+      await updateInventoryMutation.mutateAsync({
+        id: editingItem.id,
+        data: {
+          name: editingItem.name,
+          sku: editingItem.sku,
+          category: editingItem.category,
+          total_quantity: editingItem.total_quantity,
+        }
+      });
+      setEditingItem(null);
+      toast({ title: "Item Updated", description: "Inventory item details updated." });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to update item. Please try again.", variant: "destructive" });
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -67,7 +100,7 @@ export function Inventory() {
         </div>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button data-testid="button-add-item">
               <Plus className="mr-2 h-4 w-4" />
               Add Item
             </Button>
@@ -82,7 +115,8 @@ export function Inventory() {
                 <Input 
                   className="col-span-3" 
                   value={newItem.name} 
-                  onChange={(e) => setNewItem({...newItem, name: e.target.value})} 
+                  onChange={(e) => setNewItem({...newItem, name: e.target.value})}
+                  data-testid="input-new-item-name"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -90,7 +124,8 @@ export function Inventory() {
                 <Input 
                   className="col-span-3" 
                   value={newItem.sku} 
-                  onChange={(e) => setNewItem({...newItem, sku: e.target.value})} 
+                  onChange={(e) => setNewItem({...newItem, sku: e.target.value})}
+                  data-testid="input-new-item-sku"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -98,12 +133,16 @@ export function Inventory() {
                 <Input 
                   className="col-span-3" 
                   value={newItem.category} 
-                  onChange={(e) => setNewItem({...newItem, category: e.target.value})} 
+                  onChange={(e) => setNewItem({...newItem, category: e.target.value})}
+                  data-testid="input-new-item-category"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleAddItem}>Save Item</Button>
+              <Button onClick={handleAddItem} disabled={createInventoryMutation.isPending} data-testid="button-save-item">
+                {createInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save Item
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -120,6 +159,7 @@ export function Inventory() {
                 className="pl-8"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                data-testid="input-search-inventory"
               />
             </div>
           </div>
@@ -137,7 +177,7 @@ export function Inventory() {
               </TableHeader>
               <TableBody>
                 {filteredInventory.map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow key={item.id} data-testid={`row-inventory-${item.id}`}>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         <Package className="h-4 w-4 text-muted-foreground" />
@@ -150,7 +190,8 @@ export function Inventory() {
                       <Button 
                         size="icon" 
                         variant="ghost" 
-                        onClick={() => setEditingItem(item)}
+                        onClick={() => setEditingItem({...item})}
+                        data-testid={`button-edit-item-${item.id}`}
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
@@ -163,7 +204,6 @@ export function Inventory() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
         <DialogContent>
           <DialogHeader>
@@ -175,7 +215,8 @@ export function Inventory() {
               <Input 
                 className="col-span-3" 
                 value={editingItem?.name || ""} 
-                onChange={(e) => setEditingItem({...editingItem, name: e.target.value})} 
+                onChange={(e) => setEditingItem(editingItem ? {...editingItem, name: e.target.value} : null)}
+                data-testid="input-edit-item-name"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -183,7 +224,8 @@ export function Inventory() {
               <Input 
                 className="col-span-3" 
                 value={editingItem?.sku || ""} 
-                onChange={(e) => setEditingItem({...editingItem, sku: e.target.value})} 
+                onChange={(e) => setEditingItem(editingItem ? {...editingItem, sku: e.target.value} : null)}
+                data-testid="input-edit-item-sku"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -191,12 +233,17 @@ export function Inventory() {
               <Input 
                 className="col-span-3" 
                 value={editingItem?.category || ""} 
-                onChange={(e) => setEditingItem({...editingItem, category: e.target.value})} 
+                onChange={(e) => setEditingItem(editingItem ? {...editingItem, category: e.target.value} : null)}
+                data-testid="input-edit-item-category"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleUpdateItem}>Save Changes</Button>
+            <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+            <Button onClick={handleUpdateItem} disabled={updateInventoryMutation.isPending} data-testid="button-save-edit-item">
+              {updateInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -31,7 +31,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { useStore, Checkout } from "@/lib/store";
+import { useCustomers, useInventory, useCreateCustomer, useCreateInventory, useCreateCheckout } from "@/hooks/use-api";
+import type { Checkout } from "@shared/schema";
 import { useLocation } from "wouter";
 import { Check, ChevronsUpDown, CreditCard, Lock, Loader2, Plus, PenLine, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -73,24 +74,23 @@ interface SampleFormProps {
 
 export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const [, setLocation] = useLocation();
-  const { customers, inventory, addCustomer, addInventoryItem } = useStore();
+  const { data: customers = [] } = useCustomers();
+  const { data: inventory = [] } = useInventory();
+  const createCustomerMutation = useCreateCustomer();
+  const createInventoryMutation = useCreateInventory();
   const { toast } = useToast();
   
-  // Combobox states
   const [customerOpen, setCustomerOpen] = useState(false);
   const [itemOpen, setItemOpen] = useState(false);
 
-  // New customer/item dialogs
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
   const [showNewItemDialog, setShowNewItemDialog] = useState(false);
   const [newCustomerData, setNewCustomerData] = useState({ name: "", email: "", phone: "" });
   const [newItemData, setNewItemData] = useState({ name: "", sku: "", category: "" });
 
-  // Payment State
   const [isProcessingCard, setIsProcessingCard] = useState(false);
   const [cardVerified, setCardVerified] = useState(!!initialData?.auth_notes);
 
-  // Signature
   const signatureRef = useRef<SignatureCanvas>(null);
   const [hasSignature, setHasSignature] = useState(false);
 
@@ -136,15 +136,15 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
     }, 1500);
   };
 
-  const handleCreateCustomer = () => {
+  const handleCreateCustomer = async () => {
     if (!newCustomerData.name || !newCustomerData.email) {
       toast({ title: "Required Fields", description: "Name and email are required.", variant: "destructive" });
       return;
     }
-    const newC = addCustomer({ 
+    const newC = await createCustomerMutation.mutateAsync({ 
       name: newCustomerData.name, 
       email: newCustomerData.email, 
-      phone: newCustomerData.phone 
+      phone: newCustomerData.phone || null,
     });
     form.setValue("customer_id", newC.id);
     setShowNewCustomerDialog(false);
@@ -152,15 +152,15 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
     toast({ title: "Customer Created", description: `${newC.name} added and selected.` });
   };
 
-  const handleCreateItem = () => {
+  const handleCreateItem = async () => {
     if (!newItemData.name) {
       toast({ title: "Required Fields", description: "Item name is required.", variant: "destructive" });
       return;
     }
-    const newI = addInventoryItem({ 
+    const newI = await createInventoryMutation.mutateAsync({ 
       name: newItemData.name, 
-      sku: newItemData.sku || undefined, 
-      category: newItemData.category || undefined,
+      sku: newItemData.sku || null, 
+      category: newItemData.category || null,
       total_quantity: 1 
     });
     form.setValue("inventory_item_id", newI.id);
@@ -412,7 +412,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 )}
               />
 
-              {/* Secure Payment Section */}
               <div className="rounded-lg border bg-card p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
                    <Lock className="h-4 w-4 text-green-600" />
@@ -498,7 +497,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 )}
               </div>
 
-              {/* Signature Section */}
               <div className="rounded-lg border bg-card p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -563,8 +561,8 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 <Button type="button" variant="outline" onClick={() => setLocation("/")} data-testid="button-cancel">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={!cardVerified || !hasSignature} data-testid="button-submit">
-                  Save Sample Checkout
+                <Button type="submit" data-testid="button-submit">
+                  {initialData ? "Update Checkout" : "Complete Checkout"}
                 </Button>
               </div>
             </form>
@@ -572,92 +570,90 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
         </CardContent>
       </Card>
 
-      {/* New Customer Dialog */}
       <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add New Customer</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Name *</Label>
+              <Label className="text-right">Name</Label>
               <Input 
                 className="col-span-3" 
-                value={newCustomerData.name}
+                value={newCustomerData.name} 
                 onChange={(e) => setNewCustomerData({...newCustomerData, name: e.target.value})}
-                placeholder="Customer name"
-                data-testid="input-new-customer-name"
+                data-testid="input-inline-customer-name"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Email *</Label>
+              <Label className="text-right">Email</Label>
               <Input 
                 className="col-span-3" 
-                value={newCustomerData.email}
+                value={newCustomerData.email} 
                 onChange={(e) => setNewCustomerData({...newCustomerData, email: e.target.value})}
-                placeholder="email@example.com"
-                data-testid="input-new-customer-email"
+                data-testid="input-inline-customer-email"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Phone</Label>
               <Input 
                 className="col-span-3" 
-                value={newCustomerData.phone}
+                value={newCustomerData.phone} 
                 onChange={(e) => setNewCustomerData({...newCustomerData, phone: e.target.value})}
-                placeholder="555-1234"
-                data-testid="input-new-customer-phone"
+                data-testid="input-inline-customer-phone"
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewCustomerDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreateCustomer} data-testid="button-save-new-customer">Create & Select</Button>
+            <Button onClick={handleCreateCustomer} disabled={createCustomerMutation.isPending} data-testid="button-save-inline-customer">
+              {createCustomerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create Customer
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* New Item Dialog */}
       <Dialog open={showNewItemDialog} onOpenChange={setShowNewItemDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add New Sample Item</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Name *</Label>
+              <Label className="text-right">Name</Label>
               <Input 
                 className="col-span-3" 
-                value={newItemData.name}
+                value={newItemData.name} 
                 onChange={(e) => setNewItemData({...newItemData, name: e.target.value})}
-                placeholder="Item name"
-                data-testid="input-new-item-name"
+                data-testid="input-inline-item-name"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">SKU</Label>
               <Input 
                 className="col-span-3" 
-                value={newItemData.sku}
+                value={newItemData.sku} 
                 onChange={(e) => setNewItemData({...newItemData, sku: e.target.value})}
-                placeholder="ABC-123"
-                data-testid="input-new-item-sku"
+                data-testid="input-inline-item-sku"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Category</Label>
               <Input 
                 className="col-span-3" 
-                value={newItemData.category}
+                value={newItemData.category} 
                 onChange={(e) => setNewItemData({...newItemData, category: e.target.value})}
-                placeholder="Marble, Ceramic, etc."
-                data-testid="input-new-item-category"
+                data-testid="input-inline-item-category"
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewItemDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreateItem} data-testid="button-save-new-item">Create & Select</Button>
+            <Button onClick={handleCreateItem} disabled={createInventoryMutation.isPending} data-testid="button-save-inline-item">
+              {createInventoryMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create Item
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

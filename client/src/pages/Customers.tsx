@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useStore, Customer } from "@/lib/store";
+import { useCustomers, useCreateCustomer, useUpdateCustomer } from "@/hooks/use-api";
+import type { Customer } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,13 +27,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X } from "lucide-react";
+import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const ADMIN_PASSWORD = "admin123";
 
 export function Customers() {
-  const { customers, addCustomer, updateCustomer } = useStore();
+  const { data: customers = [], isLoading } = useCustomers();
+  const createCustomerMutation = useCreateCustomer();
+  const updateCustomerMutation = useUpdateCustomer();
+  
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -91,53 +95,64 @@ export function Customers() {
     return parts.length ? parts.join(' ') : v;
   };
 
-  const handleAddCustomer = () => {
+  const handleAddCustomer = async () => {
     if (!newCustomer.name || !newCustomer.email) return;
     
-    const { last4, brand } = parseCardNumber(newCustomer.card_number);
-    const { month, year } = parseExpiry(newCustomer.card_exp);
-    
-    addCustomer({
-      name: newCustomer.name,
-      email: newCustomer.email,
-      phone: newCustomer.phone,
-      card_last4: last4 || undefined,
-      card_brand: brand || undefined,
-      card_exp_month: month || undefined,
-      card_exp_year: year || undefined,
-    });
-    setIsAddOpen(false);
-    setNewCustomer({ name: "", email: "", phone: "", card_number: "", card_exp: "", card_cvc: "" });
-    toast({ title: "Customer Added", description: `${newCustomer.name} added.` });
+    try {
+      const { last4, brand } = parseCardNumber(newCustomer.card_number);
+      const { month, year } = parseExpiry(newCustomer.card_exp);
+      
+      await createCustomerMutation.mutateAsync({
+        name: newCustomer.name,
+        email: newCustomer.email,
+        phone: newCustomer.phone || null,
+        card_last4: last4 || null,
+        card_brand: brand || null,
+        card_exp_month: month || null,
+        card_exp_year: year || null,
+      });
+      setIsAddOpen(false);
+      setNewCustomer({ name: "", email: "", phone: "", card_number: "", card_exp: "", card_cvc: "" });
+      toast({ title: "Customer Added", description: `${newCustomer.name} added.` });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to add customer. Please try again.", variant: "destructive" });
+    }
   };
 
-  const handleUpdateCustomer = () => {
+  const handleUpdateCustomer = async () => {
     if (!editingCustomer) return;
     
-    let updates: Partial<Customer> = {
-      name: editingCustomer.name,
-      email: editingCustomer.email,
-      phone: editingCustomer.phone,
-    };
-
-    if (editCardInfo.card_number) {
-      const { last4, brand } = parseCardNumber(editCardInfo.card_number);
-      const { month, year } = parseExpiry(editCardInfo.card_exp);
-      updates = {
-        ...updates,
-        card_last4: last4,
-        card_brand: brand,
-        card_exp_month: month,
-        card_exp_year: year,
+    try {
+      let updates: any = {
+        name: editingCustomer.name,
+        email: editingCustomer.email,
+        phone: editingCustomer.phone,
       };
+
+      if (editCardInfo.card_number) {
+        const { last4, brand } = parseCardNumber(editCardInfo.card_number);
+        const { month, year } = parseExpiry(editCardInfo.card_exp);
+        updates = {
+          ...updates,
+          card_last4: last4,
+          card_brand: brand,
+          card_exp_month: month,
+          card_exp_year: year,
+        };
+      }
+      
+      await updateCustomerMutation.mutateAsync({
+        id: editingCustomer.id,
+        data: updates
+      });
+      setEditingCustomer(null);
+      setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
+      setShowCardForm(false);
+      setIsAdminVerified(false);
+      toast({ title: "Customer Updated", description: "Customer details updated." });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to update customer. Please try again.", variant: "destructive" });
     }
-    
-    updateCustomer(editingCustomer.id, updates);
-    setEditingCustomer(null);
-    setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
-    setShowCardForm(false);
-    setIsAdminVerified(false);
-    toast({ title: "Customer Updated", description: "Customer details updated." });
   };
 
   const handleVerifyAdmin = () => {
@@ -158,13 +173,13 @@ export function Customers() {
     setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
   };
 
-  const CardBrandIcon = ({ brand }: { brand?: string }) => {
+  if (isLoading) {
     return (
-      <span className="text-xs font-medium text-muted-foreground uppercase">
-        {brand || 'Card'}
-      </span>
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
     );
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -253,7 +268,10 @@ export function Customers() {
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={handleAddCustomer} data-testid="button-save-new-customer">Save Customer</Button>
+              <Button onClick={handleAddCustomer} disabled={createCustomerMutation.isPending} data-testid="button-save-new-customer">
+                {createCustomerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Save Customer
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -521,7 +539,10 @@ export function Customers() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseEditDialog}>Cancel</Button>
-            <Button onClick={handleUpdateCustomer} data-testid="button-save-customer">Save Changes</Button>
+            <Button onClick={handleUpdateCustomer} disabled={updateCustomerMutation.isPending} data-testid="button-save-customer">
+              {updateCustomerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

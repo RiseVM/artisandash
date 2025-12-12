@@ -1,20 +1,34 @@
-import { useRoute } from "wouter";
-import { useStore } from "@/lib/store";
+import { useRoute, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { useUpdateCheckout } from "@/hooks/use-api";
 import { SampleForm } from "@/components/SampleForm";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import type { CheckoutView } from "@shared/schema";
 
 export function EditSample() {
   const [, params] = useRoute("/edit/:id");
+  const [, setLocation] = useLocation();
   const id = params ? parseInt(params.id) : 0;
-  
-  const checkout = useStore((state) => state.checkouts.find((c) => c.id === id));
-  const updateCheckout = useStore((state) => state.updateCheckout);
+  const updateCheckoutMutation = useUpdateCheckout();
   const { toast } = useToast();
 
-  if (!checkout) {
+  const { data: checkout, isLoading, error } = useQuery<CheckoutView>({
+    queryKey: [`/api/checkouts/${id}`],
+    enabled: id > 0,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !checkout) {
     return (
       <div className="text-center py-12">
         <h2 className="text-xl font-bold mb-2">Sample Not Found</h2>
@@ -28,12 +42,30 @@ export function EditSample() {
     );
   }
 
-  const handleSubmit = (data: any) => {
-    updateCheckout(id, data);
-    toast({
-      title: "Sample Updated",
-      description: "The sample details have been updated.",
-    });
+  const handleSubmit = async (data: any) => {
+    try {
+      await updateCheckoutMutation.mutateAsync({
+        id,
+        data: {
+          customer_id: data.customer_id,
+          inventory_item_id: data.inventory_item_id,
+          due_date: data.due_date,
+          notes: data.notes || null,
+          auth_notes: data.auth_notes || null,
+        }
+      });
+      toast({
+        title: "Sample Updated",
+        description: "The sample details have been updated.",
+      });
+      setLocation("/");
+    } catch (err) {
+      toast({
+        title: "Update Failed",
+        description: "Failed to update the sample. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

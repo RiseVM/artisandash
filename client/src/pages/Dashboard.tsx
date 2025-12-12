@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useStore, CheckoutView, Checkout } from "@/lib/store";
+import { useCheckouts, useCustomers, useInventory, useUpdateCheckout } from "@/hooks/use-api";
+import type { CheckoutView, Customer, Inventory } from "@shared/schema";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +64,8 @@ import {
   Calendar,
   Filter,
   Check,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -80,7 +82,11 @@ interface EditCheckoutState {
 }
 
 export function Dashboard() {
-  const { checkouts, customers, inventory, getCheckoutView, updateCheckout, checkOverdue } = useStore();
+  const { data: checkouts = [], isLoading: checkoutsLoading } = useCheckouts();
+  const { data: customers = [] } = useCustomers();
+  const { data: inventory = [] } = useInventory();
+  const updateCheckoutMutation = useUpdateCheckout();
+  
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<'due_asc' | 'due_desc' | 'name_asc'>('due_asc');
   const [editingCheckout, setEditingCheckout] = useState<EditCheckoutState | null>(null);
@@ -88,20 +94,50 @@ export function Dashboard() {
   const [itemOpen, setItemOpen] = useState(false);
   const { toast } = useToast();
 
-  const handleRunReminders = () => {
-    checkOverdue();
-    toast({
-      title: "Reminders Checked",
-      description: "Overdue status updated for all samples.",
-    });
+  const handleRunReminders = async () => {
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const overdueCheckouts = checkouts.filter(
+        c => c.status !== 'returned' && c.due_date < today && c.status !== 'overdue'
+      );
+      
+      for (const checkout of overdueCheckouts) {
+        await updateCheckoutMutation.mutateAsync({
+          id: checkout.id,
+          data: { status: 'overdue' }
+        });
+      }
+      
+      toast({
+        title: "Reminders Checked",
+        description: `${overdueCheckouts.length} samples marked as overdue.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to check reminders. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleStatusChange = (id: number, newStatus: 'checked_out' | 'overdue' | 'returned') => {
-    updateCheckout(id, { status: newStatus });
-    toast({
-      title: "Status Updated",
-      description: `Checkout #${id} marked as ${newStatus.replace('_', ' ')}.`,
-    });
+  const handleStatusChange = async (id: number, newStatus: 'checked_out' | 'overdue' | 'returned') => {
+    try {
+      await updateCheckoutMutation.mutateAsync({
+        id,
+        data: { status: newStatus }
+      });
+      toast({
+        title: "Status Updated",
+        description: `Checkout #${id} marked as ${newStatus.replace('_', ' ')}.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to update status. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const openEditDialog = (sample: CheckoutView) => {
@@ -111,27 +147,32 @@ export function Dashboard() {
       inventory_item_id: sample.inventory_item_id,
       checkout_date: sample.checkout_date,
       due_date: sample.due_date,
-      status: sample.status,
+      status: sample.status as 'checked_out' | 'overdue' | 'returned',
       notes: sample.notes || "",
       auth_notes: sample.auth_notes || "",
     });
   };
 
-  const handleUpdateCheckout = () => {
+  const handleUpdateCheckout = async () => {
     if (!editingCheckout) return;
-    updateCheckout(editingCheckout.id, {
-      customer_id: editingCheckout.customer_id,
-      inventory_item_id: editingCheckout.inventory_item_id,
-      checkout_date: editingCheckout.checkout_date,
-      due_date: editingCheckout.due_date,
-      status: editingCheckout.status,
-      notes: editingCheckout.notes,
-    });
-    setEditingCheckout(null);
-    toast({ title: "Checkout Updated", description: "All changes saved successfully." });
+    try {
+      await updateCheckoutMutation.mutateAsync({
+        id: editingCheckout.id,
+        data: {
+          customer_id: editingCheckout.customer_id,
+          inventory_item_id: editingCheckout.inventory_item_id,
+          checkout_date: editingCheckout.checkout_date,
+          due_date: editingCheckout.due_date,
+          status: editingCheckout.status,
+          notes: editingCheckout.notes,
+        }
+      });
+      setEditingCheckout(null);
+      toast({ title: "Checkout Updated", description: "All changes saved successfully." });
+    } catch (err) {
+      toast({ title: "Update Failed", description: "Failed to save changes. Please try again.", variant: "destructive" });
+    }
   };
-
-  const checkoutViews = checkouts.map(getCheckoutView);
 
   const filterAndSort = (items: CheckoutView[]) => {
     let filtered = items.filter((s) => 
@@ -148,11 +189,19 @@ export function Dashboard() {
     });
   };
 
-  const activeCheckouts = filterAndSort(checkoutViews.filter(c => c.status !== 'returned'));
-  const returnedCheckouts = filterAndSort(checkoutViews.filter(c => c.status === 'returned'));
+  const activeCheckouts = filterAndSort(checkouts.filter(c => c.status !== 'returned'));
+  const returnedCheckouts = filterAndSort(checkouts.filter(c => c.status === 'returned'));
 
   const selectedCustomer = editingCheckout ? customers.find(c => c.id === editingCheckout.customer_id) : null;
   const selectedItem = editingCheckout ? inventory.find(i => i.id === editingCheckout.inventory_item_id) : null;
+
+  if (checkoutsLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const CheckoutTable = ({ data, showActions = true }: { data: CheckoutView[], showActions?: boolean }) => (
     <div className="rounded-md border">
@@ -221,7 +270,7 @@ export function Dashboard() {
                     </Select>
                 </TableCell>
                 <TableCell className="max-w-[200px]">
-                  <p className="truncate text-xs text-muted-foreground" title={sample.notes}>
+                  <p className="truncate text-xs text-muted-foreground" title={sample.notes || ""}>
                     {sample.notes || "—"}
                   </p>
                 </TableCell>
@@ -241,7 +290,7 @@ export function Dashboard() {
           <p className="text-muted-foreground">Overview of checkouts and returns.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleRunReminders}>
+          <Button variant="outline" onClick={handleRunReminders} disabled={updateCheckoutMutation.isPending}>
             <Bell className="mr-2 h-4 w-4" />
             Run Checks
           </Button>
@@ -470,7 +519,10 @@ export function Dashboard() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingCheckout(null)}>Cancel</Button>
-            <Button onClick={handleUpdateCheckout} data-testid="button-save-checkout">Save Changes</Button>
+            <Button onClick={handleUpdateCheckout} disabled={updateCheckoutMutation.isPending} data-testid="button-save-checkout">
+              {updateCheckoutMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
