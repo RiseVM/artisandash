@@ -145,33 +145,35 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
     }
     
     setIsProcessingCard(true);
-    setTimeout(async () => {
-      try {
-        await updateCustomerMutation.mutateAsync({
-          id: customerId,
-          data: {
-            card_last4: "4242",
-            card_brand: "Visa",
-            card_exp_month: 12,
-            card_exp_year: 2028,
-          }
-        });
-        setIsProcessingCard(false);
-        setCardVerified(true);
-        form.setValue("auth_notes", `Verified Card (Ending in 4242) - charged $1.00`);
-        toast({
-          title: "Card Verified",
-          description: "$1.00 sample fee processed. Card saved to customer file.",
-        });
-      } catch (err) {
-        setIsProcessingCard(false);
-        toast({
-          title: "Payment Failed",
-          description: "Could not process payment. Please try again.",
-          variant: "destructive",
-        });
-      }
-    }, 1500);
+    
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      await updateCustomerMutation.mutateAsync({
+        id: customerId,
+        data: {
+          card_last4: "4242",
+          card_brand: "Visa",
+          card_exp_month: "12",
+          card_exp_year: "2028",
+        }
+      });
+      
+      setCardVerified(true);
+      form.setValue("auth_notes", `Verified Card (Ending in 4242) - charged $1.00`);
+      toast({
+        title: "Card Verified",
+        description: "$1.00 sample fee processed. Card saved to customer file.",
+      });
+    } catch (err) {
+      toast({
+        title: "Payment Failed",
+        description: "Could not process payment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessingCard(false);
+    }
   };
 
   const handleCreateCustomer = async () => {
