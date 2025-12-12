@@ -11,6 +11,7 @@ import { EditSample } from "@/pages/EditSample";
 import { Inventory } from "@/pages/Inventory";
 import { Customers } from "@/pages/Customers";
 import { Landing } from "@/pages/Landing";
+import { LoginFailed } from "@/pages/LoginFailed";
 import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
@@ -25,21 +26,24 @@ function Router() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Landing />;
-  }
-
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/new" component={NewSample} />
-        <Route path="/edit/:id" component={EditSample} />
-        <Route path="/inventory" component={Inventory} />
-        <Route path="/customers" component={Customers} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <Switch>
+      <Route path="/login-failed" component={LoginFailed} />
+      {!isAuthenticated ? (
+        <Route component={Landing} />
+      ) : (
+        <Layout>
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/new" component={NewSample} />
+            <Route path="/edit/:id" component={EditSample} />
+            <Route path="/inventory" component={Inventory} />
+            <Route path="/customers" component={Customers} />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      )}
+    </Switch>
   );
 }
 
