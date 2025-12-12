@@ -95,12 +95,23 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getActiveCheckoutsByCustomer(customerId: number): Promise<Checkout[]> {
+    const result = await db.select().from(checkouts).where(
+      and(
+        eq(checkouts.customer_id, customerId),
+        eq(checkouts.status, 'checked_out')
+      )
+    );
+    const overdueResult = await db.select().from(checkouts).where(
+      and(
+        eq(checkouts.customer_id, customerId),
+        eq(checkouts.status, 'overdue')
+      )
+    );
+    return [...result, ...overdueResult];
+  }
+
   async deleteCustomer(id: number): Promise<boolean> {
-    const customerCheckouts = await db.select().from(checkouts).where(eq(checkouts.customer_id, id));
-    for (const checkout of customerCheckouts) {
-      await db.delete(emailNotifications).where(eq(emailNotifications.checkout_id, checkout.id));
-    }
-    await db.delete(checkouts).where(eq(checkouts.customer_id, id));
     const result = await db.delete(customers).where(eq(customers.id, id)).returning();
     return result.length > 0;
   }
@@ -125,12 +136,23 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getActiveCheckoutsByInventoryItem(itemId: number): Promise<Checkout[]> {
+    const result = await db.select().from(checkouts).where(
+      and(
+        eq(checkouts.inventory_item_id, itemId),
+        eq(checkouts.status, 'checked_out')
+      )
+    );
+    const overdueResult = await db.select().from(checkouts).where(
+      and(
+        eq(checkouts.inventory_item_id, itemId),
+        eq(checkouts.status, 'overdue')
+      )
+    );
+    return [...result, ...overdueResult];
+  }
+
   async deleteInventoryItem(id: number): Promise<boolean> {
-    const itemCheckouts = await db.select().from(checkouts).where(eq(checkouts.inventory_item_id, id));
-    for (const checkout of itemCheckouts) {
-      await db.delete(emailNotifications).where(eq(emailNotifications.checkout_id, checkout.id));
-    }
-    await db.delete(checkouts).where(eq(checkouts.inventory_item_id, id));
     const result = await db.delete(inventory).where(eq(inventory.id, id)).returning();
     return result.length > 0;
   }

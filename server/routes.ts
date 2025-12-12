@@ -71,6 +71,12 @@ export async function registerRoutes(
   app.delete("/api/customers/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const activeCheckouts = await storage.getActiveCheckoutsByCustomer(id);
+      if (activeCheckouts.length > 0) {
+        return res.status(400).json({ 
+          error: "Cannot delete customer with active checkouts. All samples must be returned first." 
+        });
+      }
       const deleted = await storage.deleteCustomer(id);
       if (!deleted) return res.status(404).json({ error: "Customer not found" });
       res.json({ success: true });
@@ -123,6 +129,12 @@ export async function registerRoutes(
   app.delete("/api/inventory/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const activeCheckouts = await storage.getActiveCheckoutsByInventoryItem(id);
+      if (activeCheckouts.length > 0) {
+        return res.status(400).json({ 
+          error: "Cannot delete inventory item with active checkouts. All samples must be returned first." 
+        });
+      }
       const deleted = await storage.deleteInventoryItem(id);
       if (!deleted) return res.status(404).json({ error: "Item not found" });
       res.json({ success: true });
