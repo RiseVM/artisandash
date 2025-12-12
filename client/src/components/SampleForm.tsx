@@ -34,7 +34,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useCustomers, useInventory, useCreateCustomer, useCreateInventory, useCreateCheckout, useUpdateCustomer } from "@/hooks/use-api";
 import type { Checkout } from "@shared/schema";
 import { useLocation } from "wouter";
-import { Check, ChevronsUpDown, CreditCard, Lock, Loader2, Plus, PenLine, RotateCcw } from "lucide-react";
+import { Calendar, Check, ChevronsUpDown, CreditCard, Lock, Loader2, Plus, PenLine, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -452,7 +452,10 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                     <FormItem>
                       <FormLabel>Due Date</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} data-testid="input-due-date" />
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                          <Input type="date" className="pl-10" {...field} data-testid="input-due-date" />
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>

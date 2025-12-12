@@ -641,23 +641,31 @@ export function Dashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="checkout-date">Checkout Date</Label>
-                  <Input 
-                    id="checkout-date"
-                    type="date" 
-                    value={editingCheckout.checkout_date} 
-                    onChange={(e) => setEditingCheckout({...editingCheckout, checkout_date: e.target.value})}
-                    data-testid="input-edit-checkout-date"
-                  />
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input 
+                      id="checkout-date"
+                      type="date" 
+                      className="pl-10"
+                      value={editingCheckout.checkout_date} 
+                      onChange={(e) => setEditingCheckout({...editingCheckout, checkout_date: e.target.value})}
+                      data-testid="input-edit-checkout-date"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="due-date">Due Date</Label>
-                  <Input 
-                    id="due-date"
-                    type="date" 
-                    value={editingCheckout.due_date} 
-                    onChange={(e) => setEditingCheckout({...editingCheckout, due_date: e.target.value})}
-                    data-testid="input-edit-due-date"
-                  />
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    <Input 
+                      id="due-date"
+                      type="date" 
+                      className="pl-10"
+                      value={editingCheckout.due_date} 
+                      onChange={(e) => setEditingCheckout({...editingCheckout, due_date: e.target.value})}
+                      data-testid="input-edit-due-date"
+                    />
+                  </div>
                 </div>
               </div>
 
