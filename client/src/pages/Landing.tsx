@@ -7,15 +7,19 @@ export function Landing() {
     <div className="min-h-screen bg-gradient-to-b from-background to-muted flex flex-col items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8 text-center">
         <div>
-          <h1 className="text-4xl font-serif font-bold text-primary">Artisan Tile</h1>
-          <p className="text-xl text-muted-foreground mt-2">Sample Tracker</p>
+          <img 
+            src="/logo.png" 
+            alt="Company Logo" 
+            className="h-16 mx-auto mb-4"
+          />
+          <p className="text-xl text-muted-foreground">Sample Tracker</p>
         </div>
         
         <Card className="mt-8">
           <CardHeader>
             <CardTitle>Welcome</CardTitle>
             <CardDescription>
-              Track tile sample checkouts, manage customers, and monitor inventory.
+              Track sample checkouts, manage customers, and monitor inventory.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -46,7 +50,7 @@ export function Landing() {
         </Card>
         
         <p className="text-xs text-muted-foreground">
-          Artisan Tile Kitchen & Bath Staff Portal
+          Staff Portal
         </p>
       </div>
     </div>
