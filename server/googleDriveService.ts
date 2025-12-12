@@ -81,7 +81,6 @@ export async function uploadAgreementToGoogleDrive(options: {
     
     const fileMetadata = {
       name: fileName,
-      parents: [AGREEMENTS_FOLDER_ID],
     };
 
     const media = {
@@ -95,7 +94,23 @@ export async function uploadAgreementToGoogleDrive(options: {
       fields: 'id, webViewLink',
     });
 
-    console.log(`Uploaded agreement PDF to Google Drive: ${fileName} (ID: ${response.data.id})`);
+    const fileId = response.data.id;
+    
+    // Try to move to target folder if accessible
+    if (fileId && AGREEMENTS_FOLDER_ID) {
+      try {
+        await drive.files.update({
+          fileId: fileId,
+          addParents: AGREEMENTS_FOLDER_ID,
+          fields: 'id, parents'
+        });
+        console.log(`Moved agreement PDF to folder: ${fileName} (ID: ${fileId})`);
+      } catch (moveError) {
+        console.log(`Could not move to folder (may not have permission), file is in Drive root: ${fileName}`);
+      }
+    }
+
+    console.log(`Uploaded agreement PDF to Google Drive: ${fileName} (ID: ${fileId})`);
     
     return {
       fileId: response.data.id || '',
