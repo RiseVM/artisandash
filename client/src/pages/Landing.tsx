@@ -8,9 +8,9 @@ export function Landing() {
       <div className="max-w-md w-full space-y-8 text-center">
         <div>
           <img 
-            src="/logo.png" 
-            alt="Company Logo" 
-            className="h-16 mx-auto mb-4"
+            src="/logo.jpg" 
+            alt="Artisan Tile Kitchen & Bath" 
+            className="h-20 mx-auto mb-4"
           />
           <p className="text-xl text-muted-foreground">Sample Tracker</p>
         </div>
