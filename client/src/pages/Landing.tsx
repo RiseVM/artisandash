@@ -5,7 +5,7 @@ import { Package, Users, ClipboardList } from "lucide-react";
 export function Landing() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-8 text-center">
+      <div className="max-w-2xl w-full space-y-8 text-center">
         <div>
           <img 
             src="/logo.jpg" 
