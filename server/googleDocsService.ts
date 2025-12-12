@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { Readable } from 'stream';
 import { getAgreementText } from './pdfService';
 
 let connectionSettings: any;
@@ -63,6 +64,50 @@ const AGREEMENTS_FOLDER_ID = '1SW-afvEzW2cFhEte4ENeLjeEGnh32Rov';
 
 export { getAgreementText };
 
+async function uploadSignatureImage(drive: any, signatureDataUrl: string, customerName: string): Promise<string | null> {
+  try {
+    if (!signatureDataUrl || !signatureDataUrl.startsWith('data:image')) {
+      return null;
+    }
+    
+    const base64Data = signatureDataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const imageBuffer = Buffer.from(base64Data, 'base64');
+    
+    const fileMetadata = {
+      name: `signature_${customerName}_${Date.now()}.png`,
+      mimeType: 'image/png',
+    };
+    
+    const media = {
+      mimeType: 'image/png',
+      body: Readable.from(imageBuffer),
+    };
+    
+    const uploadResponse = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id, webContentLink',
+    });
+    
+    const fileId = uploadResponse.data.id;
+    
+    await drive.permissions.create({
+      fileId: fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    });
+    
+    const imageUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+    
+    return imageUrl;
+  } catch (error) {
+    console.error('Error uploading signature image:', error);
+    return null;
+  }
+}
+
 export async function createAgreementGoogleDoc(options: {
   customerName: string;
   customerEmail: string;
@@ -84,6 +129,8 @@ export async function createAgreementGoogleDoc(options: {
     }).replace(/\//g, '-');
     
     const documentTitle = `${options.customerName} - ${dateStr} - Sample Agreement`;
+    
+    const signatureImageUrl = await uploadSignatureImage(drive, options.signatureDataUrl, options.customerName);
     
     const createResponse = await docs.documents.create({
       requestBody: {
@@ -138,7 +185,7 @@ TERMS AND CONDITIONS:
 
 CUSTOMER SIGNATURE:
 
-[Signature on file]
+
 
 Signed on: ${signedAt.toLocaleString()}
 
@@ -159,6 +206,32 @@ Document generated: ${new Date().toLocaleString()}
         ]
       }
     });
+    
+    if (signatureImageUrl) {
+      const signatureMarker = 'CUSTOMER SIGNATURE:\n\n\n';
+      const markerIndex = fullText.indexOf(signatureMarker);
+      if (markerIndex !== -1) {
+        const insertIndex = 1 + markerIndex + signatureMarker.length - 1;
+        
+        await docs.documents.batchUpdate({
+          documentId,
+          requestBody: {
+            requests: [
+              {
+                insertInlineImage: {
+                  location: { index: insertIndex },
+                  uri: signatureImageUrl,
+                  objectSize: {
+                    height: { magnitude: 100, unit: 'PT' },
+                    width: { magnitude: 250, unit: 'PT' }
+                  }
+                }
+              }
+            ]
+          }
+        });
+      }
+    }
     
     const titleEndIndex = 1 + 'ARTISAN TILE'.length;
     const subtitleStart = titleEndIndex + 1;
