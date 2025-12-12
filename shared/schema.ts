@@ -142,3 +142,29 @@ export const insertSignedAgreementSchema = createInsertSchema(signedAgreements).
 
 export type InsertSignedAgreement = z.infer<typeof insertSignedAgreementSchema>;
 export type SignedAgreement = typeof signedAgreements.$inferSelect;
+
+// Contracts storage (Custom Cabinetry and Home Improvement agreements)
+export const contracts = pgTable("contracts", {
+  id: serial("id").primaryKey(),
+  contract_type: text("contract_type").notNull(), // 'custom_cabinetry' | 'home_improvement'
+  customer_name: text("customer_name").notNull(),
+  customer_email: text("customer_email").notNull(),
+  customer_phone: text("customer_phone"),
+  customer_address: text("customer_address"),
+  property_address: text("property_address"),
+  form_data: jsonb("form_data").notNull(), // Stores all contract-specific fields as JSON
+  signature_data: text("signature_data").notNull(),
+  google_drive_file_id: text("google_drive_file_id"),
+  google_drive_link: text("google_drive_link"),
+  email_sent: text("email_sent").default("no"), // 'yes' | 'no'
+  signed_at: timestamp("signed_at").defaultNow().notNull(),
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id),
+});
+
+export const insertContractSchema = createInsertSchema(contracts).omit({
+  id: true,
+  signed_at: true,
+});
+
+export type InsertContract = z.infer<typeof insertContractSchema>;
+export type Contract = typeof contracts.$inferSelect;
