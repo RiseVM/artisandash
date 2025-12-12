@@ -65,7 +65,8 @@ import {
   Filter,
   Check,
   ChevronsUpDown,
-  Loader2
+  Loader2,
+  LogOut
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -526,6 +527,18 @@ export function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <div className="flex justify-center pt-8 pb-4">
+        <Button 
+          variant="ghost" 
+          className="text-muted-foreground"
+          onClick={() => window.location.href = "/api/logout"}
+          data-testid="button-logout"
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Log Out
+        </Button>
+      </div>
     </div>
   );
 }
