@@ -22,9 +22,14 @@ export function Calendar() {
   const startDayOfWeek = monthStart.getDay();
   const paddingDays = Array(startDayOfWeek).fill(null);
 
-  const getCheckoutsForDay = (date: Date) => {
+  const getDueCheckoutsForDay = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
     return checkouts.filter(c => c.due_date === dateStr && c.status !== 'returned');
+  };
+
+  const getCheckoutStartsForDay = (date: Date) => {
+    const dateStr = format(date, 'yyyy-MM-dd');
+    return checkouts.filter(c => c.checkout_date === dateStr);
   };
 
   if (isLoading) {
@@ -79,9 +84,11 @@ export function Calendar() {
             ))}
             
             {daysInMonth.map(day => {
-              const dayCheckouts = getCheckoutsForDay(day);
+              const dueCheckouts = getDueCheckoutsForDay(day);
+              const checkoutStarts = getCheckoutStartsForDay(day);
               const isToday = isSameDay(day, new Date());
-              const hasOverdue = dayCheckouts.some(c => c.status === 'overdue');
+              const hasOverdue = dueCheckouts.some(c => c.status === 'overdue');
+              const hasEvents = dueCheckouts.length > 0 || checkoutStarts.length > 0;
               
               return (
                 <Popover key={day.toISOString()}>
@@ -91,49 +98,68 @@ export function Calendar() {
                         aspect-square p-1 rounded-md text-sm relative
                         hover:bg-muted transition-colors
                         ${isToday ? 'bg-primary/10 font-bold' : ''}
-                        ${dayCheckouts.length > 0 ? 'cursor-pointer' : ''}
+                        ${hasEvents ? 'cursor-pointer' : ''}
                       `}
                       data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
                     >
                       <span className={isToday ? 'text-primary' : ''}>
                         {format(day, 'd')}
                       </span>
-                      {dayCheckouts.length > 0 && (
+                      {hasEvents && (
                         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5">
-                          {dayCheckouts.length <= 3 ? (
-                            dayCheckouts.map((c, i) => (
-                              <div
-                                key={i}
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  c.status === 'overdue' ? 'bg-red-500' : 'bg-amber-500'
-                                }`}
-                              />
-                            ))
-                          ) : (
-                            <>
-                              <div className={`w-1.5 h-1.5 rounded-full ${hasOverdue ? 'bg-red-500' : 'bg-amber-500'}`} />
-                              <span className="text-[10px] text-muted-foreground">+{dayCheckouts.length - 1}</span>
-                            </>
+                          {checkoutStarts.slice(0, 2).map((_, i) => (
+                            <div key={`start-${i}`} className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          ))}
+                          {dueCheckouts.slice(0, 2).map((c, i) => (
+                            <div
+                              key={`due-${i}`}
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                c.status === 'overdue' ? 'bg-red-500' : 'bg-amber-500'
+                              }`}
+                            />
+                          ))}
+                          {(checkoutStarts.length + dueCheckouts.length) > 4 && (
+                            <span className="text-[10px] text-muted-foreground">+{checkoutStarts.length + dueCheckouts.length - 4}</span>
                           )}
                         </div>
                       )}
                     </button>
                   </PopoverTrigger>
-                  {dayCheckouts.length > 0 && (
+                  {hasEvents && (
                     <PopoverContent className="w-72 p-2" align="center">
                       <div className="space-y-2">
-                        <p className="font-medium text-sm border-b pb-1">
-                          Due {format(day, 'MMM d, yyyy')}
-                        </p>
-                        {dayCheckouts.map(checkout => (
-                          <div key={checkout.id} className="flex items-start justify-between text-sm p-2 bg-muted rounded" data-testid={`popover-checkout-${checkout.id}`}>
-                            <div>
-                              <p className="font-medium">{checkout.customer.name}</p>
-                              <p className="text-xs text-muted-foreground">{checkout.item.name}</p>
-                            </div>
-                            <StatusBadge status={checkout.status as 'checked_out' | 'overdue' | 'returned'} />
-                          </div>
-                        ))}
+                        {checkoutStarts.length > 0 && (
+                          <>
+                            <p className="font-medium text-sm border-b pb-1 text-blue-600">
+                              Checked Out {format(day, 'MMM d, yyyy')}
+                            </p>
+                            {checkoutStarts.map(checkout => (
+                              <div key={`start-${checkout.id}`} className="flex items-start justify-between text-sm p-2 bg-blue-50 rounded border-l-2 border-blue-500" data-testid={`popover-checkout-start-${checkout.id}`}>
+                                <div>
+                                  <p className="font-medium">{checkout.customer.name}</p>
+                                  <p className="text-xs text-muted-foreground">{checkout.item.name}</p>
+                                </div>
+                                <StatusBadge status={checkout.status as 'checked_out' | 'overdue' | 'returned'} />
+                              </div>
+                            ))}
+                          </>
+                        )}
+                        {dueCheckouts.length > 0 && (
+                          <>
+                            <p className="font-medium text-sm border-b pb-1">
+                              Due {format(day, 'MMM d, yyyy')}
+                            </p>
+                            {dueCheckouts.map(checkout => (
+                              <div key={`due-${checkout.id}`} className="flex items-start justify-between text-sm p-2 bg-muted rounded" data-testid={`popover-checkout-${checkout.id}`}>
+                                <div>
+                                  <p className="font-medium">{checkout.customer.name}</p>
+                                  <p className="text-xs text-muted-foreground">{checkout.item.name}</p>
+                                </div>
+                                <StatusBadge status={checkout.status as 'checked_out' | 'overdue' | 'returned'} />
+                              </div>
+                            ))}
+                          </>
+                        )}
                       </div>
                     </PopoverContent>
                   )}
