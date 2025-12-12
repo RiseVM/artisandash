@@ -191,6 +191,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCheckout(id: number): Promise<boolean> {
+    await db.delete(emailNotifications).where(eq(emailNotifications.checkout_id, id));
     const result = await db.delete(checkouts).where(eq(checkouts.id, id)).returning();
     return result.length > 0;
   }
