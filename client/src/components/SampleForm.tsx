@@ -55,7 +55,7 @@ import SignatureCanvas from "react-signature-canvas";
 
 const formSchema = z.object({
   customer_id: z.number({ required_error: "Please select a customer" }),
-  inventory_item_id: z.number({ required_error: "Please select a sample" }),
+  inventory_item_ids: z.array(z.number()).min(1, "Please select at least one sample"),
   due_date: z.string().min(1, "Due date is required"),
   notes: z.string().optional(),
   auth_notes: z.string().optional(),
@@ -99,20 +99,35 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
     resolver: zodResolver(formSchema),
     defaultValues: initialData ? {
       customer_id: initialData.customer_id,
-      inventory_item_id: initialData.inventory_item_id,
+      inventory_item_ids: [initialData.inventory_item_id],
       due_date: initialData.due_date,
       notes: initialData.notes || "",
       auth_notes: initialData.auth_notes || "",
       payment_agreement: true,
     } : {
       customer_id: undefined,
-      inventory_item_id: undefined,
+      inventory_item_ids: [],
       due_date: format(new Date(), 'yyyy-MM-dd'),
       notes: "",
       auth_notes: "",
       payment_agreement: false,
     },
   });
+
+  const selectedItemIds = form.watch("inventory_item_ids");
+
+  const addItemToList = (itemId: number) => {
+    const current = form.getValues("inventory_item_ids");
+    if (!current.includes(itemId)) {
+      form.setValue("inventory_item_ids", [...current, itemId]);
+    }
+    setItemOpen(false);
+  };
+
+  const removeItemFromList = (itemId: number) => {
+    const current = form.getValues("inventory_item_ids");
+    form.setValue("inventory_item_ids", current.filter(id => id !== itemId));
+  };
 
   const paymentAgreement = form.watch("payment_agreement");
 
@@ -203,10 +218,10 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       category: newItemData.category || null,
       total_quantity: 1 
     });
-    form.setValue("inventory_item_id", newI.id);
+    addItemToList(newI.id);
     setShowNewItemDialog(false);
     setNewItemData({ name: "", sku: "", category: "" });
-    toast({ title: "Item Created", description: `${newI.name} added and selected.` });
+    toast({ title: "Item Created", description: `${newI.name} added to checkout.` });
   };
 
   const clearSignature = () => {
@@ -333,35 +348,30 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="inventory_item_id"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Sample Item</FormLabel>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="inventory_item_ids"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>Sample Items</FormLabel>
+                    <div className="space-y-3">
                       <div className="flex gap-2">
                         <Popover open={itemOpen} onOpenChange={setItemOpen}>
                           <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant="outline"
-                                role="combobox"
-                                className={cn(
-                                  "flex-1 justify-between",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                                data-testid="select-item"
-                              >
-                                {field.value
-                                  ? inventory.find(
-                                      (item) => item.id === field.value
-                                    )?.name
-                                  : "Select sample"}
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              className="flex-1 justify-between text-muted-foreground"
+                              data-testid="select-item"
+                            >
+                              Add a sample...
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-[250px] p-0">
+                          <PopoverContent className="w-[300px] p-0">
                             <Command>
                               <CommandInput placeholder="Search inventory..." />
                               <CommandList>
@@ -369,26 +379,19 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                                   <p className="text-sm text-muted-foreground p-2">Item not found.</p>
                                 </CommandEmpty>
                                 <CommandGroup>
-                                  {inventory.map((item) => (
-                                    <CommandItem
-                                      value={item.name}
-                                      key={item.id}
-                                      onSelect={() => {
-                                        form.setValue("inventory_item_id", item.id);
-                                        setItemOpen(false);
-                                      }}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          item.id === field.value
-                                            ? "opacity-100"
-                                            : "opacity-0"
-                                        )}
-                                      />
-                                      {item.name}
-                                    </CommandItem>
-                                  ))}
+                                  {inventory
+                                    .filter(item => !selectedItemIds.includes(item.id))
+                                    .map((item) => (
+                                      <CommandItem
+                                        value={item.name}
+                                        key={item.id}
+                                        onSelect={() => addItemToList(item.id)}
+                                      >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        {item.name}
+                                        {item.sku && <span className="ml-2 text-xs text-muted-foreground">({item.sku})</span>}
+                                      </CommandItem>
+                                    ))}
                                 </CommandGroup>
                               </CommandList>
                             </Command>
@@ -405,11 +408,41 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+
+                      {selectedItemIds.length > 0 && (
+                        <div className="rounded-md border divide-y">
+                          {selectedItemIds.map((itemId) => {
+                            const item = inventory.find(i => i.id === itemId);
+                            return (
+                              <div key={itemId} className="flex items-center justify-between p-3" data-testid={`selected-item-${itemId}`}>
+                                <div>
+                                  <span className="font-medium">{item?.name || "Unknown"}</span>
+                                  {item?.sku && <span className="ml-2 text-xs text-muted-foreground">({item.sku})</span>}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeItemFromList(itemId)}
+                                  className="text-destructive hover:text-destructive"
+                                  data-testid={`remove-item-${itemId}`}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {selectedItemIds.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No samples selected. Add at least one sample above.</p>
+                      )}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField

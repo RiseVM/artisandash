@@ -9,18 +9,23 @@ export function NewSample() {
 
   const handleSubmit = async (data: any) => {
     try {
-      await createCheckoutMutation.mutateAsync({
-        customer_id: data.customer_id,
-        inventory_item_id: data.inventory_item_id,
-        checkout_date: format(new Date(), 'yyyy-MM-dd'),
-        due_date: data.due_date,
-        status: 'checked_out',
-        notes: data.notes || null,
-        auth_notes: data.auth_notes || null,
-      });
+      const itemIds: number[] = data.inventory_item_ids || [];
+      
+      for (const itemId of itemIds) {
+        await createCheckoutMutation.mutateAsync({
+          customer_id: data.customer_id,
+          inventory_item_id: itemId,
+          checkout_date: format(new Date(), 'yyyy-MM-dd'),
+          due_date: data.due_date,
+          status: 'checked_out',
+          notes: data.notes || null,
+          auth_notes: data.auth_notes || null,
+        });
+      }
+      
       toast({
         title: "Checkout Created",
-        description: "The new sample checkout has been saved.",
+        description: `${itemIds.length} sample${itemIds.length > 1 ? 's' : ''} checked out successfully.`,
       });
     } catch (err) {
       toast({

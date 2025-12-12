@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -92,7 +93,66 @@ export function Dashboard() {
   const [editingCheckout, setEditingCheckout] = useState<EditCheckoutState | null>(null);
   const [customerOpen, setCustomerOpen] = useState(false);
   const [itemOpen, setItemOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isBulkReturning, setIsBulkReturning] = useState(false);
   const { toast } = useToast();
+
+  const toggleSelection = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (checkouts: CheckoutView[]) => {
+    const allIds = checkouts.map(c => c.id);
+    const allSelected = allIds.every(id => selectedIds.has(id));
+    if (allSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        allIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        allIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const handleBulkReturn = async () => {
+    if (selectedIds.size === 0) return;
+    setIsBulkReturning(true);
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        await updateCheckoutMutation.mutateAsync({
+          id,
+          data: { status: 'returned' }
+        });
+      }
+      toast({
+        title: "Samples Returned",
+        description: `${ids.length} sample${ids.length > 1 ? 's' : ''} marked as returned.`,
+      });
+      setSelectedIds(new Set());
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to mark samples as returned. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkReturning(false);
+    }
+  };
 
   const handleRunReminders = async () => {
     try {
@@ -203,84 +263,109 @@ export function Dashboard() {
     );
   }
 
-  const CheckoutTable = ({ data, showActions = true }: { data: CheckoutView[], showActions?: boolean }) => (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Customer</TableHead>
-            <TableHead>Sample</TableHead>
-            <TableHead>Dates</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Notes</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.length === 0 ? (
+  const CheckoutTable = ({ data, showCheckboxes = false }: { data: CheckoutView[], showCheckboxes?: boolean }) => {
+    const allSelected = data.length > 0 && data.every(c => selectedIds.has(c.id));
+    const someSelected = data.some(c => selectedIds.has(c.id));
+    
+    return (
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={5} className="h-24 text-center">
-                No samples found.
-              </TableCell>
+              {showCheckboxes && (
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={allSelected}
+                    onCheckedChange={() => toggleSelectAll(data)}
+                    data-testid="checkbox-select-all"
+                  />
+                </TableHead>
+              )}
+              <TableHead>Customer</TableHead>
+              <TableHead>Sample</TableHead>
+              <TableHead>Dates</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Notes</TableHead>
             </TableRow>
-          ) : (
-            data.map((sample) => (
-              <TableRow 
-                key={sample.id} 
-                className="group cursor-pointer hover:bg-muted/50"
-                onClick={() => openEditDialog(sample)}
-                data-testid={`row-checkout-${sample.id}`}
-              >
-                <TableCell>
-                  <div className="font-medium">{sample.customer.name}</div>
-                  <div className="text-xs text-muted-foreground">{sample.customer.email}</div>
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">{sample.item.name}</div>
-                  <div className="text-xs text-muted-foreground">{sample.item.sku}</div>
-                </TableCell>
-                <TableCell>
-                  <div className="text-xs space-y-1">
-                    <div className="flex justify-between w-32">
-                      <span className="text-muted-foreground">Out:</span> 
-                      <span>{format(new Date(sample.checkout_date), 'MMM d')}</span>
-                    </div>
-                    <div className="flex justify-between w-32 font-medium">
-                      <span className="text-muted-foreground">Due:</span> 
-                      <span className={sample.status === 'overdue' ? "text-red-600" : ""}>
-                        {format(new Date(sample.due_date), 'MMM d')}
-                      </span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                   <Select 
-                      defaultValue={sample.status} 
-                      onValueChange={(val: any) => handleStatusChange(sample.id, val)}
-                    >
-                      <SelectTrigger className="w-[130px] h-8 border-none bg-transparent p-0">
-                        <div className="flex items-center">
-                          <StatusBadge status={sample.status} />
-                        </div>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="checked_out">Checked Out</SelectItem>
-                        <SelectItem value="overdue">Overdue</SelectItem>
-                        <SelectItem value="returned">Returned</SelectItem>
-                      </SelectContent>
-                    </Select>
-                </TableCell>
-                <TableCell className="max-w-[200px]">
-                  <p className="truncate text-xs text-muted-foreground" title={sample.notes || ""}>
-                    {sample.notes || "—"}
-                  </p>
+          </TableHeader>
+          <TableBody>
+            {data.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={showCheckboxes ? 6 : 5} className="h-24 text-center">
+                  No samples found.
                 </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
-  );
+            ) : (
+              data.map((sample) => (
+                <TableRow 
+                  key={sample.id} 
+                  className="group cursor-pointer hover:bg-muted/50"
+                  onClick={() => openEditDialog(sample)}
+                  data-testid={`row-checkout-${sample.id}`}
+                >
+                  {showCheckboxes && (
+                    <TableCell>
+                      <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(sample.id)}
+                          onCheckedChange={() => toggleSelection(sample.id)}
+                          data-testid={`checkbox-checkout-${sample.id}`}
+                        />
+                      </div>
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <div className="font-medium">{sample.customer.name}</div>
+                    <div className="text-xs text-muted-foreground">{sample.customer.email}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">{sample.item.name}</div>
+                    <div className="text-xs text-muted-foreground">{sample.item.sku}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between w-32">
+                        <span className="text-muted-foreground">Out:</span> 
+                        <span>{format(new Date(sample.checkout_date), 'MMM d')}</span>
+                      </div>
+                      <div className="flex justify-between w-32 font-medium">
+                        <span className="text-muted-foreground">Due:</span> 
+                        <span className={sample.status === 'overdue' ? "text-red-600" : ""}>
+                          {format(new Date(sample.due_date), 'MMM d')}
+                        </span>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                     <Select 
+                        defaultValue={sample.status} 
+                        onValueChange={(val: any) => handleStatusChange(sample.id, val)}
+                      >
+                        <SelectTrigger className="w-[130px] h-8 border-none bg-transparent p-0">
+                          <div className="flex items-center">
+                            <StatusBadge status={sample.status as 'checked_out' | 'overdue' | 'returned'} />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="checked_out">Checked Out</SelectItem>
+                          <SelectItem value="overdue">Overdue</SelectItem>
+                          <SelectItem value="returned">Returned</SelectItem>
+                        </SelectContent>
+                      </Select>
+                  </TableCell>
+                  <TableCell className="max-w-[200px]">
+                    <p className="truncate text-xs text-muted-foreground" title={sample.notes || ""}>
+                      {sample.notes || "—"}
+                    </p>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -339,7 +424,31 @@ export function Dashboard() {
         <TabsContent value="active">
           <Card>
             <CardContent className="pt-6">
-              <CheckoutTable data={activeCheckouts} />
+              {selectedIds.size > 0 && (
+                <div className="flex items-center justify-between mb-4 p-3 bg-muted rounded-md">
+                  <span className="text-sm font-medium">
+                    {selectedIds.size} sample{selectedIds.size > 1 ? 's' : ''} selected
+                  </span>
+                  <Button
+                    onClick={handleBulkReturn}
+                    disabled={isBulkReturning}
+                    data-testid="button-bulk-return"
+                  >
+                    {isBulkReturning ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Mark Selected as Returned
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+              <CheckoutTable data={activeCheckouts} showCheckboxes={true} />
             </CardContent>
           </Card>
         </TabsContent>

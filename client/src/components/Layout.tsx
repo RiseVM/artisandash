@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { PlusCircle, LayoutDashboard, Users, Package, LogOut } from "lucide-react";
+import { PlusCircle, LayoutDashboard, Users, Package, LogOut, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import logoUrl from "@assets/1_1765497247808.jpg";
 
@@ -14,6 +14,7 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/new", label: "New Checkout", icon: PlusCircle },
