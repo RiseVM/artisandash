@@ -73,9 +73,18 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       const activeCheckouts = await storage.getActiveCheckoutsByCustomer(id);
       if (activeCheckouts.length > 0) {
-        return res.status(400).json({ 
-          error: "Cannot delete customer with active checkouts. All samples must be returned first." 
-        });
+        const overdueCount = activeCheckouts.filter(c => c.status === 'overdue').length;
+        const checkedOutCount = activeCheckouts.filter(c => c.status === 'checked_out').length;
+        let reason = `This customer has ${activeCheckouts.length} active sample${activeCheckouts.length > 1 ? 's' : ''}`;
+        if (overdueCount > 0 && checkedOutCount > 0) {
+          reason += ` (${checkedOutCount} checked out, ${overdueCount} overdue)`;
+        } else if (overdueCount > 0) {
+          reason += ` (${overdueCount} overdue)`;
+        } else {
+          reason += ` checked out`;
+        }
+        reason += `. All samples must be returned before deleting.`;
+        return res.status(400).json({ error: reason });
       }
       const deleted = await storage.deleteCustomer(id);
       if (!deleted) return res.status(404).json({ error: "Customer not found" });
@@ -131,9 +140,16 @@ export async function registerRoutes(
       const id = parseInt(req.params.id);
       const activeCheckouts = await storage.getActiveCheckoutsByInventoryItem(id);
       if (activeCheckouts.length > 0) {
-        return res.status(400).json({ 
-          error: "Cannot delete inventory item with active checkouts. All samples must be returned first." 
-        });
+        const overdueCount = activeCheckouts.filter(c => c.status === 'overdue').length;
+        const checkedOutCount = activeCheckouts.filter(c => c.status === 'checked_out').length;
+        let reason = `This sample is currently checked out to ${activeCheckouts.length} customer${activeCheckouts.length > 1 ? 's' : ''}`;
+        if (overdueCount > 0 && checkedOutCount > 0) {
+          reason += ` (${checkedOutCount} active, ${overdueCount} overdue)`;
+        } else if (overdueCount > 0) {
+          reason += ` (overdue)`;
+        }
+        reason += `. It must be returned before deleting.`;
+        return res.status(400).json({ error: reason });
       }
       const deleted = await storage.deleteInventoryItem(id);
       if (!deleted) return res.status(404).json({ error: "Item not found" });
