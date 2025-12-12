@@ -62,30 +62,37 @@ export async function generateAgreementPdf(options: {
       doc.text(`Due Date: ${options.dueDate}`);
       doc.moveDown(2);
 
-      doc.font('Helvetica-Bold').text('AGREEMENT TERMS:', { underline: true });
+      doc.font('Helvetica-Bold').fontSize(12).text('CUSTOMER ACKNOWLEDGMENT:', { underline: true });
       doc.moveDown(0.5);
+      
+      doc.font('Helvetica').fontSize(11);
+      doc.text('[X] I agree to the sample policy and authorize storing my card on file', { continued: false });
+      doc.moveDown(0.3);
+      
+      doc.rect(doc.x, doc.y, 450, 60).stroke();
+      doc.moveDown(0.2);
+      const boxX = doc.x + 10;
+      doc.font('Helvetica').fontSize(10);
+      doc.text('I authorize Artisan Tile to store my card on file and charge it for the full', boxX, doc.y);
+      doc.text('retail price of the sample if it is not returned by the due date or is returned', boxX);
+      doc.text('damaged.', boxX);
+      doc.moveDown(1.5);
+      
+      doc.font('Helvetica-Bold').fontSize(11).text('TERMS AND CONDITIONS:');
+      doc.moveDown(0.3);
       doc.font('Helvetica').fontSize(10);
       
       const terms = [
-        'I agree to the sample policy and authorize Artisan Tile to store my card on file.',
-        '',
-        'I authorize Artisan Tile to store my card on file and charge it for the full retail price of the sample if it is not returned by the due date or is returned damaged.',
-        '',
-        'TERMS AND CONDITIONS:',
-        '',
         '1. The sample(s) listed above are loaned to the customer for evaluation purposes only.',
-        '',
         '2. The customer agrees to return the sample(s) in the same condition as received by the due date specified.',
-        '',
         '3. If the sample(s) are not returned by the due date, or are returned damaged, the customer authorizes Artisan Tile to charge the full retail price to the card on file.',
-        '',
         '4. The customer is responsible for the care and safekeeping of the sample(s) while in their possession.',
-        '',
         '5. Artisan Tile reserves the right to pursue collection of any unpaid charges.',
       ];
 
       terms.forEach(line => {
         doc.text(line);
+        doc.moveDown(0.3);
       });
       
       doc.moveDown(2);
