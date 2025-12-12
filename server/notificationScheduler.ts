@@ -3,16 +3,35 @@ import { storage } from "./storage";
 import { sendSampleReminder, type NotificationType } from "./emailService";
 import { format, differenceInDays, parseISO } from "date-fns";
 
+function isBusinessHours(): boolean {
+  const now = new Date();
+  const hour = now.getHours();
+  const day = now.getDay();
+  
+  // Monday (1) through Friday (5), 9 AM to 5 PM
+  const isWeekday = day >= 1 && day <= 5;
+  const isWorkingHours = hour >= 9 && hour < 17;
+  
+  return isWeekday && isWorkingHours;
+}
+
 export async function checkAndSendNotifications(): Promise<{
   sent: number;
   errors: number;
   details: string[];
+  skippedReason?: string;
 }> {
   const results = {
     sent: 0,
     errors: 0,
-    details: [] as string[]
+    details: [] as string[],
+    skippedReason: undefined as string | undefined
   };
+
+  if (!isBusinessHours()) {
+    results.skippedReason = "Outside business hours (Mon-Fri, 9 AM - 5 PM)";
+    return results;
+  }
 
   try {
     const checkoutViews = await storage.getCheckoutViews();
@@ -92,7 +111,11 @@ export function startScheduler(intervalMinutes: number = 60) {
   schedulerInterval = setInterval(async () => {
     console.log('Running scheduled notification check...');
     const results = await checkAndSendNotifications();
-    console.log(`Notification check complete: ${results.sent} sent, ${results.errors} errors`);
+    if (results.skippedReason) {
+      console.log(`Notification check skipped: ${results.skippedReason}`);
+    } else {
+      console.log(`Notification check complete: ${results.sent} sent, ${results.errors} errors`);
+    }
   }, intervalMinutes * 60 * 1000);
 }
 
