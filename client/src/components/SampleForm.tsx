@@ -49,7 +49,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import SignatureCanvas from "react-signature-canvas";
 
@@ -115,6 +115,20 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   });
 
   const selectedItemIds = form.watch("inventory_item_ids");
+  const selectedCustomerId = form.watch("customer_id");
+
+  useEffect(() => {
+    if (selectedCustomerId && !initialData) {
+      const customer = customers.find(c => c.id === selectedCustomerId);
+      if (customer?.card_last4) {
+        setCardVerified(true);
+        form.setValue("auth_notes", `Card on file (${customer.card_brand || 'Card'} ending in ${customer.card_last4})`);
+      } else {
+        setCardVerified(false);
+        form.setValue("auth_notes", "");
+      }
+    }
+  }, [selectedCustomerId, customers, initialData]);
 
   const addItemToList = (itemId: number) => {
     const current = form.getValues("inventory_item_ids");
@@ -605,10 +619,16 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                   <div className="bg-green-50 border border-green-200 rounded-md p-4 text-center">
                     <div className="flex items-center justify-center gap-2 text-green-700 font-medium mb-1">
                       <Check className="h-5 w-5" />
-                      Card Verified
+                      Card on File
                     </div>
                     <p className="text-sm text-green-600">
-                      Card ending in 4242 is securely stored on file.
+                      {(() => {
+                        const customer = customers.find(c => c.id === selectedCustomerId);
+                        if (customer?.card_last4) {
+                          return `${customer.card_brand || 'Card'} ending in ${customer.card_last4} is securely stored.`;
+                        }
+                        return "Card is securely stored on file.";
+                      })()}
                     </p>
                     <Button 
                       variant="link" 
