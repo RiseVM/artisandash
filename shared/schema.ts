@@ -126,6 +126,7 @@ export const signedAgreements = pgTable("signed_agreements", {
   customer_id: integer("customer_id").references(() => customers.id).notNull(),
   checkout_id: integer("checkout_id").references(() => checkouts.id),
   document_title: text("document_title").notNull(),
+  agreement_text: text("agreement_text"),
   signature_data: text("signature_data").notNull(),
   google_drive_file_id: text("google_drive_file_id"),
   google_drive_link: text("google_drive_link"),

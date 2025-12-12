@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
+import { generateAgreementPdf, getAgreementText } from './pdfService';
 
 let connectionSettings: any;
 
@@ -50,23 +51,33 @@ async function getUncachableGoogleDriveClient() {
 
 const AGREEMENTS_FOLDER_ID = '1SW-afvEzW2cFhEte4ENeLjeEGnh32Rov';
 
-export async function uploadSignatureToGoogleDrive(
-  customerName: string,
-  signatureDataUrl: string
-): Promise<{ fileId: string; webViewLink: string } | null> {
+export { getAgreementText };
+
+export async function uploadAgreementToGoogleDrive(options: {
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  sampleName: string;
+  checkoutDate: string;
+  dueDate: string;
+  signatureDataUrl: string;
+}): Promise<{ fileId: string; webViewLink: string; agreementText: string } | null> {
   try {
     const drive = await getUncachableGoogleDriveClient();
+    const signedAt = new Date();
     
-    const base64Data = signatureDataUrl.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
+    const pdfBuffer = await generateAgreementPdf({
+      ...options,
+      signedAt,
+    });
     
-    const dateStr = new Date().toLocaleDateString('en-US', {
+    const dateStr = signedAt.toLocaleDateString('en-US', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
     }).replace(/\//g, '-');
     
-    const fileName = `${customerName} - ${dateStr}.png`;
+    const fileName = `${options.customerName} - ${dateStr}.pdf`;
     
     const fileMetadata = {
       name: fileName,
@@ -74,8 +85,8 @@ export async function uploadSignatureToGoogleDrive(
     };
 
     const media = {
-      mimeType: 'image/png',
-      body: Readable.from(buffer),
+      mimeType: 'application/pdf',
+      body: Readable.from(pdfBuffer),
     };
 
     const response = await drive.files.create({
@@ -84,11 +95,12 @@ export async function uploadSignatureToGoogleDrive(
       fields: 'id, webViewLink',
     });
 
-    console.log(`Uploaded agreement to Google Drive: ${fileName} (ID: ${response.data.id})`);
+    console.log(`Uploaded agreement PDF to Google Drive: ${fileName} (ID: ${response.data.id})`);
     
     return {
       fileId: response.data.id || '',
       webViewLink: response.data.webViewLink || '',
+      agreementText: getAgreementText(),
     };
   } catch (error) {
     console.error('Error uploading to Google Drive:', error);

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder } from "./emailService";
-import { uploadSignatureToGoogleDrive } from "./googleDriveService";
+import { uploadAgreementToGoogleDrive, getAgreementText } from "./googleDriveService";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -332,15 +332,41 @@ export async function registerRoutes(
       
       const customer = await storage.getCustomer(data.customer_id);
       const customerName = customer?.name || "Unknown Customer";
+      const customerEmail = customer?.email || "";
+      const customerPhone = customer?.phone || undefined;
+      
+      let checkout = null;
+      let sampleName = "Sample";
+      let checkoutDate = new Date().toLocaleDateString();
+      let dueDate = new Date().toLocaleDateString();
+      
+      if (data.checkout_id) {
+        checkout = await storage.getCheckoutView(data.checkout_id);
+        if (checkout) {
+          sampleName = checkout.item.name;
+          checkoutDate = checkout.checkout_date;
+          dueDate = checkout.due_date;
+        }
+      }
       
       let googleDriveFileId: string | null = null;
       let googleDriveLink: string | null = null;
+      let agreementText: string | null = getAgreementText();
       
       try {
-        const driveResult = await uploadSignatureToGoogleDrive(customerName, data.signature_data);
+        const driveResult = await uploadAgreementToGoogleDrive({
+          customerName,
+          customerEmail,
+          customerPhone,
+          sampleName,
+          checkoutDate,
+          dueDate,
+          signatureDataUrl: data.signature_data,
+        });
         if (driveResult) {
           googleDriveFileId = driveResult.fileId;
           googleDriveLink = driveResult.webViewLink;
+          agreementText = driveResult.agreementText;
         }
       } catch (driveError) {
         console.error("Failed to upload to Google Drive (continuing without):", driveError);
@@ -349,6 +375,7 @@ export async function registerRoutes(
       const agreement = await storage.createSignedAgreement({
         ...data,
         created_by_user_id: userId,
+        agreement_text: agreementText,
         google_drive_file_id: googleDriveFileId,
         google_drive_link: googleDriveLink,
       });
