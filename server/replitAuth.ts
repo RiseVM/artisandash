@@ -70,13 +70,22 @@ export async function setupAuth(app: Express) {
 
   const config = await getOidcConfig();
 
+  const ALLOWED_DOMAIN = "artisantilect.com";
+
   const verify: VerifyFunction = async (
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
+    const claims = tokens.claims();
+    const email = claims["email"] as string | undefined;
+    
+    if (!email || !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
+      return verified(new Error(`Access denied. Only @${ALLOWED_DOMAIN} email addresses are allowed.`), undefined);
+    }
+    
     const user = {};
     updateUserSession(user, tokens);
-    await upsertUser(tokens.claims());
+    await upsertUser(claims);
     verified(null, user);
   };
 
