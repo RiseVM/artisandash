@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useCheckouts, useCustomers, useInventory, useUpdateCheckout, useDeleteCheckout } from "@/hooks/use-api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -59,7 +59,6 @@ import {
 import { cn } from "@/lib/utils";
 import { 
   Search, 
-  Bell, 
   Plus, 
   CheckCircle2, 
   Edit2,
@@ -193,32 +192,24 @@ export function Dashboard() {
     }
   };
 
-  const handleRunReminders = async () => {
-    try {
+  const hasCheckedOverdue = useRef(false);
+  
+  useEffect(() => {
+    if (checkouts.length > 0 && !hasCheckedOverdue.current) {
+      hasCheckedOverdue.current = true;
       const today = format(new Date(), 'yyyy-MM-dd');
       const overdueCheckouts = checkouts.filter(
         c => c.status !== 'returned' && c.due_date < today && c.status !== 'overdue'
       );
       
-      for (const checkout of overdueCheckouts) {
-        await updateCheckoutMutation.mutateAsync({
+      overdueCheckouts.forEach(checkout => {
+        updateCheckoutMutation.mutate({
           id: checkout.id,
           data: { status: 'overdue' }
         });
-      }
-      
-      toast({
-        title: "Reminders Checked",
-        description: `${overdueCheckouts.length} samples marked as overdue.`,
-      });
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Failed to check reminders. Please try again.",
-        variant: "destructive",
       });
     }
-  };
+  }, [checkouts]);
 
   const handleStatusChange = async (id: number, newStatus: 'checked_out' | 'overdue' | 'returned') => {
     try {
@@ -451,10 +442,6 @@ export function Dashboard() {
           <p className="text-muted-foreground">Overview of checkouts and returns.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleRunReminders} disabled={updateCheckoutMutation.isPending}>
-            <Bell className="mr-2 h-4 w-4" />
-            Run Checks
-          </Button>
           <Link href="/new">
             <Button data-testid="button-new-checkout">
               <Plus className="mr-2 h-4 w-4" />
