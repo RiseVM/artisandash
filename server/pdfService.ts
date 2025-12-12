@@ -143,12 +143,13 @@ export async function generateAgreementPdf(options: {
       doc.y = sigBoxY + 90;
       doc.fillColor('#000000').font('Helvetica').fontSize(10);
       doc.text(`Signed on: ${options.signedAt.toLocaleString('en-US', {
+        timeZone: 'America/New_York',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-      })}`);
+      })} EST`);
       
       // Footer
       doc.moveDown(2);
@@ -157,12 +158,13 @@ export async function generateAgreementPdf(options: {
       doc.moveDown(0.5);
       doc.fontSize(8).fillColor('#666666');
       doc.text(`Document generated: ${new Date().toLocaleString('en-US', {
+        timeZone: 'America/New_York',
         year: 'numeric',
         month: 'long', 
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-      })}`, { align: 'center' });
+      })} EST`, { align: 'center' });
 
       doc.end();
     } catch (error) {

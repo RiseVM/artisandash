@@ -108,6 +108,7 @@ export async function uploadAgreementToGoogleDrive(options: {
     });
     
     const dateStr = signedAt.toLocaleDateString('en-US', {
+      timeZone: 'America/New_York',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'

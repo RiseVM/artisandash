@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { format } from "date-fns";
+import { formatDateEST } from "@/lib/utils";
 import { Search, FileText, Trash2, Eye, Loader2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { SignedAgreement } from "@shared/schema";
@@ -113,7 +113,7 @@ export function Agreements() {
                     <TableCell>{getCustomerName(agreement.customer_id)}</TableCell>
                     <TableCell>
                       {agreement.signed_at 
-                        ? format(new Date(agreement.signed_at), 'MMM d, yyyy h:mm a')
+                        ? formatDateEST(agreement.signed_at, { includeTime: true })
                         : '-'}
                     </TableCell>
                     <TableCell>
@@ -177,7 +177,7 @@ export function Agreements() {
                 <span className="text-muted-foreground">Signed:</span>
                 <p className="font-medium">
                   {selectedAgreement?.signed_at 
-                    ? format(new Date(selectedAgreement.signed_at), 'MMM d, yyyy h:mm a')
+                    ? formatDateEST(selectedAgreement.signed_at, { includeTime: true })
                     : '-'}
                 </p>
               </div>

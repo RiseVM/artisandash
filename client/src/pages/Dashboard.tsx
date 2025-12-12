@@ -56,7 +56,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, formatShortDateEST, formatReminderDateEST } from "@/lib/utils";
 import { 
   Search, 
   Plus, 
@@ -351,19 +351,19 @@ export function Dashboard() {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{sample.item.name}</div>
-                    <div className="text-xs text-muted-foreground">{sample.item.sku}</div>
+                    <div className="text-xs text-muted-foreground">{[sample.item.color, sample.item.vendor].filter(Boolean).join(' • ') || ''}</div>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="text-xs space-y-1">
                       <div className="font-medium">
                         <span className="text-muted-foreground">Due: </span>
                         <span className={sample.status === 'overdue' ? "text-red-600" : ""}>
-                          {format(new Date(sample.due_date), 'MMM d')}
+                          {formatShortDateEST(sample.due_date)}
                         </span>
                       </div>
                       {sample.last_reminder_sent && (
                         <div className="text-muted-foreground text-[10px]">
-                          Reminded: {format(new Date(sample.last_reminder_sent), 'MMM d, h:mm a')}
+                          Reminded: {formatReminderDateEST(sample.last_reminder_sent)}
                         </div>
                       )}
                       <Button
@@ -626,7 +626,7 @@ export function Dashboard() {
                               />
                               <div>
                                 <div>{item.name}</div>
-                                <div className="text-xs text-muted-foreground">{item.sku || "No SKU"}</div>
+                                <div className="text-xs text-muted-foreground">{[item.color, item.vendor].filter(Boolean).join(' • ') || ''}</div>
                               </div>
                             </CommandItem>
                           ))}
