@@ -697,6 +697,28 @@ export function Dashboard() {
                   <div className="text-xs bg-muted p-2 rounded">{editingCheckout.auth_notes}</div>
                 </div>
               )}
+
+              <div className="pt-2 border-t">
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => {
+                    const customer = customers.find(c => c.id === editingCheckout.customer_id);
+                    if (customer) {
+                      handleSendReminder(editingCheckout.id, customer.email);
+                    }
+                  }}
+                  disabled={sendingReminderId === editingCheckout.id}
+                  data-testid="button-send-reminder-dialog"
+                >
+                  {sendingReminderId === editingCheckout.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Mail className="h-4 w-4 mr-2" />
+                  )}
+                  Send Reminder Email
+                </Button>
+              </div>
             </div>
           )}
           <DialogFooter className="flex justify-between">
