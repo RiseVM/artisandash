@@ -96,6 +96,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCustomer(id: number): Promise<boolean> {
+    const customerCheckouts = await db.select().from(checkouts).where(eq(checkouts.customer_id, id));
+    for (const checkout of customerCheckouts) {
+      await db.delete(emailNotifications).where(eq(emailNotifications.checkout_id, checkout.id));
+    }
+    await db.delete(checkouts).where(eq(checkouts.customer_id, id));
     const result = await db.delete(customers).where(eq(customers.id, id)).returning();
     return result.length > 0;
   }
@@ -121,6 +126,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteInventoryItem(id: number): Promise<boolean> {
+    const itemCheckouts = await db.select().from(checkouts).where(eq(checkouts.inventory_item_id, id));
+    for (const checkout of itemCheckouts) {
+      await db.delete(emailNotifications).where(eq(emailNotifications.checkout_id, checkout.id));
+    }
+    await db.delete(checkouts).where(eq(checkouts.inventory_item_id, id));
     const result = await db.delete(inventory).where(eq(inventory.id, id)).returning();
     return result.length > 0;
   }
