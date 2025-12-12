@@ -49,8 +49,6 @@ async function getUncachableGoogleDriveClient() {
   return google.drive({ version: 'v3', auth: oauth2Client });
 }
 
-const AGREEMENTS_FOLDER_ID = '1SW-afvEzW2cFhEte4ENeLjeEGnh32Rov';
-
 export { getAgreementText };
 
 export async function uploadAgreementToGoogleDrive(options: {
@@ -77,11 +75,10 @@ export async function uploadAgreementToGoogleDrive(options: {
       day: '2-digit'
     }).replace(/\//g, '-');
     
-    const fileName = `${options.customerName} - ${dateStr}.pdf`;
+    const fileName = `Artisan Tile Agreement - ${options.customerName} - ${dateStr}.pdf`;
     
     const fileMetadata = {
       name: fileName,
-      parents: [AGREEMENTS_FOLDER_ID],
     };
 
     const media = {
