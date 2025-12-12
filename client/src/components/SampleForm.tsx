@@ -31,7 +31,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { useCustomers, useInventory, useCreateCustomer, useCreateInventory, useCreateCheckout } from "@/hooks/use-api";
+import { useCustomers, useInventory, useCreateCustomer, useCreateInventory, useCreateCheckout, useUpdateCustomer } from "@/hooks/use-api";
 import type { Checkout } from "@shared/schema";
 import { useLocation } from "wouter";
 import { Check, ChevronsUpDown, CreditCard, Lock, Loader2, Plus, PenLine, RotateCcw } from "lucide-react";
@@ -78,6 +78,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const { data: inventory = [] } = useInventory();
   const createCustomerMutation = useCreateCustomer();
   const createInventoryMutation = useCreateInventory();
+  const updateCustomerMutation = useUpdateCustomer();
   const { toast } = useToast();
   
   const [customerOpen, setCustomerOpen] = useState(false);
@@ -115,7 +116,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
 
   const paymentAgreement = form.watch("payment_agreement");
 
-  const handleChargeCard = () => {
+  const handleChargeCard = async () => {
     if (!paymentAgreement) {
       toast({
         title: "Agreement Required",
@@ -124,15 +125,52 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       });
       return;
     }
-    setIsProcessingCard(true);
-    setTimeout(() => {
-      setIsProcessingCard(false);
-      setCardVerified(true);
-      form.setValue("auth_notes", `Verified Card (Ending in 4242) - charged $1.00`);
+    if (!hasSignature) {
       toast({
-        title: "Card Verified",
-        description: "$1.00 sample fee processed successfully.",
+        title: "Signature Required",
+        description: "Please sign the agreement before processing payment.",
+        variant: "destructive",
       });
+      return;
+    }
+    
+    const customerId = form.getValues("customer_id");
+    if (!customerId) {
+      toast({
+        title: "Customer Required",
+        description: "Please select a customer before processing payment.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsProcessingCard(true);
+    setTimeout(async () => {
+      try {
+        await updateCustomerMutation.mutateAsync({
+          id: customerId,
+          data: {
+            card_last4: "4242",
+            card_brand: "Visa",
+            card_exp_month: 12,
+            card_exp_year: 2028,
+          }
+        });
+        setIsProcessingCard(false);
+        setCardVerified(true);
+        form.setValue("auth_notes", `Verified Card (Ending in 4242) - charged $1.00`);
+        toast({
+          title: "Card Verified",
+          description: "$1.00 sample fee processed. Card saved to customer file.",
+        });
+      } catch (err) {
+        setIsProcessingCard(false);
+        toast({
+          title: "Payment Failed",
+          description: "Could not process payment. Please try again.",
+          variant: "destructive",
+        });
+      }
     }, 1500);
   };
 
@@ -413,6 +451,52 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
               />
 
               <div className="rounded-lg border bg-card p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <PenLine className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Customer Signature</h3>
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={clearSignature}
+                    data-testid="button-clear-signature"
+                  >
+                    <RotateCcw className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                </div>
+                
+                <div className="border-2 border-dashed rounded-lg bg-white touch-none" style={{ height: '200px' }}>
+                  <SignatureCanvas
+                    ref={signatureRef}
+                    canvasProps={{
+                      className: 'w-full h-full rounded-lg',
+                      style: { width: '100%', height: '100%', touchAction: 'none' }
+                    }}
+                    onEnd={handleSignatureEnd}
+                    penColor="black"
+                    data-testid="signature-canvas"
+                  />
+                </div>
+                <p className="text-xs text-center text-muted-foreground mt-2">
+                  Sign above using your finger or stylus to acknowledge the sample policy.
+                </p>
+                {hasSignature && (
+                  <div className="flex items-center justify-center gap-1 mt-2 text-green-600 text-sm">
+                    <Check className="h-4 w-4" />
+                    Signature captured
+                  </div>
+                )}
+                {!hasSignature && paymentAgreement && (
+                  <p className="text-xs text-center text-amber-600 mt-2">
+                    Please sign above before proceeding to payment.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-lg border bg-card p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
                    <Lock className="h-4 w-4 text-green-600" />
                    <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Secure Payment Method</h3>
@@ -453,7 +537,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                       type="button" 
                       className="w-full" 
                       onClick={handleChargeCard}
-                      disabled={isProcessingCard || !paymentAgreement}
+                      disabled={isProcessingCard || !paymentAgreement || !hasSignature}
                       data-testid="button-charge-card"
                     >
                       {isProcessingCard ? (
@@ -468,6 +552,11 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                     {!paymentAgreement && (
                       <p className="text-xs text-center text-amber-600">
                         Please agree to the sample policy above to enable payment processing.
+                      </p>
+                    )}
+                    {paymentAgreement && !hasSignature && (
+                      <p className="text-xs text-center text-amber-600">
+                        Please sign the agreement above before processing payment.
                       </p>
                     )}
                     <p className="text-xs text-center text-muted-foreground">
@@ -493,47 +582,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                     >
                       Use a different card
                     </Button>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-lg border bg-card p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <PenLine className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Customer Signature</h3>
-                  </div>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={clearSignature}
-                    data-testid="button-clear-signature"
-                  >
-                    <RotateCcw className="h-4 w-4 mr-1" />
-                    Clear
-                  </Button>
-                </div>
-                
-                <div className="border-2 border-dashed rounded-lg bg-white touch-none" style={{ height: '200px' }}>
-                  <SignatureCanvas
-                    ref={signatureRef}
-                    canvasProps={{
-                      className: 'w-full h-full rounded-lg',
-                      style: { width: '100%', height: '100%', touchAction: 'none' }
-                    }}
-                    onEnd={handleSignatureEnd}
-                    penColor="black"
-                    data-testid="signature-canvas"
-                  />
-                </div>
-                <p className="text-xs text-center text-muted-foreground mt-2">
-                  Sign above using your finger or stylus to acknowledge the sample policy.
-                </p>
-                {hasSignature && (
-                  <div className="flex items-center justify-center gap-1 mt-2 text-green-600 text-sm">
-                    <Check className="h-4 w-4" />
-                    Signature captured
                   </div>
                 )}
               </div>
