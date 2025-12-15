@@ -8,6 +8,8 @@ import { startScheduler, checkAndSendNotifications } from "./notificationSchedul
 import { sendSampleReminder, sendContractEmail } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
+import * as fs from "fs";
+import * as path from "path";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -26,6 +28,29 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Contract template downloads
+  app.get('/api/contract-templates/cabinetry', (req, res) => {
+    const templatePath = path.join(process.cwd(), 'attached_assets', 'Cabinet_Contract_2025_1765835290052.pdf');
+    if (fs.existsSync(templatePath)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="Cabinetry_Contract_Template.pdf"');
+      fs.createReadStream(templatePath).pipe(res);
+    } else {
+      res.status(404).json({ error: "Template not found" });
+    }
+  });
+
+  app.get('/api/contract-templates/home-improvement', (req, res) => {
+    const templatePath = path.join(process.cwd(), 'attached_assets', 'Home_Improvement_Contract-_Artisan_Tile_At_Whitfield_Design_LL_1765835252033.pdf');
+    if (fs.existsSync(templatePath)) {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="Home_Improvement_Contract_Template.pdf"');
+      fs.createReadStream(templatePath).pipe(res);
+    } else {
+      res.status(404).json({ error: "Template not found" });
     }
   });
 

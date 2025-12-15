@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, FileText, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, Eye, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { CabinetryContractPreview } from "@/components/CabinetryContractPreview";
 
 export function CabinetryContractForm() {
@@ -247,6 +247,19 @@ export function CabinetryContractForm() {
               <p className="text-amber-800 text-sm">
                 Please read the entire contract carefully before signing. This document is legally binding.
               </p>
+            </div>
+
+            <div className="flex justify-end mb-4">
+              <a 
+                href="/api/contract-templates/cabinetry" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                data-testid="link-download-template"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Download blank contract template (PDF)
+              </a>
             </div>
 
             <CabinetryContractPreview formData={formData} />
