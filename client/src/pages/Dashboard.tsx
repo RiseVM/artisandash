@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { useCheckouts, useCustomers, useInventory, useUpdateCheckout, useDeleteCheckout, useContracts, useSignedAgreements } from "@/hooks/use-api";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CheckoutView, Customer, Inventory } from "@shared/schema";
-import { startOfMonth, isAfter, parseISO } from "date-fns";
+import { startOfMonth } from "date-fns";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,7 +117,7 @@ export function Dashboard() {
     const monthStart = startOfMonth(new Date());
     const contractsThisMonth = contracts.filter(c => {
       if (!c.signed_at) return false;
-      return isAfter(new Date(c.signed_at), monthStart);
+      return new Date(c.signed_at) >= monthStart;
     }).length;
     return { activeCount, overdueCount, contractsThisMonth };
   }, [checkouts, contracts]);
