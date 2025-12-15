@@ -7,6 +7,7 @@ import {
   emailNotifications,
   signedAgreements,
   contracts,
+  activityLogs,
   type Customer,
   type Inventory,
   type Checkout,
@@ -16,19 +17,31 @@ import {
   type CheckoutView,
   type User,
   type UpsertUser,
+  type InsertUser,
   type InsertEmailNotification,
   type EmailNotification,
   type InsertSignedAgreement,
   type SignedAgreement,
   type InsertContract,
-  type Contract
+  type Contract,
+  type InsertActivityLog,
+  type ActivityLog
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gte, lte, or } from "drizzle-orm";
 
 export interface IStorage {
-  // Users (for Replit Auth)
+  // Users
   getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUsers(): Promise<User[]>;
   upsertUser(user: UpsertUser): Promise<User>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
+
+  // Activity Logs
+  getActivityLogs(filters?: { userId?: string; startDate?: Date; endDate?: Date }): Promise<ActivityLog[]>;
+  createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
 
   // Customers
   getCustomers(): Promise<Customer[]>;
@@ -74,10 +87,19 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // Users (for Replit Auth)
+  // Users
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(desc(users.createdAt));
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
@@ -93,6 +115,53 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  async createUser(userData: InsertUser): Promise<User> {
+    const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
+
+  async updateUser(id: string, userData: Partial<InsertUser>): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ ...userData, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Activity Logs
+  async getActivityLogs(filters?: { userId?: string; startDate?: Date; endDate?: Date }): Promise<ActivityLog[]> {
+    let conditions: any[] = [];
+    
+    if (filters?.userId) {
+      conditions.push(eq(activityLogs.userId, filters.userId));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(activityLogs.createdAt, filters.startDate));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(activityLogs.createdAt, filters.endDate));
+    }
+
+    if (conditions.length > 0) {
+      return db.select().from(activityLogs)
+        .where(and(...conditions))
+        .orderBy(desc(activityLogs.createdAt));
+    }
+    
+    return db.select().from(activityLogs).orderBy(desc(activityLogs.createdAt));
+  }
+
+  async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
+    const [result] = await db.insert(activityLogs).values(log).returning();
+    return result;
   }
 
   // Customers
