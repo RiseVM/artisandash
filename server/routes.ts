@@ -1,33 +1,303 @@
-import type { Express } from "express";
+import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, type User } from "@shared/schema";
 import { z } from "zod";
-import { setupAuth, isAuthenticated } from "./replitAuth";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
+import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
 import * as fs from "fs";
 import * as path from "path";
+
+declare module "express-session" {
+  interface SessionData {
+    userId: string;
+    userEmail: string;
+    userRole: string;
+  }
+}
+
+const isAuthenticated: RequestHandler = async (req: any, res, next) => {
+  if (!req.session?.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
+  const user = await storage.getUser(req.session.userId);
+  if (!user || user.isActive !== "yes") {
+    req.session.destroy(() => {});
+    return res.status(401).json({ error: "User account is inactive" });
+  }
+  
+  req.user = user;
+  next();
+};
+
+const isAdmin: RequestHandler = async (req: any, res, next) => {
+  if (!req.session?.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
+  const user = await storage.getUser(req.session.userId);
+  if (!user || user.role !== "admin") {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  
+  req.user = user;
+  next();
+};
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
-  // Setup Replit Auth
-  await setupAuth(app);
+  // Seed admin user on startup
+  await seedAdminUser();
 
   // Auth routes
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+      
+      const user = await authenticateUser(email, password);
+      
+      if (!user) {
+        await storage.createActivityLog({
+          userEmail: email,
+          action: "login_failed",
+          details: "Invalid credentials or inactive account",
+          ipAddress: req.ip,
+        });
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+      
+      req.session.userId = user.id;
+      req.session.userEmail = user.email;
+      req.session.userRole = user.role;
+      
+      await storage.createActivityLog({
+        userId: user.id,
+        userEmail: user.email,
+        action: "login",
+        details: "User logged in successfully",
+        ipAddress: req.ip,
+      });
+      
+      res.json({ 
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  app.post('/api/auth/logout', async (req: any, res) => {
+    const userId = req.session?.userId;
+    const userEmail = req.session?.userEmail;
+    
+    if (userId) {
+      await storage.createActivityLog({
+        userId,
+        userEmail: userEmail || undefined,
+        action: "logout",
+        details: "User logged out",
+        ipAddress: req.ip,
+      });
+    }
+    
+    req.session.destroy((err: any) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      res.json({ success: true });
+    });
+  });
+
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      res.json({
+        id: req.user!.id,
+        email: req.user!.email,
+        firstName: req.user!.firstName,
+        lastName: req.user!.lastName,
+        role: req.user!.role,
+      });
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // User management routes (admin only)
+  app.get('/api/users', isAdmin, async (req: any, res) => {
+    try {
+      const users = await storage.getUsers();
+      res.json(users.map(u => ({
+        id: u.id,
+        email: u.email,
+        firstName: u.firstName,
+        lastName: u.lastName,
+        role: u.role,
+        isActive: u.isActive,
+        createdAt: u.createdAt,
+      })));
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  app.post('/api/users', isAdmin, async (req: any, res) => {
+    try {
+      const { email, password, firstName, lastName, role } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+      
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ error: "Email already exists" });
+      }
+      
+      const passwordHash = await hashPassword(password);
+      const user = await storage.createUser({
+        email,
+        passwordHash,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        role: role || "staff",
+        isActive: "yes",
+      });
+      
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: "create_user",
+        entityType: "user",
+        entityId: user.id,
+        details: `Created user: ${email}`,
+        ipAddress: req.ip,
+      });
+      
+      res.status(201).json({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        isActive: user.isActive,
+      });
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ error: "Failed to create user" });
+    }
+  });
+
+  app.patch('/api/users/:id', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      const { email, password, firstName, lastName, role, isActive } = req.body;
+      
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      const updates: any = {};
+      if (email !== undefined) updates.email = email;
+      if (firstName !== undefined) updates.firstName = firstName;
+      if (lastName !== undefined) updates.lastName = lastName;
+      if (role !== undefined) updates.role = role;
+      if (isActive !== undefined) updates.isActive = isActive;
+      if (password) {
+        updates.passwordHash = await hashPassword(password);
+      }
+      
+      const user = await storage.updateUser(id, updates);
+      
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: "update_user",
+        entityType: "user",
+        entityId: id,
+        details: `Updated user: ${existingUser.email}`,
+        ipAddress: req.ip,
+      });
+      
+      res.json({
+        id: user!.id,
+        email: user!.email,
+        firstName: user!.firstName,
+        lastName: user!.lastName,
+        role: user!.role,
+        isActive: user!.isActive,
+      });
+    } catch (error) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  app.delete('/api/users/:id', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      if (existingUser.email === "ed@risevm.com") {
+        return res.status(400).json({ error: "Cannot delete the primary admin account" });
+      }
+      
+      await storage.deleteUser(id);
+      
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: "delete_user",
+        entityType: "user",
+        entityId: id,
+        details: `Deleted user: ${existingUser.email}`,
+        ipAddress: req.ip,
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
+  // Activity logs routes (admin only)
+  app.get('/api/activity-logs', isAdmin, async (req: any, res) => {
+    try {
+      const { userId, startDate, endDate } = req.query;
+      
+      const filters: any = {};
+      if (userId) filters.userId = userId as string;
+      if (startDate) filters.startDate = new Date(startDate as string);
+      if (endDate) filters.endDate = new Date(endDate as string);
+      
+      const logs = await storage.getActivityLogs(Object.keys(filters).length > 0 ? filters : undefined);
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching activity logs:", error);
+      res.status(500).json({ error: "Failed to fetch activity logs" });
     }
   });
 
@@ -201,7 +471,7 @@ export async function registerRoutes(
 
   app.post("/api/checkouts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
       const data = insertCheckoutSchema.parse(req.body);
       
       const activeCheckouts = await storage.getActiveCheckoutsByInventoryItem(data.inventory_item_id);
@@ -349,7 +619,7 @@ export async function registerRoutes(
 
   app.post("/api/agreements", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
       const data = insertSignedAgreementSchema.parse(req.body);
       
       if (!data.signature_data || data.signature_data.trim().length === 0) {
@@ -452,7 +722,7 @@ export async function registerRoutes(
 
   app.post("/api/contracts", isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
       const data = insertContractSchema.parse(req.body);
       
       if (!data.signature_data || data.signature_data.trim().length === 0) {
