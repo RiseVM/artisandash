@@ -82,6 +82,12 @@ export function CabinetryContractForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!hasReviewedContract) {
+      toast({ title: "Please review the contract before signing", variant: "destructive" });
+      setStep('preview');
+      return;
+    }
+
     const signatureData = sigCanvas.current?.toDataURL("image/png");
     if (!signatureData || sigCanvas.current?.isEmpty()) {
       toast({ title: "Signature is required", variant: "destructive" });
@@ -96,7 +102,7 @@ export function CabinetryContractForm() {
         customer_phone: customerPhone || null,
         customer_address: formData.purchaserAddress || null,
         property_address: formData.propertyAddress || null,
-        form_data: formData,
+        form_data: { ...formData, contractReviewed: true },
         signature_data: signatureData,
       });
 
