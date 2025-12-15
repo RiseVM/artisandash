@@ -48,7 +48,7 @@ export function Landing() {
             alt="Artisan Tile Kitchen & Bath" 
             className="w-full mx-auto mix-blend-multiply"
           />
-          <p className="text-lg text-muted-foreground mt-2">Sample Tracker</p>
+          <p className="text-lg text-muted-foreground mt-2">Artisan Showroom Dashboard</p>
         </div>
         
         <Card className="max-w-md w-full">

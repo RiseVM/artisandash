@@ -1,8 +1,8 @@
-# Artisan Tile Sample Tracker
+# Artisan Showroom Dashboard
 
 ## Overview
 
-A sample checkout tracking system for Artisan Tile, allowing staff to manage tile sample inventory, customer information, and sample checkouts with due date tracking. The application tracks when samples are checked out to customers, monitors overdue items, and manages returns.
+A comprehensive showroom management system for Artisan Tile, allowing staff to manage tile sample inventory, customer information, sample checkouts with due date tracking, and contract management. The application tracks when samples are checked out to customers, monitors overdue items, manages returns, and handles contract generation and signing.
 
 ## User Preferences
 
