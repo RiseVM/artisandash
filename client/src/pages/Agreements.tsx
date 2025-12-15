@@ -47,10 +47,10 @@ export function Agreements() {
     if (!deleteAgreement) return;
     try {
       await deleteAgreementMutation.mutateAsync(deleteAgreement.id);
-      toast({ title: "Agreement deleted" });
+      toast({ title: "Checkout deleted" });
       setDeleteAgreement(null);
     } catch (err) {
-      toast({ title: "Error deleting agreement", variant: "destructive" });
+      toast({ title: "Error deleting checkout", variant: "destructive" });
     }
   };
 
@@ -66,8 +66,8 @@ export function Agreements() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-primary" data-testid="text-page-title">Signed Agreements</h1>
-          <p className="text-muted-foreground">View and manage customer signed agreements</p>
+          <h1 className="text-2xl font-serif font-bold text-primary" data-testid="text-page-title">Signed Checkouts</h1>
+          <p className="text-muted-foreground">View and manage customer signed sample checkouts</p>
         </div>
       </div>
 
@@ -76,12 +76,12 @@ export function Agreements() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              All Agreements ({filteredAgreements.length})
+              All Checkouts ({filteredAgreements.length})
             </CardTitle>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
-                placeholder="Search agreements..." 
+                placeholder="Search checkouts..." 
                 className="pl-9"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -93,7 +93,7 @@ export function Agreements() {
         <CardContent>
           {filteredAgreements.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {search ? "No agreements match your search." : "No signed agreements yet."}
+              {search ? "No checkouts match your search." : "No signed checkouts yet."}
             </div>
           ) : (
             <Table>
@@ -234,7 +234,7 @@ export function Agreements() {
       <AlertDialog open={!!deleteAgreement} onOpenChange={() => setDeleteAgreement(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this agreement?</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure you want to delete this checkout?</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

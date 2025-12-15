@@ -18,7 +18,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/calendar", label: "Calendar", icon: Calendar },
-    { href: "/agreements", label: "Agreements", icon: FileText },
+    { href: "/agreements", label: "Checkouts", icon: FileText },
     { href: "/contracts", label: "Contracts", icon: ClipboardList },
     { href: "/new", label: "New Checkout", icon: PlusCircle },
   ];
