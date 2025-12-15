@@ -16,12 +16,12 @@ export function Layout({ children }: LayoutProps) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/customers", label: "Customers", icon: Users },
-    { href: "/inventory", label: "Inventory", icon: Package },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
+    { href: "/new", label: "New Checkout", icon: PlusCircle },
     { href: "/agreements", label: "Checkouts", icon: FileText },
     { href: "/contracts", label: "Contracts", icon: ClipboardList },
-    { href: "/new", label: "New Checkout", icon: PlusCircle },
+    { href: "/calendar", label: "Calendar", icon: Calendar },
+    { href: "/customers", label: "Customers", icon: Users },
+    { href: "/inventory", label: "Inventory", icon: Package },
   ];
 
   const currentItem = navItems.find(item => item.href === location) || navItems[0];
