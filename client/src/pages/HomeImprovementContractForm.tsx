@@ -7,14 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Home } from "lucide-react";
+import { ArrowLeft, Loader2, Home, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { HomeImprovementContractPreview } from "@/components/HomeImprovementContractPreview";
 
 export function HomeImprovementContractForm() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const createContractMutation = useCreateContract();
   const sigCanvas = useRef<SignatureCanvas>(null);
+  const [step, setStep] = useState<'form' | 'preview' | 'sign'>('form');
+  const [hasReviewedContract, setHasReviewedContract] = useState(false);
 
   const [formData, setFormData] = useState({
     date: new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' }),
@@ -51,13 +55,30 @@ export function HomeImprovementContractForm() {
     sigCanvas.current?.clear();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const validateForm = () => {
     if (!formData.ownerName1 || !customerEmail) {
-      toast({ title: "Please fill in required fields", variant: "destructive" });
+      toast({ title: "Please fill in required fields (Name and Email)", variant: "destructive" });
+      return false;
+    }
+    return true;
+  };
+
+  const goToPreview = () => {
+    if (validateForm()) {
+      setStep('preview');
+    }
+  };
+
+  const goToSign = () => {
+    if (!hasReviewedContract) {
+      toast({ title: "Please confirm you have reviewed the contract", variant: "destructive" });
       return;
     }
+    setStep('sign');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     const signatureData = sigCanvas.current?.toDataURL("image/png");
     if (!signatureData || sigCanvas.current?.isEmpty()) {
@@ -97,10 +118,20 @@ export function HomeImprovementContractForm() {
         <h1 className="text-2xl font-serif font-bold text-primary" data-testid="text-page-title">
           Home Improvement Contract
         </h1>
-        <p className="text-muted-foreground">Fill out the contract details below</p>
+        <p className="text-muted-foreground">
+          {step === 'form' && "Step 1: Fill out the contract details"}
+          {step === 'preview' && "Step 2: Review the complete contract"}
+          {step === 'sign' && "Step 3: Sign the contract"}
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`h-2 flex-1 rounded ${step === 'form' ? 'bg-primary' : 'bg-primary/30'}`} />
+        <div className={`h-2 flex-1 rounded ${step === 'preview' ? 'bg-primary' : 'bg-primary/30'}`} />
+        <div className={`h-2 flex-1 rounded ${step === 'sign' ? 'bg-primary' : 'bg-primary/30'}`} />
+      </div>
+
+      {step === 'form' && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -147,7 +178,7 @@ export function HomeImprovementContractForm() {
             </div>
 
             <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">Description of Work</h3>
+              <h3 className="font-semibold mb-3">Description of Work (Exhibit A)</h3>
               <Textarea
                 id="workDescription"
                 name="workDescription"
@@ -207,34 +238,112 @@ export function HomeImprovementContractForm() {
               />
             </div>
 
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">Customer Signature *</h3>
-              <div className="border rounded-md bg-white p-2">
-                <SignatureCanvas
-                  ref={sigCanvas}
-                  canvasProps={{
-                    className: "w-full h-32 border border-dashed border-gray-300 rounded",
-                    "data-testid": "signature-canvas"
-                  }}
-                />
-              </div>
-              <Button type="button" variant="outline" size="sm" className="mt-2" onClick={clearSignature} data-testid="button-clear-signature">
-                Clear Signature
-              </Button>
-            </div>
-
             <div className="flex justify-end gap-4 pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => setLocation("/contracts")} data-testid="button-cancel">
                 Cancel
               </Button>
-              <Button type="submit" disabled={createContractMutation.isPending} data-testid="button-submit">
-                {createContractMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Create Contract
+              <Button type="button" onClick={goToPreview} data-testid="button-preview">
+                <Eye className="h-4 w-4 mr-2" />
+                Review Contract
+                <ChevronRight className="h-4 w-4 ml-2" />
               </Button>
             </div>
           </CardContent>
         </Card>
-      </form>
+      )}
+
+      {step === 'preview' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Review Complete Contract
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <p className="text-amber-800 text-sm">
+                Please read the entire contract carefully before signing. This document is legally binding.
+              </p>
+            </div>
+
+            <HomeImprovementContractPreview formData={formData} />
+
+            <div className="flex items-center space-x-2 pt-4 border-t">
+              <Checkbox 
+                id="reviewed" 
+                checked={hasReviewedContract}
+                onCheckedChange={(checked) => setHasReviewedContract(checked === true)}
+                data-testid="checkbox-reviewed"
+              />
+              <label htmlFor="reviewed" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                I have read and understand the complete contract terms above
+              </label>
+            </div>
+
+            <div className="flex justify-between gap-4 pt-4">
+              <Button type="button" variant="outline" onClick={() => setStep('form')} data-testid="button-back-to-form">
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back to Edit
+              </Button>
+              <Button type="button" onClick={goToSign} disabled={!hasReviewedContract} data-testid="button-proceed-sign">
+                Proceed to Sign
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 'sign' && (
+        <form onSubmit={handleSubmit}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Home className="h-5 w-5" />
+                Sign the Contract
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-green-800 text-sm">
+                  You have reviewed and agreed to the contract terms. Please sign below to complete the agreement.
+                </p>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="font-semibold mb-3">Customer Signature *</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Sign in the box below. Your signature will be applied to the complete contract document you just reviewed.
+                </p>
+                <div className="border rounded-md bg-white p-2">
+                  <SignatureCanvas
+                    ref={sigCanvas}
+                    canvasProps={{
+                      className: "w-full h-32 border border-dashed border-gray-300 rounded",
+                      "data-testid": "signature-canvas"
+                    }}
+                  />
+                </div>
+                <Button type="button" variant="outline" size="sm" className="mt-2" onClick={clearSignature} data-testid="button-clear-signature">
+                  Clear Signature
+                </Button>
+              </div>
+
+              <div className="flex justify-between gap-4 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => setStep('preview')} data-testid="button-back-to-preview">
+                  <ChevronLeft className="h-4 w-4 mr-2" />
+                  Back to Review
+                </Button>
+                <Button type="submit" disabled={createContractMutation.isPending} data-testid="button-submit">
+                  {createContractMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Sign & Create Contract
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </form>
+      )}
     </div>
   );
 }
