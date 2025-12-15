@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import { PlusCircle, LayoutDashboard, Users, Package, LogOut, Calendar, ChevronDown, FileText, ClipboardList } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import logoUrl from "@assets/1_1765497247808.jpg";
 
 interface LayoutProps {
@@ -153,6 +154,9 @@ export function Layout({ children }: LayoutProps) {
       {/* Main Content */}
       <main className="flex-1 overflow-auto bg-slate-50/50">
         <div className="container max-w-6xl mx-auto p-4 md:p-10">
+          <div className="mb-6 flex justify-end">
+            <GlobalSearch />
+          </div>
           {children}
         </div>
       </main>
