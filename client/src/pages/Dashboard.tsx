@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
-import { useCheckouts, useCustomers, useInventory, useUpdateCheckout, useDeleteCheckout } from "@/hooks/use-api";
+import { useCheckouts, useCustomers, useInventory, useUpdateCheckout, useDeleteCheckout, useContracts, useSignedAgreements } from "@/hooks/use-api";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CheckoutView, Customer, Inventory } from "@shared/schema";
+import { startOfMonth, isAfter, parseISO } from "date-fns";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +69,13 @@ import {
   ChevronsUpDown,
   Loader2,
   Trash2,
-  Mail
+  Mail,
+  ClipboardList,
+  AlertTriangle,
+  FileText,
+  Package,
+  UserPlus,
+  RotateCcw
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -88,6 +95,8 @@ export function Dashboard() {
   const { data: checkouts = [], isLoading: checkoutsLoading } = useCheckouts();
   const { data: customers = [] } = useCustomers();
   const { data: inventory = [] } = useInventory();
+  const { data: contracts = [] } = useContracts();
+  const { data: signedAgreements = [] } = useSignedAgreements();
   const updateCheckoutMutation = useUpdateCheckout();
   const deleteCheckoutMutation = useDeleteCheckout();
   const queryClient = useQueryClient();
@@ -101,6 +110,56 @@ export function Dashboard() {
   const [isBulkReturning, setIsBulkReturning] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState<number | null>(null);
   const { toast } = useToast();
+
+  const stats = useMemo(() => {
+    const activeCount = checkouts.filter(c => c.status !== 'returned').length;
+    const overdueCount = checkouts.filter(c => c.status === 'overdue').length;
+    const monthStart = startOfMonth(new Date());
+    const contractsThisMonth = contracts.filter(c => {
+      if (!c.signed_at) return false;
+      return isAfter(new Date(c.signed_at), monthStart);
+    }).length;
+    return { activeCount, overdueCount, contractsThisMonth };
+  }, [checkouts, contracts]);
+
+  const recentActivity = useMemo(() => {
+    const activities: { id: string; type: string; description: string; date: Date; icon: any; color: string }[] = [];
+    
+    checkouts.slice(0, 20).forEach(c => {
+      if (c.status === 'returned') {
+        activities.push({
+          id: `return-${c.id}`,
+          type: 'return',
+          description: `${c.customer.name} returned ${c.item.name}`,
+          date: new Date(c.due_date),
+          icon: RotateCcw,
+          color: 'text-green-600'
+        });
+      } else {
+        activities.push({
+          id: `checkout-${c.id}`,
+          type: 'checkout',
+          description: `${c.customer.name} checked out ${c.item.name}`,
+          date: new Date(c.checkout_date),
+          icon: Package,
+          color: 'text-blue-600'
+        });
+      }
+    });
+
+    contracts.slice(0, 10).forEach(c => {
+      activities.push({
+        id: `contract-${c.id}`,
+        type: 'contract',
+        description: `${c.customer_name} signed ${c.contract_type === 'custom_cabinetry' ? 'Cabinetry' : 'Home Improvement'} contract`,
+        date: new Date(c.signed_at),
+        icon: FileText,
+        color: 'text-green-600'
+      });
+    });
+
+    return activities.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 8);
+  }, [checkouts, contracts]);
 
   const handleSendReminder = async (checkoutId: number, customerEmail: string) => {
     setSendingReminderId(checkoutId);
@@ -450,6 +509,78 @@ export function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card data-testid="card-active-checkouts">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Active Checkouts</p>
+                <p className="text-3xl font-bold text-primary">{stats.activeCount}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <ClipboardList className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-overdue-items">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Overdue Items</p>
+                <p className={`text-3xl font-bold ${stats.overdueCount > 0 ? 'text-red-600' : 'text-primary'}`}>{stats.overdueCount}</p>
+              </div>
+              <div className={`h-12 w-12 rounded-full ${stats.overdueCount > 0 ? 'bg-red-100' : 'bg-gray-100'} flex items-center justify-center`}>
+                <AlertTriangle className={`h-6 w-6 ${stats.overdueCount > 0 ? 'text-red-600' : 'text-gray-400'}`} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card data-testid="card-contracts-month">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Contracts This Month</p>
+                <p className="text-3xl font-bold text-primary">{stats.contractsThisMonth}</p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                <FileText className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Activity */}
+      {recentActivity.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recentActivity.map((activity) => {
+                const Icon = activity.icon;
+                return (
+                  <div key={activity.id} className="flex items-center gap-3 text-sm" data-testid={`activity-${activity.id}`}>
+                    <div className={`h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0`}>
+                      <Icon className={`h-4 w-4 ${activity.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate">{activity.description}</p>
+                    </div>
+                    <div className="text-xs text-muted-foreground flex-shrink-0">
+                      {formatShortDateEST(format(activity.date, 'yyyy-MM-dd'))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
          <div className="relative w-full sm:w-72">

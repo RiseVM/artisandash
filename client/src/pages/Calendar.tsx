@@ -56,7 +56,27 @@ export function Calendar() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-serif font-bold text-primary">Due Date Calendar</h1>
-        <p className="text-muted-foreground">View sample due dates at a glance.</p>
+        <p className="text-muted-foreground">View sample due dates and contracts at a glance.</p>
+      </div>
+
+      {/* Color Legend */}
+      <div className="flex flex-wrap gap-4 text-sm" data-testid="calendar-legend">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-green-500" />
+          <span className="text-muted-foreground">Signed Contract</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-blue-500" />
+          <span className="text-muted-foreground">Checked Out</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-amber-500" />
+          <span className="text-muted-foreground">Due Soon</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full bg-red-500" />
+          <span className="text-muted-foreground">Overdue</span>
+        </div>
       </div>
 
       <Card>
