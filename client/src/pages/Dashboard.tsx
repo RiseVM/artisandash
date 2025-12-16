@@ -511,14 +511,6 @@ export function Dashboard() {
           <h1 className="text-2xl font-serif font-bold text-primary">Dashboard</h1>
           <p className="text-muted-foreground">Overview of checkouts and returns.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/new">
-            <Button data-testid="button-new-checkout">
-              <Plus className="mr-2 h-4 w-4" />
-              New Checkout
-            </Button>
-          </Link>
-        </div>
       </div>
 
       {/* Stats Cards */}
