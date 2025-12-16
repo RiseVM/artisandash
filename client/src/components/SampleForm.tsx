@@ -61,6 +61,7 @@ const formSchema = z.object({
   needs_installer: z.string().default("no"),
   wants_designer: z.string().default("no"),
   start_date: z.string().optional(),
+  special_request: z.string().optional(),
   notes: z.string().optional(),
   auth_notes: z.string().optional(),
   payment_agreement: z.boolean().default(false).refine((val) => val === true, {
@@ -123,6 +124,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       needs_installer: "no",
       wants_designer: "no",
       start_date: "",
+      special_request: "",
       notes: "",
       auth_notes: "",
       payment_agreement: false,
@@ -602,6 +604,26 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="special_request"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sample Special Request</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Enter any special requests for this sample (optional)"
+                        className="resize-none"
+                        {...field}
+                        data-testid="input-special-request"
+                      />
+                    </FormControl>
+                    <FormDescription>Any special requirements or notes about the sample</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}

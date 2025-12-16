@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, type User } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
@@ -724,6 +724,22 @@ export async function registerRoutes(
           );
         } catch (emailError) {
           console.error("Failed to send designer follow-up email:", emailError);
+        }
+      }
+      
+      // Send special request follow-up email if customer has a special request
+      if (data.special_request && data.special_request.trim() && customer && item) {
+        try {
+          await sendSpecialRequestFollowUp(
+            customer.name,
+            customer.email,
+            customer.phone,
+            data.special_request,
+            item.name,
+            data.checkout_date
+          );
+        } catch (emailError) {
+          console.error("Failed to send special request follow-up email:", emailError);
         }
       }
       

@@ -25,6 +25,7 @@ export function NewSample() {
           needs_installer: data.needs_installer || "no",
           wants_designer: data.wants_designer || "no",
           start_date: data.start_date || null,
+          special_request: data.special_request || null,
           status: 'checked_out',
           notes: data.notes || null,
           auth_notes: data.auth_notes || null,
