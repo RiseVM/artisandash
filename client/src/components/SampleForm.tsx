@@ -517,7 +517,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                   name="start_date"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Start Date</FormLabel>
+                      <FormLabel>Project Start Date</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
