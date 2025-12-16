@@ -164,7 +164,7 @@ export async function sendInstallerFollowUp(
 
     const result = await client.emails.send({
       from: fromEmail || 'noreply@artisantile.com',
-      to: 'showroom@artisantilect.com',
+      to: ['showroom@artisantilect.com', 'claudia@artisantilect.com', 'michele@artisantilect.com'],
       subject,
       html: bodyHtml,
     });
