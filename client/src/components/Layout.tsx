@@ -14,7 +14,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, hasPermission, logout } = useAuth();
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -27,11 +27,12 @@ export function Layout({ children }: LayoutProps) {
   ];
 
   const adminItems = [
-    { href: "/admin/users", label: "User Management", icon: Shield },
-    { href: "/admin/activity", label: "Activity Reports", icon: Activity },
+    { href: "/admin/users", label: "User Management", icon: Shield, permission: "manage_users" },
+    { href: "/admin/activity", label: "Activity Reports", icon: Activity, permission: "view_reports" },
   ];
 
-  const allNavItems = isAdmin ? [...navItems, ...adminItems] : navItems;
+  const visibleAdminItems = adminItems.filter(item => hasPermission(item.permission));
+  const allNavItems = [...navItems, ...visibleAdminItems];
 
   const currentItem = allNavItems.find(item => item.href === location) || navItems[0];
   const CurrentIcon = currentItem.icon;
@@ -86,11 +87,11 @@ export function Layout({ children }: LayoutProps) {
                     </Link>
                   );
                 })}
-                {isAdmin && (
+                {visibleAdminItems.length > 0 && (
                   <>
                     <div className="border-t border-sidebar-border my-1" />
                     <div className="px-4 py-1 text-xs font-semibold text-sidebar-foreground/50 uppercase">Admin</div>
-                    {adminItems.map((item) => {
+                    {visibleAdminItems.map((item) => {
                       const Icon = item.icon;
                       const isActive = location === item.href;
                       return (
@@ -167,12 +168,12 @@ export function Layout({ children }: LayoutProps) {
             })}
           </nav>
 
-          {isAdmin && (
+          {visibleAdminItems.length > 0 && (
             <>
               <div className="mt-6 pt-4 border-t border-sidebar-border">
                 <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase mb-2">Admin</p>
                 <nav className="space-y-1">
-                  {adminItems.map((item) => {
+                  {visibleAdminItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = location === item.href;
                     return (

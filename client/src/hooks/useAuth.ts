@@ -8,11 +8,24 @@ interface AuthUser {
   role: string;
 }
 
+interface RolePermission {
+  id: number;
+  role: string;
+  permission: string;
+  enabled: string;
+}
+
 export function useAuth() {
   const queryClient = useQueryClient();
   
   const { data: user, isLoading } = useQuery<AuthUser | null>({
     queryKey: ["/api/auth/user"],
+    retry: false,
+  });
+
+  const { data: permissions = [] } = useQuery<RolePermission[]>({
+    queryKey: ["/api/role-permissions"],
+    enabled: !!user,
     retry: false,
   });
 
@@ -26,12 +39,23 @@ export function useAuth() {
     }
   };
 
+  const hasPermission = (permission: string): boolean => {
+    if (!user) return false;
+    if (user.role === "admin") return true;
+    
+    const perm = permissions.find(
+      p => p.role === user.role && p.permission === permission
+    );
+    return perm?.enabled === "yes";
+  };
+
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
     isAdmin: user?.role === "admin",
     isManager: user?.role === "admin" || user?.role === "manager",
+    hasPermission,
     logout,
   };
 }
