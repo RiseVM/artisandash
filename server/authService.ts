@@ -4,7 +4,7 @@ import type { User } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
 const ADMIN_EMAIL = "ed@risevm.com";
-const DEFAULT_ADMIN_PASSWORD = "artisan2025!";
+const DEFAULT_ADMIN_PASSWORD = "Mara1234!";
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -36,21 +36,25 @@ export async function authenticateUser(email: string, password: string): Promise
 
 export async function seedAdminUser(): Promise<void> {
   const existingAdmin = await storage.getUserByEmail(ADMIN_EMAIL);
+  const passwordHash = await hashPassword(DEFAULT_ADMIN_PASSWORD);
   
   if (!existingAdmin) {
-    const passwordHash = await hashPassword(DEFAULT_ADMIN_PASSWORD);
     await storage.createUser({
       email: ADMIN_EMAIL,
       passwordHash,
-      firstName: "Admin",
-      lastName: "User",
+      firstName: "Ed",
+      lastName: "Admin",
       role: "admin",
       isActive: "yes",
     });
     console.log(`Admin user created: ${ADMIN_EMAIL}`);
-  } else if (existingAdmin.role !== "admin") {
-    await storage.updateUser(existingAdmin.id, { role: "admin" });
-    console.log(`Admin role assigned to: ${ADMIN_EMAIL}`);
+  } else {
+    // Always ensure admin has correct role and current password
+    await storage.updateUser(existingAdmin.id, { 
+      role: "admin",
+      passwordHash,
+    });
+    console.log(`Admin user updated: ${ADMIN_EMAIL}`);
   }
 }
 

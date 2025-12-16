@@ -51,15 +51,30 @@ function updateUserSession(
   user.expires_at = user.claims?.exp;
 }
 
-async function upsertUser(
-  claims: any,
-) {
-  await storage.upsertUser({
-    id: claims["sub"],
-    email: claims["email"],
+async function upsertUserFromOidc(claims: any) {
+  const email = claims["email"]?.toLowerCase();
+  
+  // Check if user exists by email first (link accounts by email)
+  const existingUser = await storage.getUserByEmail(email);
+  
+  if (existingUser) {
+    // Update user profile info but preserve password and role
+    await storage.updateUser(existingUser.id, {
+      firstName: claims["first_name"] || existingUser.firstName,
+      lastName: claims["last_name"] || existingUser.lastName,
+      profileImageUrl: claims["profile_image_url"],
+    });
+    return existingUser;
+  }
+  
+  // Create new user from OIDC claims (no password, staff role by default)
+  return await storage.createUser({
+    email,
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
+    role: "staff",
+    isActive: "yes",
   });
 }
 
@@ -72,21 +87,34 @@ export async function setupAuth(app: Express) {
   const config = await getOidcConfig();
 
   const ALLOWED_DOMAIN = "artisantilect.com";
+  const ALLOWED_EMAILS = ["ed@risevm.com"]; // Specific emails allowed outside the domain
 
   const verify: VerifyFunction = async (
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback
   ) => {
     const claims = tokens.claims();
+    if (!claims) {
+      return verified(new Error("Failed to get user claims."), undefined);
+    }
+    
     const email = claims["email"] as string | undefined;
     
-    if (!email || !email.toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`)) {
-      return verified(new Error(`Access denied. Only @${ALLOWED_DOMAIN} email addresses are allowed.`), undefined);
+    if (!email) {
+      return verified(new Error("Email is required for login."), undefined);
+    }
+    
+    const normalizedEmail = email.toLowerCase();
+    const isAllowedDomain = normalizedEmail.endsWith(`@${ALLOWED_DOMAIN}`);
+    const isAllowedEmail = ALLOWED_EMAILS.includes(normalizedEmail);
+    
+    if (!isAllowedDomain && !isAllowedEmail) {
+      return verified(new Error(`Access denied. Only @${ALLOWED_DOMAIN} email addresses or authorized users are allowed.`), undefined);
     }
     
     const user = {};
     updateUserSession(user, tokens);
-    await upsertUser(claims);
+    await upsertUserFromOidc(claims);
     verified(null, user);
   };
 
