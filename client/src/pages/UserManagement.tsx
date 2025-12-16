@@ -245,6 +245,7 @@ export function UserManagement() {
           <CardDescription>{users.length} user{users.length !== 1 ? 's' : ''} total</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -326,6 +327,7 @@ export function UserManagement() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
