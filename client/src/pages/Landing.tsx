@@ -3,22 +3,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Package, Users, ClipboardList, Mail, Loader2 } from "lucide-react";
+import { Package, Users, ClipboardList, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function Landing() {
-  const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/login/email", {
+      const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -27,11 +28,12 @@ export function Landing() {
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.message || "Login failed");
+        setError(data.error || "Login failed");
         setIsLoading(false);
         return;
       }
 
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       window.location.href = "/";
     } catch (err) {
       setError("Login failed. Please try again.");
@@ -53,7 +55,7 @@ export function Landing() {
         
         <Card className="max-w-md w-full">
           <CardHeader>
-            <CardTitle>Welcome</CardTitle>
+            <CardTitle>Staff Login</CardTitle>
             <CardDescription>
               Track sample checkouts, manage customers, and monitor inventory.
             </CardDescription>
@@ -74,82 +76,51 @@ export function Landing() {
               </div>
             </div>
             
-            <Button 
-              className="w-full" 
-              size="lg"
-              onClick={() => window.location.href = "/api/login"}
-              data-testid="button-login"
-            >
-              Sign In with Google
-            </Button>
-            
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
+            <form onSubmit={handleLogin} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  data-testid="input-login-email"
+                />
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or</span>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  data-testid="input-login-password"
+                />
               </div>
-            </div>
-
-            {!showEmailForm ? (
+              {error && (
+                <p className="text-sm text-red-500" data-testid="text-login-error">{error}</p>
+              )}
               <Button 
-                variant="outline"
+                type="submit" 
                 className="w-full" 
                 size="lg"
-                onClick={() => setShowEmailForm(true)}
-                data-testid="button-show-email-login"
+                disabled={isLoading}
+                data-testid="button-login-submit"
               >
-                <Mail className="mr-2 h-4 w-4" />
-                Sign In with Email
-              </Button>
-            ) : (
-              <form onSubmit={handleEmailLogin} className="space-y-3">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="name@artisantilect.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    data-testid="input-login-email"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    data-testid="input-login-password"
-                  />
-                </div>
-                {error && (
-                  <p className="text-sm text-red-500" data-testid="text-login-error">{error}</p>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign In"
                 )}
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  size="lg"
-                  disabled={isLoading}
-                  data-testid="button-email-login-submit"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    "Sign In"
-                  )}
-                </Button>
-              </form>
-            )}
+              </Button>
+            </form>
           </CardContent>
         </Card>
         

@@ -15,6 +15,8 @@ import { Agreements } from "@/pages/Agreements";
 import { Contracts } from "@/pages/Contracts";
 import { CabinetryContractForm } from "@/pages/CabinetryContractForm";
 import { HomeImprovementContractForm } from "@/pages/HomeImprovementContractForm";
+import { UserManagement } from "@/pages/UserManagement";
+import { ActivityReports } from "@/pages/ActivityReports";
 import { Landing } from "@/pages/Landing";
 import { LoginFailed } from "@/pages/LoginFailed";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +51,8 @@ function Router() {
             <Route path="/contracts" component={Contracts} />
             <Route path="/contracts/cabinetry" component={CabinetryContractForm} />
             <Route path="/contracts/home-improvement" component={HomeImprovementContractForm} />
+            <Route path="/admin/users" component={UserManagement} />
+            <Route path="/admin/activity" component={ActivityReports} />
             <Route component={NotFound} />
           </Switch>
         </Layout>

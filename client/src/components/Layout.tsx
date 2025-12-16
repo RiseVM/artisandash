@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { PlusCircle, LayoutDashboard, Users, Package, LogOut, Calendar, ChevronDown, FileText, ClipboardList } from "lucide-react";
+import { PlusCircle, LayoutDashboard, Users, Package, LogOut, Calendar, ChevronDown, FileText, ClipboardList, Shield, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { useAuth } from "@/hooks/useAuth";
 import logoUrl from "@assets/1_1765497247808.jpg";
 
 interface LayoutProps {
@@ -13,6 +14,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, isAdmin, logout } = useAuth();
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -24,7 +26,14 @@ export function Layout({ children }: LayoutProps) {
     { href: "/inventory", label: "Inventory", icon: Package },
   ];
 
-  const currentItem = navItems.find(item => item.href === location) || navItems[0];
+  const adminItems = [
+    { href: "/admin/users", label: "User Management", icon: Shield },
+    { href: "/admin/activity", label: "Activity Reports", icon: Activity },
+  ];
+
+  const allNavItems = isAdmin ? [...navItems, ...adminItems] : navItems;
+
+  const currentItem = allNavItems.find(item => item.href === location) || navItems[0];
   const CurrentIcon = currentItem.icon;
 
   return (
@@ -77,9 +86,35 @@ export function Layout({ children }: LayoutProps) {
                     </Link>
                   );
                 })}
+                {isAdmin && (
+                  <>
+                    <div className="border-t border-sidebar-border my-1" />
+                    <div className="px-4 py-1 text-xs font-semibold text-sidebar-foreground/50 uppercase">Admin</div>
+                    {adminItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = location === item.href;
+                      return (
+                        <Link key={item.href} href={item.href}>
+                          <div
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors cursor-pointer",
+                              isActive
+                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {item.label}
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </>
+                )}
                 <div className="border-t border-sidebar-border">
                   <button
-                    onClick={() => window.location.href = "/api/logout"}
+                    onClick={logout}
                     className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 w-full"
                     data-testid="button-mobile-logout"
                   >
@@ -131,13 +166,48 @@ export function Layout({ children }: LayoutProps) {
               );
             })}
           </nav>
+
+          {isAdmin && (
+            <>
+              <div className="mt-6 pt-4 border-t border-sidebar-border">
+                <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase mb-2">Admin</p>
+                <nav className="space-y-1">
+                  {adminItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = location === item.href;
+                    return (
+                      <Link key={item.href} href={item.href}>
+                        <div
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer",
+                            isActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                              : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {item.label}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+            </>
+          )}
         </div>
         
         <div className="p-6 border-t border-sidebar-border space-y-4">
+          {user && (
+            <div className="text-xs text-sidebar-foreground/70">
+              <p className="font-medium">{user.email}</p>
+              <p className="capitalize">{user.role}</p>
+            </div>
+          )}
           <Button 
             variant="ghost" 
             className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground cursor-pointer"
-            onClick={() => window.location.href = "/api/logout"}
+            onClick={logout}
             data-testid="button-logout"
           >
             <LogOut className="mr-2 h-4 w-4" />
