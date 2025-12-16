@@ -824,7 +824,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 name="notes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Internal Notes</FormLabel>
+                    <FormLabel>Notes</FormLabel>
                     <FormControl>
                       <Textarea 
                         placeholder="Any additional context..." 
