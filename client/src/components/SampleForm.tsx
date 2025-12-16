@@ -553,77 +553,73 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 )}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="project_type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type of Project</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || ""}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-project-type">
-                            <SelectValue placeholder="Select project type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="retail">Retail</SelectItem>
-                          <SelectItem value="project">Project</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <FormField
+                control={form.control}
+                name="project_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type of Project</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-project-type">
+                          <SelectValue placeholder="Select project type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="retail">Retail</SelectItem>
+                        <SelectItem value="project">Project</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="needs_installer"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Do you need an installer?</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || "no"}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-needs-installer">
-                            <SelectValue placeholder="Select option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="no">No</SelectItem>
-                          <SelectItem value="yes">Yes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>If yes, we'll follow up with installer information</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="needs_installer"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Do you need an installer?</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "no"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-needs-installer">
+                          <SelectValue placeholder="Select option" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>If yes, we'll follow up with installer information</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="wants_designer"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Interested in working with a designer?</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || "no"}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-wants-designer">
-                            <SelectValue placeholder="Select option" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="no">No</SelectItem>
-                          <SelectItem value="yes">Yes</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>If yes, our design team will reach out</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="wants_designer"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Interested in working with a designer?</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "no"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-wants-designer">
+                          <SelectValue placeholder="Select option" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>If yes, our design team will reach out</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
