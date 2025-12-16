@@ -197,6 +197,36 @@ export function Customers() {
     setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
   };
 
+  const handleRemoveCard = async () => {
+    if (!editingCustomer) return;
+    try {
+      await updateCustomerMutation.mutateAsync({
+        id: editingCustomer.id,
+        data: {
+          card_last4: null,
+          card_brand: null,
+          card_exp_month: null,
+          card_exp_year: null,
+          card_full_number: null,
+          card_cvc: null,
+        }
+      });
+      setEditingCustomer({
+        ...editingCustomer,
+        card_last4: null,
+        card_brand: null,
+        card_exp_month: null,
+        card_exp_year: null,
+        card_full_number: null,
+        card_cvc: null,
+      });
+      setIsAdminVerified(false);
+      toast({ title: "Card Removed", description: "Payment method has been removed." });
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to remove card. Please try again.", variant: "destructive" });
+    }
+  };
+
   const handleDeleteCustomer = async () => {
     if (!editingCustomer) return;
     try {
@@ -580,15 +610,29 @@ export function Customers() {
                     </div>
                   )}
 
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full"
-                    onClick={() => setShowCardForm(true)}
-                    data-testid="button-update-card"
-                  >
-                    Update Card
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex-1"
+                      onClick={() => setShowCardForm(true)}
+                      data-testid="button-update-card"
+                    >
+                      Update Card
+                    </Button>
+                    {isAdminVerified && (
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={handleRemoveCard}
+                        data-testid="button-remove-card"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Remove Card
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
