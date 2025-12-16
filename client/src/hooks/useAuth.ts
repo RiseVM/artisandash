@@ -25,8 +25,8 @@ export function useAuth() {
 
   const { data: permissions = [] } = useQuery<RolePermission[]>({
     queryKey: ["/api/role-permissions"],
-    enabled: !!user,
     retry: false,
+    staleTime: 1000 * 60 * 5,
   });
 
   const logout = async () => {
