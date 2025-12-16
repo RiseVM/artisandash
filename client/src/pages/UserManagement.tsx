@@ -278,10 +278,10 @@ export function UserManagement() {
                     />
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-1">
                       <Button
-                        variant="ghost"
-                        size="icon"
+                        variant="outline"
+                        size="sm"
                         onClick={() => {
                           setEditingUser(user);
                           setFormData({
@@ -294,19 +294,21 @@ export function UserManagement() {
                         }}
                         data-testid={`button-edit-user-${user.id}`}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="h-4 w-4 mr-1" />
+                        Edit
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="icon"
+                        variant="outline"
+                        size="sm"
                         onClick={() => setChangingPassword(user)}
                         data-testid={`button-change-password-${user.id}`}
                       >
-                        <Key className="h-4 w-4" />
+                        <Key className="h-4 w-4 mr-1" />
+                        Password
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="icon"
+                        variant="destructive"
+                        size="sm"
                         onClick={() => {
                           if (confirm(`Are you sure you want to delete ${user.email}?`)) {
                             deleteUserMutation.mutate(user.id);
@@ -315,7 +317,8 @@ export function UserManagement() {
                         disabled={user.email === "ed@risevm.com"}
                         data-testid={`button-delete-user-${user.id}`}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
                       </Button>
                     </div>
                   </TableCell>
