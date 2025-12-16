@@ -45,6 +45,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Command,
   CommandEmpty,
   CommandGroup,
@@ -109,6 +119,7 @@ export function Dashboard() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isBulkReturning, setIsBulkReturning] = useState(false);
   const [sendingReminderId, setSendingReminderId] = useState<number | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useToast();
 
   const stats = useMemo(() => {
@@ -862,17 +873,7 @@ export function Dashboard() {
           <DialogFooter className="flex justify-between">
             <Button 
               variant="destructive" 
-              onClick={async () => {
-                if (!editingCheckout) return;
-                if (!confirm("Are you sure you want to cancel/delete this checkout?")) return;
-                try {
-                  await deleteCheckoutMutation.mutateAsync(editingCheckout.id);
-                  setEditingCheckout(null);
-                  toast({ title: "Checkout Cancelled", description: "The checkout has been deleted." });
-                } catch (err) {
-                  toast({ title: "Error", description: "Failed to delete checkout.", variant: "destructive" });
-                }
-              }} 
+              onClick={() => setShowDeleteConfirm(true)}
               disabled={deleteCheckoutMutation.isPending}
               data-testid="button-delete-checkout"
             >
@@ -889,6 +890,37 @@ export function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Checkout</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel/delete this checkout? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!editingCheckout) return;
+                try {
+                  await deleteCheckoutMutation.mutateAsync(editingCheckout.id);
+                  setEditingCheckout(null);
+                  setShowDeleteConfirm(false);
+                  toast({ title: "Checkout Cancelled", description: "The checkout has been deleted." });
+                } catch (err) {
+                  toast({ title: "Error", description: "Failed to delete checkout.", variant: "destructive" });
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete-checkout"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );
