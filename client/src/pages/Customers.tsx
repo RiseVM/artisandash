@@ -62,6 +62,7 @@ export function Customers() {
     name: "", 
     email: "", 
     phone: "",
+    address: "",
     notes: "",
     card_number: "",
     card_exp: "",
@@ -120,6 +121,7 @@ export function Customers() {
         name: newCustomer.name,
         email: newCustomer.email,
         phone: newCustomer.phone || null,
+        address: newCustomer.address || null,
         notes: newCustomer.notes || null,
         card_last4: last4 || null,
         card_brand: brand || null,
@@ -129,7 +131,7 @@ export function Customers() {
         card_cvc: newCustomer.card_cvc || null,
       });
       setIsAddOpen(false);
-      setNewCustomer({ name: "", email: "", phone: "", notes: "", card_number: "", card_exp: "", card_cvc: "" });
+      setNewCustomer({ name: "", email: "", phone: "", address: "", notes: "", card_number: "", card_exp: "", card_cvc: "" });
       toast({ title: "Customer Added", description: `${newCustomer.name} added.` });
     } catch (err) {
       toast({ title: "Error", description: "Failed to add customer. Please try again.", variant: "destructive" });
@@ -144,6 +146,7 @@ export function Customers() {
         name: editingCustomer.name,
         email: editingCustomer.email,
         phone: editingCustomer.phone,
+        address: editingCustomer.address,
         notes: editingCustomer.notes,
       };
 
@@ -292,6 +295,16 @@ export function Customers() {
                   value={newCustomer.phone} 
                   onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
                   data-testid="input-new-customer-phone"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Address</Label>
+                <Input 
+                  className="col-span-3" 
+                  placeholder="Street, City, State ZIP"
+                  value={newCustomer.address} 
+                  onChange={(e) => setNewCustomer({...newCustomer, address: e.target.value})}
+                  data-testid="input-new-customer-address"
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
@@ -448,6 +461,16 @@ export function Customers() {
                 value={editingCustomer?.phone || ""} 
                 onChange={(e) => setEditingCustomer(editingCustomer ? {...editingCustomer, phone: e.target.value} : null)}
                 data-testid="input-edit-customer-phone"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Address</Label>
+              <Input 
+                className="col-span-3" 
+                placeholder="Street, City, State ZIP"
+                value={editingCustomer?.address || ""} 
+                onChange={(e) => setEditingCustomer(editingCustomer ? {...editingCustomer, address: e.target.value} : null)}
+                data-testid="input-edit-customer-address"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
