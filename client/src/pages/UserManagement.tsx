@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2, Key, Loader2, Shield } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { AVAILABLE_PERMISSIONS } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
 interface User {
   id: string;
@@ -35,6 +36,8 @@ interface RolePermission {
 export function UserManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [changingPassword, setChangingPassword] = useState<User | null>(null);
@@ -55,6 +58,7 @@ export function UserManagement() {
 
   const { data: rolePermissions = [] } = useQuery<RolePermission[]>({
     queryKey: ["/api/role-permissions"],
+    enabled: isAdmin,
   });
 
   const updatePermissionMutation = useMutation({
@@ -194,10 +198,12 @@ export function UserManagement() {
       <Tabs defaultValue="users" className="space-y-4">
         <TabsList>
           <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
-          <TabsTrigger value="permissions" data-testid="tab-permissions">
-            <Shield className="h-4 w-4 mr-2" />
-            Role Permissions
-          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="permissions" data-testid="tab-permissions">
+              <Shield className="h-4 w-4 mr-2" />
+              Role Permissions
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -268,7 +274,7 @@ export function UserManagement() {
                       <SelectContent>
                         <SelectItem value="staff">Staff</SelectItem>
                         <SelectItem value="manager">Manager</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        {isAdmin && <SelectItem value="admin">Admin</SelectItem>}
                       </SelectContent>
                     </Select>
                   </div>
@@ -321,7 +327,7 @@ export function UserManagement() {
                     <Switch
                       checked={user.isActive === "yes"}
                       onCheckedChange={() => toggleUserActive(user)}
-                      disabled={user.email === "ed@risevm.com"}
+                      disabled={user.email === "ed@risevm.com" || (!isAdmin && user.role === "admin")}
                       data-testid={`switch-user-active-${user.id}`}
                     />
                   </TableCell>
@@ -340,6 +346,7 @@ export function UserManagement() {
                             role: user.role,
                           });
                         }}
+                        disabled={!isAdmin && user.role === "admin"}
                         data-testid={`button-edit-user-${user.id}`}
                       >
                         <Pencil className="h-4 w-4 mr-1" />
@@ -349,6 +356,7 @@ export function UserManagement() {
                         variant="outline"
                         size="sm"
                         onClick={() => setChangingPassword(user)}
+                        disabled={!isAdmin && user.role === "admin"}
                         data-testid={`button-change-password-${user.id}`}
                       >
                         <Key className="h-4 w-4 mr-1" />
@@ -362,7 +370,7 @@ export function UserManagement() {
                             deleteUserMutation.mutate(user.id);
                           }
                         }}
-                        disabled={user.email === "ed@risevm.com"}
+                        disabled={user.email === "ed@risevm.com" || (!isAdmin && user.role === "admin")}
                         data-testid={`button-delete-user-${user.id}`}
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
@@ -417,7 +425,7 @@ export function UserManagement() {
               <Select
                 value={formData.role}
                 onValueChange={(value) => setFormData({ ...formData, role: value })}
-                disabled={editingUser?.email === "ed@risevm.com"}
+                disabled={editingUser?.email === "ed@risevm.com" || (!isAdmin && editingUser?.role === "admin")}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -425,7 +433,7 @@ export function UserManagement() {
                 <SelectContent>
                   <SelectItem value="staff">Staff</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
+                  {isAdmin && <SelectItem value="admin">Admin</SelectItem>}
                 </SelectContent>
               </Select>
             </div>

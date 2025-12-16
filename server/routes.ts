@@ -174,8 +174,8 @@ export async function registerRoutes(
     }
   });
 
-  // User management routes (admin only)
-  app.get('/api/users', isAdmin, async (req: any, res) => {
+  // User management routes (requires manage_users permission)
+  app.get('/api/users', requirePermission("manage_users"), async (req: any, res) => {
     try {
       const users = await storage.getUsers();
       res.json(users.map(u => ({
@@ -193,12 +193,17 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/users', isAdmin, async (req: any, res) => {
+  app.post('/api/users', requirePermission("manage_users"), async (req: any, res) => {
     try {
       const { email, password, firstName, lastName, role } = req.body;
       
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password are required" });
+      }
+      
+      // Managers cannot create admin users
+      if (role === "admin" && req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can create admin users" });
       }
       
       const existingUser = await storage.getUserByEmail(email);
@@ -240,7 +245,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch('/api/users/:id', isAdmin, async (req: any, res) => {
+  app.patch('/api/users/:id', requirePermission("manage_users"), async (req: any, res) => {
     try {
       const { id } = req.params;
       const { email, password, firstName, lastName, role, isActive } = req.body;
@@ -248,6 +253,16 @@ export async function registerRoutes(
       const existingUser = await storage.getUser(id);
       if (!existingUser) {
         return res.status(404).json({ error: "User not found" });
+      }
+      
+      // Managers cannot modify admin users or promote to admin
+      if (req.user!.role !== "admin") {
+        if (existingUser.role === "admin") {
+          return res.status(403).json({ error: "Only admins can modify admin users" });
+        }
+        if (role === "admin") {
+          return res.status(403).json({ error: "Only admins can promote users to admin" });
+        }
       }
       
       const updates: any = {};
@@ -286,7 +301,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete('/api/users/:id', isAdmin, async (req: any, res) => {
+  app.delete('/api/users/:id', requirePermission("manage_users"), async (req: any, res) => {
     try {
       const { id } = req.params;
       
@@ -297,6 +312,11 @@ export async function registerRoutes(
       
       if (existingUser.email === "ed@risevm.com") {
         return res.status(400).json({ error: "Cannot delete the primary admin account" });
+      }
+      
+      // Managers cannot delete admin users
+      if (existingUser.role === "admin" && req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can delete admin users" });
       }
       
       await storage.deleteUser(id);
@@ -318,8 +338,8 @@ export async function registerRoutes(
     }
   });
 
-  // Activity logs routes (admin only)
-  app.get('/api/activity-logs', isAdmin, async (req: any, res) => {
+  // Activity logs routes (requires view_reports permission)
+  app.get('/api/activity-logs', requirePermission("view_reports"), async (req: any, res) => {
     try {
       const { userId, startDate, endDate } = req.query;
       
