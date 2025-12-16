@@ -24,9 +24,10 @@ export function useAuth() {
   });
 
   const { data: permissions = [] } = useQuery<RolePermission[]>({
-    queryKey: ["/api/role-permissions"],
+    queryKey: ["/api/my-permissions"],
     retry: false,
     staleTime: 1000 * 60 * 5,
+    enabled: !!user,
   });
 
   const logout = async () => {
@@ -43,9 +44,7 @@ export function useAuth() {
     if (!user) return false;
     if (user.role === "admin") return true;
     
-    const perm = permissions.find(
-      p => p.role === user.role && p.permission === permission
-    );
+    const perm = permissions.find(p => p.permission === permission);
     return perm?.enabled === "yes";
   };
 

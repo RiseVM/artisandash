@@ -339,7 +339,7 @@ export async function registerRoutes(
   // Initialize default permissions on startup
   await storage.initializeDefaultPermissions();
 
-  // Role permissions routes (admin only)
+  // Role permissions routes (admin only for all permissions)
   app.get('/api/role-permissions', isAdmin, async (req: any, res) => {
     try {
       const permissions = await storage.getRolePermissions();
@@ -347,6 +347,30 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching role permissions:", error);
       res.status(500).json({ error: "Failed to fetch role permissions" });
+    }
+  });
+
+  // Get current user's permissions (any authenticated user)
+  app.get('/api/my-permissions', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      // Admin has all permissions
+      if (user.role === 'admin') {
+        const allPermissions = ["manage_customers", "manage_inventory", "create_checkouts", "manage_checkouts", "view_contracts", "create_contracts", "manage_users", "view_reports"];
+        return res.json(allPermissions.map(p => ({ role: 'admin', permission: p, enabled: 'yes' })));
+      }
+      
+      // Get permissions for the user's role
+      const allPermissions = await storage.getRolePermissions();
+      const userPermissions = allPermissions.filter(p => p.role === user.role);
+      res.json(userPermissions);
+    } catch (error) {
+      console.error("Error fetching user permissions:", error);
+      res.status(500).json({ error: "Failed to fetch user permissions" });
     }
   });
 
