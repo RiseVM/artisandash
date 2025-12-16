@@ -543,14 +543,8 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="bathroom">Bathroom</SelectItem>
-                          <SelectItem value="kitchen">Kitchen</SelectItem>
-                          <SelectItem value="flooring">Flooring</SelectItem>
-                          <SelectItem value="backsplash">Backsplash</SelectItem>
-                          <SelectItem value="shower">Shower</SelectItem>
-                          <SelectItem value="fireplace">Fireplace</SelectItem>
-                          <SelectItem value="outdoor">Outdoor</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="retail">Retail</SelectItem>
+                          <SelectItem value="project">Project</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
