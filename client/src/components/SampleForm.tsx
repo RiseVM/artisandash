@@ -421,6 +421,26 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
 
               </div>
 
+              {/* Due date shown above sample selection when samples are selected */}
+              {selectedItemIds.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="due_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sample Due Date</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                          <Input type="date" className="pl-10" {...field} data-testid="input-due-date" />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name="inventory_item_ids"
@@ -515,45 +535,23 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 )}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Only show due date when samples are selected */}
-                {selectedItemIds.length > 0 && (
-                  <FormField
-                    control={form.control}
-                    name="due_date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Due Date</FormLabel>
-                        <FormControl>
-                          <div className="relative">
-                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                            <Input type="date" className="pl-10" {...field} data-testid="input-due-date" />
-                          </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              <FormField
+                control={form.control}
+                name="start_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project Start Date</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Input type="date" className="pl-10" {...field} data-testid="input-start-date" />
+                      </div>
+                    </FormControl>
+                    <FormDescription>When the project is expected to begin</FormDescription>
+                    <FormMessage />
+                  </FormItem>
                 )}
-
-                <FormField
-                  control={form.control}
-                  name="start_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Project Start Date</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                          <Input type="date" className="pl-10" {...field} data-testid="input-start-date" />
-                        </div>
-                      </FormControl>
-                      <FormDescription>When the project is expected to begin</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
