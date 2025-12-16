@@ -319,7 +319,16 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Only admins can delete admin users" });
       }
       
-      await storage.deleteUser(id);
+      try {
+        await storage.deleteUser(id);
+      } catch (dbError: any) {
+        if (dbError.code === '23503') {
+          return res.status(400).json({ 
+            error: "This user has related records (checkouts, contracts, etc.) and cannot be deleted. You can deactivate them instead." 
+          });
+        }
+        throw dbError;
+      }
       
       await storage.createActivityLog({
         userId: req.user!.id,
