@@ -730,13 +730,13 @@ export async function registerRoutes(
       }
       
       // Send special request follow-up email if customer has a special request
-      if (data.has_special_request === "yes" && data.special_request && data.special_request.trim() && customer) {
+      if (data.has_special_request === "yes" && customer) {
         try {
           await sendSpecialRequestFollowUp(
             customer.name,
             customer.email,
             customer.phone,
-            data.special_request,
+            data.special_request || "No details provided",
             item?.name || null,
             data.checkout_date,
             data.notes || null

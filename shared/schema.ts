@@ -99,6 +99,7 @@ export const checkouts = pgTable("checkouts", {
   needs_installer: text("needs_installer").default("no"), // yes | no
   wants_designer: text("wants_designer").default("no"), // yes | no
   start_date: text("start_date"),
+  has_special_request: text("has_special_request").default("no"), // yes | no
   special_request: text("special_request"),
   status: text("status").notNull().default("checked_out"), // checked_out | overdue | returned
   notes: text("notes"),
