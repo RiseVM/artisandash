@@ -177,7 +177,13 @@ export async function registerRoutes(
   // User management routes (requires manage_users permission)
   app.get('/api/users', requirePermission("manage_users"), async (req: any, res) => {
     try {
-      const users = await storage.getUsers();
+      let users = await storage.getUsers();
+      
+      // Non-admin users cannot see archived users
+      if (req.user!.role !== "admin") {
+        users = users.filter(u => u.isActive === "yes");
+      }
+      
       res.json(users.map(u => ({
         id: u.id,
         email: u.email,
@@ -301,7 +307,75 @@ export async function registerRoutes(
     }
   });
 
-  app.delete('/api/users/:id', requirePermission("manage_users"), async (req: any, res) => {
+  // Archive user (deactivate) - available to managers and admins
+  app.post('/api/users/:id/archive', requirePermission("manage_users"), async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      if (existingUser.email === "ed@risevm.com") {
+        return res.status(400).json({ error: "Cannot archive the primary admin account" });
+      }
+      
+      // Managers cannot archive admin users
+      if (existingUser.role === "admin" && req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can archive admin users" });
+      }
+      
+      await storage.updateUser(id, { isActive: "no" });
+      
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: "archive_user",
+        entityType: "user",
+        entityId: id,
+        details: `Archived user: ${existingUser.email}`,
+        ipAddress: req.ip,
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error archiving user:", error);
+      res.status(500).json({ error: "Failed to archive user" });
+    }
+  });
+
+  // Restore archived user - admin only
+  app.post('/api/users/:id/restore', isAdmin, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      await storage.updateUser(id, { isActive: "yes" });
+      
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: "restore_user",
+        entityType: "user",
+        entityId: id,
+        details: `Restored user: ${existingUser.email}`,
+        ipAddress: req.ip,
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error restoring user:", error);
+      res.status(500).json({ error: "Failed to restore user" });
+    }
+  });
+
+  // Permanently delete user - admin only
+  app.delete('/api/users/:id', isAdmin, async (req: any, res) => {
     try {
       const { id } = req.params;
       
@@ -314,21 +388,11 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Cannot delete the primary admin account" });
       }
       
-      // Managers cannot delete admin users
-      if (existingUser.role === "admin" && req.user!.role !== "admin") {
-        return res.status(403).json({ error: "Only admins can delete admin users" });
-      }
+      // Store user name on related records before deleting
+      const userName = `${existingUser.firstName || ''} ${existingUser.lastName || ''}`.trim() || existingUser.email;
+      await storage.preserveUserNameOnRecords(id, userName);
       
-      try {
-        await storage.deleteUser(id);
-      } catch (dbError: any) {
-        if (dbError.code === '23503') {
-          return res.status(400).json({ 
-            error: "This user has related records (checkouts, contracts, etc.) and cannot be deleted. You can deactivate them instead." 
-          });
-        }
-        throw dbError;
-      }
+      await storage.deleteUser(id);
       
       await storage.createActivityLog({
         userId: req.user!.id,
@@ -336,7 +400,7 @@ export async function registerRoutes(
         action: "delete_user",
         entityType: "user",
         entityId: id,
-        details: `Deleted user: ${existingUser.email}`,
+        details: `Permanently deleted user: ${existingUser.email}`,
         ipAddress: req.ip,
       });
       

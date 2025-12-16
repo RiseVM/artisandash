@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Key, Loader2, Shield } from "lucide-react";
+import { Plus, Pencil, Trash2, Key, Loader2, Shield, Archive, RotateCcw } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { AVAILABLE_PERMISSIONS } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,6 +42,7 @@ export function UserManagement() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [changingPassword, setChangingPassword] = useState<User | null>(null);
+  const [archivingUser, setArchivingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
   const [formData, setFormData] = useState({
@@ -116,13 +117,39 @@ export function UserManagement() {
     },
   });
 
+  const archiveUserMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("POST", `/api/users/${id}/archive`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "User archived successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to archive user", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const restoreUserMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("POST", `/api/users/${id}/restore`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({ title: "User restored successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to restore user", description: error.message, variant: "destructive" });
+    },
+  });
+
   const deleteUserMutation = useMutation({
     mutationFn: async (id: string) => {
       return apiRequest("DELETE", `/api/users/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({ title: "User deleted successfully" });
+      toast({ title: "User permanently deleted" });
     },
     onError: (error: Error) => {
       toast({ title: "Failed to delete user", description: error.message, variant: "destructive" });
@@ -326,12 +353,9 @@ export function UserManagement() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Switch
-                      checked={user.isActive === "yes"}
-                      onCheckedChange={() => toggleUserActive(user)}
-                      disabled={user.email === "ed@risevm.com" || (!isAdmin && user.role === "admin")}
-                      data-testid={`switch-user-active-${user.id}`}
-                    />
+                    <Badge variant={user.isActive === "yes" ? "outline" : "secondary"}>
+                      {user.isActive === "yes" ? "Active" : "Archived"}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
@@ -364,16 +388,45 @@ export function UserManagement() {
                         <Key className="h-4 w-4 mr-1" />
                         Password
                       </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setDeletingUser(user)}
-                        disabled={user.email === "ed@risevm.com" || (!isAdmin && user.role === "admin")}
-                        data-testid={`button-delete-user-${user.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Delete
-                      </Button>
+                      {user.isActive === "yes" ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setArchivingUser(user)}
+                          disabled={user.email === "ed@risevm.com" || (!isAdmin && user.role === "admin")}
+                          data-testid={`button-archive-user-${user.id}`}
+                        >
+                          <Archive className="h-4 w-4 mr-1" />
+                          Archive
+                        </Button>
+                      ) : (
+                        <>
+                          {isAdmin && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => restoreUserMutation.mutate(user.id)}
+                                disabled={restoreUserMutation.isPending}
+                                data-testid={`button-restore-user-${user.id}`}
+                              >
+                                <RotateCcw className="h-4 w-4 mr-1" />
+                                Restore
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => setDeletingUser(user)}
+                                disabled={user.email === "ed@risevm.com"}
+                                data-testid={`button-delete-user-${user.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </Button>
+                            </>
+                          )}
+                        </>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -544,12 +597,39 @@ export function UserManagement() {
         </TabsContent>
       </Tabs>
 
+      <AlertDialog open={!!archivingUser} onOpenChange={(open) => !open && setArchivingUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to archive {archivingUser?.email}? They will no longer be able to log in. 
+              {isAdmin ? " You can restore them later from the archived users list." : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (archivingUser) {
+                  archiveUserMutation.mutate(archivingUser.id);
+                  setArchivingUser(null);
+                }
+              }}
+              data-testid="button-confirm-archive"
+            >
+              Archive User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogTitle>Permanently Delete User</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete {deletingUser?.email}? This action cannot be undone.
+              Are you sure you want to permanently delete {deletingUser?.email}? This action cannot be undone. 
+              The user's name will be preserved on any existing records (checkouts, contracts).
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -562,9 +642,9 @@ export function UserManagement() {
                 }
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              data-testid="button-confirm-delete-user"
+              data-testid="button-confirm-delete"
             >
-              Delete
+              Delete Permanently
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

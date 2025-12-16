@@ -98,7 +98,8 @@ export const checkouts = pgTable("checkouts", {
   notes: text("notes"),
   auth_notes: text("auth_notes"),
   stripe_payment_intent_id: text("stripe_payment_intent_id"),
-  created_by_user_id: varchar("created_by_user_id").references(() => users.id),
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
   last_reminder_sent: timestamp("last_reminder_sent"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
@@ -165,7 +166,8 @@ export const signedAgreements = pgTable("signed_agreements", {
   google_drive_file_id: text("google_drive_file_id"),
   google_drive_link: text("google_drive_link"),
   signed_at: timestamp("signed_at").defaultNow().notNull(),
-  created_by_user_id: varchar("created_by_user_id").references(() => users.id),
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
 });
 
 export const insertSignedAgreementSchema = createInsertSchema(signedAgreements).omit({
@@ -191,7 +193,8 @@ export const contracts = pgTable("contracts", {
   google_drive_link: text("google_drive_link"),
   email_sent: text("email_sent").default("no"), // 'yes' | 'no'
   signed_at: timestamp("signed_at").defaultNow().notNull(),
-  created_by_user_id: varchar("created_by_user_id").references(() => users.id),
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
 });
 
 export const insertContractSchema = createInsertSchema(contracts).omit({

@@ -41,6 +41,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: string): Promise<boolean>;
+  preserveUserNameOnRecords(userId: string, userName: string): Promise<void>;
 
   // Activity Logs
   getActivityLogs(filters?: { userId?: string; startDate?: Date; endDate?: Date }): Promise<ActivityLog[]>;
@@ -144,6 +145,24 @@ export class DatabaseStorage implements IStorage {
   async deleteUser(id: string): Promise<boolean> {
     const result = await db.delete(users).where(eq(users.id, id)).returning();
     return result.length > 0;
+  }
+
+  async preserveUserNameOnRecords(userId: string, userName: string): Promise<void> {
+    await db.update(checkouts)
+      .set({ created_by_user_name: userName, created_by_user_id: null })
+      .where(eq(checkouts.created_by_user_id, userId));
+    
+    await db.update(signedAgreements)
+      .set({ created_by_user_name: userName, created_by_user_id: null })
+      .where(eq(signedAgreements.created_by_user_id, userId));
+    
+    await db.update(contracts)
+      .set({ created_by_user_name: userName, created_by_user_id: null })
+      .where(eq(contracts.created_by_user_id, userId));
+    
+    await db.update(activityLogs)
+      .set({ userId: null })
+      .where(eq(activityLogs.userId, userId));
   }
 
   // Activity Logs
