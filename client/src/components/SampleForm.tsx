@@ -61,6 +61,7 @@ const formSchema = z.object({
   needs_installer: z.string().default("no"),
   wants_designer: z.string().default("no"),
   start_date: z.string().optional(),
+  has_special_request: z.string().default("no"),
   special_request: z.string().optional(),
   notes: z.string().optional(),
   auth_notes: z.string().optional(),
@@ -122,6 +123,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       needs_installer: "no",
       wants_designer: "no",
       start_date: "",
+      has_special_request: "no",
       special_request: "",
       notes: "",
       auth_notes: "",
@@ -131,6 +133,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
 
   const selectedItemIds = form.watch("inventory_item_ids");
   const selectedCustomerId = form.watch("customer_id");
+  const hasSpecialRequest = form.watch("has_special_request");
 
   useEffect(() => {
     if (selectedCustomerId && !initialData) {
@@ -623,23 +626,47 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
 
               <FormField
                 control={form.control}
-                name="special_request"
+                name="has_special_request"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Sample Special Request</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Enter any special requests for this sample (optional)"
-                        className="resize-none"
-                        {...field}
-                        data-testid="input-special-request"
-                      />
-                    </FormControl>
-                    <FormDescription>Any special requirements or notes about the sample</FormDescription>
+                    <FormLabel>Do you have a special sample request?</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || "no"}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-has-special-request">
+                          <SelectValue placeholder="Select option" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>If yes, our showroom team will follow up</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {hasSpecialRequest === "yes" && (
+                <FormField
+                  control={form.control}
+                  name="special_request"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Special Request Details</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Please describe your special request..."
+                          className="resize-none"
+                          {...field}
+                          data-testid="input-special-request"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* Only show payment requirements when samples are selected */}
               {selectedItemIds.length > 0 && (
