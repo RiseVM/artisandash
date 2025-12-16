@@ -50,6 +50,29 @@ const isAdmin: RequestHandler = async (req: any, res, next) => {
   next();
 };
 
+const requirePermission = (permission: string): RequestHandler => {
+  return async (req: any, res, next) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    
+    const user = await storage.getUser(req.session.userId);
+    if (!user || user.isActive !== "yes") {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: "User account is inactive" });
+    }
+    
+    req.user = user;
+    
+    const hasPermission = await storage.hasPermission(user.role, permission);
+    if (!hasPermission) {
+      return res.status(403).json({ error: `Permission required: ${permission}` });
+    }
+    
+    next();
+  };
+};
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -388,19 +411,19 @@ export async function registerRoutes(
   });
 
   // Customers
-  app.get("/api/customers", async (req, res) => {
+  app.get("/api/customers", isAuthenticated, async (req, res) => {
     const customers = await storage.getCustomers();
     res.json(customers);
   });
 
-  app.get("/api/customers/:id", async (req, res) => {
+  app.get("/api/customers/:id", isAuthenticated, async (req, res) => {
     const id = parseInt(req.params.id);
     const customer = await storage.getCustomer(id);
     if (!customer) return res.status(404).json({ error: "Customer not found" });
     res.json(customer);
   });
 
-  app.post("/api/customers", async (req, res) => {
+  app.post("/api/customers", requirePermission("manage_customers"), async (req, res) => {
     try {
       const data = insertCustomerSchema.parse(req.body);
       const customer = await storage.createCustomer(data);
@@ -413,7 +436,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/customers/:id", async (req, res) => {
+  app.patch("/api/customers/:id", requirePermission("manage_customers"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const data = insertCustomerSchema.partial().parse(req.body);
@@ -428,7 +451,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/customers/:id", async (req, res) => {
+  app.delete("/api/customers/:id", requirePermission("manage_customers"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const activeCheckouts = await storage.getActiveCheckoutsByCustomer(id);
@@ -455,19 +478,19 @@ export async function registerRoutes(
   });
 
   // Inventory
-  app.get("/api/inventory", async (req, res) => {
+  app.get("/api/inventory", isAuthenticated, async (req, res) => {
     const items = await storage.getInventory();
     res.json(items);
   });
 
-  app.get("/api/inventory/:id", async (req, res) => {
+  app.get("/api/inventory/:id", isAuthenticated, async (req, res) => {
     const id = parseInt(req.params.id);
     const item = await storage.getInventoryItem(id);
     if (!item) return res.status(404).json({ error: "Item not found" });
     res.json(item);
   });
 
-  app.post("/api/inventory", async (req, res) => {
+  app.post("/api/inventory", requirePermission("manage_inventory"), async (req, res) => {
     try {
       const data = insertInventorySchema.parse(req.body);
       const item = await storage.createInventoryItem(data);
@@ -480,7 +503,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/inventory/:id", async (req, res) => {
+  app.patch("/api/inventory/:id", requirePermission("manage_inventory"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const data = insertInventorySchema.partial().parse(req.body);
@@ -495,7 +518,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/inventory/:id", async (req, res) => {
+  app.delete("/api/inventory/:id", requirePermission("manage_inventory"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const activeCheckouts = await storage.getActiveCheckoutsByInventoryItem(id);
@@ -520,19 +543,19 @@ export async function registerRoutes(
   });
 
   // Checkouts
-  app.get("/api/checkouts", async (req, res) => {
+  app.get("/api/checkouts", isAuthenticated, async (req, res) => {
     const checkoutViews = await storage.getCheckoutViews();
     res.json(checkoutViews);
   });
 
-  app.get("/api/checkouts/:id", async (req, res) => {
+  app.get("/api/checkouts/:id", isAuthenticated, async (req, res) => {
     const id = parseInt(req.params.id);
     const checkoutView = await storage.getCheckoutView(id);
     if (!checkoutView) return res.status(404).json({ error: "Checkout not found" });
     res.json(checkoutView);
   });
 
-  app.post("/api/checkouts", isAuthenticated, async (req: any, res) => {
+  app.post("/api/checkouts", requirePermission("create_checkouts"), async (req: any, res) => {
     try {
       const userId = req.user?.id;
       const data = insertCheckoutSchema.parse(req.body);
@@ -557,7 +580,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/checkouts/:id", async (req, res) => {
+  app.patch("/api/checkouts/:id", requirePermission("manage_checkouts"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const data = insertCheckoutSchema.partial().parse(req.body);
@@ -572,7 +595,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/checkouts/:id", async (req, res) => {
+  app.delete("/api/checkouts/:id", requirePermission("manage_checkouts"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const deleted = await storage.deleteCheckout(id);
@@ -761,7 +784,7 @@ export async function registerRoutes(
   });
 
   // Contracts (Custom Cabinetry and Home Improvement)
-  app.get("/api/contracts", isAuthenticated, async (req, res) => {
+  app.get("/api/contracts", requirePermission("view_contracts"), async (req, res) => {
     try {
       const contractList = await storage.getContracts();
       res.json(contractList);
@@ -771,7 +794,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/contracts/:id", isAuthenticated, async (req, res) => {
+  app.get("/api/contracts/:id", requirePermission("view_contracts"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const contract = await storage.getContract(id);
@@ -783,7 +806,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/contracts", isAuthenticated, async (req: any, res) => {
+  app.post("/api/contracts", requirePermission("create_contracts"), async (req: any, res) => {
     try {
       const userId = req.user?.id;
       const data = insertContractSchema.parse(req.body);
