@@ -95,6 +95,9 @@ export const checkouts = pgTable("checkouts", {
   inventory_item_id: integer("inventory_item_id").references(() => inventory.id).notNull(),
   checkout_date: text("checkout_date").notNull(),
   due_date: text("due_date").notNull(),
+  project_type: text("project_type"),
+  needs_installer: text("needs_installer").default("no"), // yes | no
+  start_date: text("start_date"),
   status: text("status").notNull().default("checked_out"), // checked_out | overdue | returned
   notes: text("notes"),
   auth_notes: text("auth_notes"),

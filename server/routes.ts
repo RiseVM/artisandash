@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, type User } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
@@ -688,6 +688,29 @@ export async function registerRoutes(
         ...data,
         created_by_user_id: userId,
       });
+      
+      // Send installer follow-up email if customer needs an installer
+      if (data.needs_installer === "yes") {
+        try {
+          const customer = await storage.getCustomer(data.customer_id);
+          const item = await storage.getInventoryItem(data.inventory_item_id);
+          if (customer && item) {
+            await sendInstallerFollowUp(
+              customer.name,
+              customer.email,
+              customer.phone,
+              data.project_type || null,
+              data.start_date || null,
+              item.name,
+              data.checkout_date
+            );
+          }
+        } catch (emailError) {
+          console.error("Failed to send installer follow-up email:", emailError);
+          // Don't fail the checkout if email fails
+        }
+      }
+      
       res.status(201).json(checkout);
     } catch (error) {
       if (error instanceof z.ZodError) {

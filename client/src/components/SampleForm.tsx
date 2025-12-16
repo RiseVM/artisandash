@@ -57,6 +57,9 @@ const formSchema = z.object({
   customer_id: z.number({ required_error: "Please select a customer" }),
   inventory_item_ids: z.array(z.number()).min(1, "Please select at least one sample"),
   due_date: z.string().min(1, "Due date is required"),
+  project_type: z.string().optional(),
+  needs_installer: z.string().default("no"),
+  start_date: z.string().optional(),
   notes: z.string().optional(),
   auth_notes: z.string().optional(),
   payment_agreement: z.boolean().default(false).refine((val) => val === true, {
@@ -115,6 +118,9 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       customer_id: undefined,
       inventory_item_ids: [],
       due_date: format(new Date(), 'yyyy-MM-dd'),
+      project_type: "",
+      needs_installer: "no",
+      start_date: "",
       notes: "",
       auth_notes: "",
       payment_agreement: false,
@@ -499,6 +505,77 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                           <Input type="date" className="pl-10" {...field} data-testid="input-due-date" />
                         </div>
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="start_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Start Date</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                          <Input type="date" className="pl-10" {...field} data-testid="input-start-date" />
+                        </div>
+                      </FormControl>
+                      <FormDescription>When the project is expected to begin</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="project_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Type of Project</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-project-type">
+                            <SelectValue placeholder="Select project type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="bathroom">Bathroom</SelectItem>
+                          <SelectItem value="kitchen">Kitchen</SelectItem>
+                          <SelectItem value="flooring">Flooring</SelectItem>
+                          <SelectItem value="backsplash">Backsplash</SelectItem>
+                          <SelectItem value="shower">Shower</SelectItem>
+                          <SelectItem value="fireplace">Fireplace</SelectItem>
+                          <SelectItem value="outdoor">Outdoor</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="needs_installer"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Do you need an installer?</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || "no"}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-needs-installer">
+                            <SelectValue placeholder="Select option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="no">No</SelectItem>
+                          <SelectItem value="yes">Yes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>If yes, we'll follow up with installer information</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
