@@ -118,7 +118,8 @@ export async function sendInstallerFollowUp(
   projectType: string | null,
   startDate: string | null,
   sampleName: string,
-  checkoutDate: string
+  checkoutDate: string,
+  notes: string | null
 ): Promise<boolean> {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
@@ -157,6 +158,10 @@ export async function sendInstallerFollowUp(
             <td style="padding: 10px; font-weight: bold;">Checkout Date:</td>
             <td style="padding: 10px;">${checkoutDate}</td>
           </tr>
+          ${notes ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold; vertical-align: top;">Notes:</td>
+            <td style="padding: 10px; white-space: pre-wrap;">${notes}</td>
+          </tr>` : ''}
         </table>
         <p>Please follow up with this customer regarding their installation needs.</p>
       </div>
@@ -182,8 +187,9 @@ export async function sendSpecialRequestFollowUp(
   customerEmail: string,
   customerPhone: string | null,
   specialRequest: string,
-  sampleName: string,
-  checkoutDate: string
+  sampleName: string | null,
+  checkoutDate: string,
+  notes: string | null
 ): Promise<boolean> {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
@@ -206,18 +212,22 @@ export async function sendSpecialRequestFollowUp(
             <td style="padding: 10px; font-weight: bold;">Phone:</td>
             <td style="padding: 10px;">${customerPhone || 'Not provided'}</td>
           </tr>
-          <tr style="border-bottom: 1px solid #eee;">
+          ${sampleName ? `<tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px; font-weight: bold;">Sample:</td>
             <td style="padding: 10px;">${sampleName}</td>
-          </tr>
+          </tr>` : ''}
           <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px; font-weight: bold;">Checkout Date:</td>
+            <td style="padding: 10px; font-weight: bold;">Date:</td>
             <td style="padding: 10px;">${checkoutDate}</td>
           </tr>
           <tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px; font-weight: bold; vertical-align: top;">Special Request:</td>
             <td style="padding: 10px; white-space: pre-wrap;">${specialRequest}</td>
           </tr>
+          ${notes ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold; vertical-align: top;">Notes:</td>
+            <td style="padding: 10px; white-space: pre-wrap;">${notes}</td>
+          </tr>` : ''}
         </table>
         <p>Please follow up with this customer regarding their special request.</p>
       </div>
@@ -244,8 +254,9 @@ export async function sendDesignerFollowUp(
   customerPhone: string | null,
   projectType: string | null,
   startDate: string | null,
-  sampleName: string,
-  checkoutDate: string
+  sampleName: string | null,
+  checkoutDate: string,
+  notes: string | null
 ): Promise<boolean> {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
@@ -276,14 +287,18 @@ export async function sendDesignerFollowUp(
             <td style="padding: 10px; font-weight: bold;">Start Date:</td>
             <td style="padding: 10px;">${startDate || 'Not specified'}</td>
           </tr>
-          <tr style="border-bottom: 1px solid #eee;">
+          ${sampleName ? `<tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px; font-weight: bold;">Sample:</td>
             <td style="padding: 10px;">${sampleName}</td>
-          </tr>
+          </tr>` : ''}
           <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px; font-weight: bold;">Checkout Date:</td>
+            <td style="padding: 10px; font-weight: bold;">Date:</td>
             <td style="padding: 10px;">${checkoutDate}</td>
           </tr>
+          ${notes ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold; vertical-align: top;">Notes:</td>
+            <td style="padding: 10px; white-space: pre-wrap;">${notes}</td>
+          </tr>` : ''}
         </table>
         <p>Please follow up with this customer regarding their design consultation needs.</p>
       </div>

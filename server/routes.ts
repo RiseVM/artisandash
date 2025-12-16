@@ -703,7 +703,8 @@ export async function registerRoutes(
             data.project_type || null,
             data.start_date || null,
             item.name,
-            data.checkout_date
+            data.checkout_date,
+            data.notes || null
           );
         } catch (emailError) {
           console.error("Failed to send installer follow-up email:", emailError);
@@ -711,7 +712,7 @@ export async function registerRoutes(
       }
       
       // Send designer follow-up email if customer wants a designer
-      if (data.wants_designer === "yes" && customer && item) {
+      if (data.wants_designer === "yes" && customer) {
         try {
           await sendDesignerFollowUp(
             customer.name,
@@ -719,8 +720,9 @@ export async function registerRoutes(
             customer.phone,
             data.project_type || null,
             data.start_date || null,
-            item.name,
-            data.checkout_date
+            item?.name || null,
+            data.checkout_date,
+            data.notes || null
           );
         } catch (emailError) {
           console.error("Failed to send designer follow-up email:", emailError);
@@ -728,15 +730,16 @@ export async function registerRoutes(
       }
       
       // Send special request follow-up email if customer has a special request
-      if (data.special_request && data.special_request.trim() && customer && item) {
+      if (data.special_request && data.special_request.trim() && customer) {
         try {
           await sendSpecialRequestFollowUp(
             customer.name,
             customer.email,
             customer.phone,
             data.special_request,
-            item.name,
-            data.checkout_date
+            item?.name || null,
+            data.checkout_date,
+            data.notes || null
           );
         } catch (emailError) {
           console.error("Failed to send special request follow-up email:", emailError);
