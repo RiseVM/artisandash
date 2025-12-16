@@ -55,8 +55,8 @@ import SignatureCanvas from "react-signature-canvas";
 
 const formSchema = z.object({
   customer_id: z.number({ required_error: "Please select a customer" }),
-  inventory_item_ids: z.array(z.number()).min(1, "Please select at least one sample"),
-  due_date: z.string().min(1, "Due date is required"),
+  inventory_item_ids: z.array(z.number()),
+  due_date: z.string().optional(),
   project_type: z.string().optional(),
   needs_installer: z.string().default("no"),
   wants_designer: z.string().default("no"),
@@ -64,9 +64,7 @@ const formSchema = z.object({
   special_request: z.string().optional(),
   notes: z.string().optional(),
   auth_notes: z.string().optional(),
-  payment_agreement: z.boolean().default(false).refine((val) => val === true, {
-    message: "You must agree to the sample policy terms.",
-  }),
+  payment_agreement: z.boolean().default(false),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -288,24 +286,45 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   };
 
   const handleSubmit = (data: FormValues) => {
-    if (!cardVerified && !initialData) {
-      toast({
-        title: "Payment Required",
-        description: "Please verify a card to proceed with checkout.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!hasSignature && !initialData) {
-      toast({
-        title: "Signature Required",
-        description: "Please sign to acknowledge the sample policy.",
-        variant: "destructive",
-      });
-      return;
+    const hasSamples = data.inventory_item_ids.length > 0;
+    
+    // Only require card and signature if samples are being checked out
+    if (hasSamples) {
+      if (!cardVerified && !initialData) {
+        toast({
+          title: "Payment Required",
+          description: "Please verify a card to proceed with checkout.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!hasSignature && !initialData) {
+        toast({
+          title: "Signature Required",
+          description: "Please sign to acknowledge the sample policy.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!data.payment_agreement && !initialData) {
+        toast({
+          title: "Agreement Required",
+          description: "Please agree to the sample policy terms.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!data.due_date) {
+        toast({
+          title: "Due Date Required",
+          description: "Please select a due date for the sample checkout.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     
-    const signatureData = getSignatureWithWhiteBackground();
+    const signatureData = hasSamples ? getSignatureWithWhiteBackground() : "";
     onSubmit({ ...data, signature: signatureData });
     setLocation("/");
   };
@@ -488,7 +507,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                       )}
 
                       {selectedItemIds.length === 0 && (
-                        <p className="text-sm text-muted-foreground">No samples selected. Add at least one sample above.</p>
+                        <p className="text-sm text-muted-foreground">No samples selected (optional - leave empty for customer info only).</p>
                       )}
                     </div>
                     <FormMessage />
@@ -497,22 +516,25 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="due_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Due Date</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                          <Input type="date" className="pl-10" {...field} data-testid="input-due-date" />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Only show due date when samples are selected */}
+                {selectedItemIds.length > 0 && (
+                  <FormField
+                    control={form.control}
+                    name="due_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Due Date</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                            <Input type="date" className="pl-10" {...field} data-testid="input-due-date" />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <FormField
                   control={form.control}
@@ -625,175 +647,183 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="payment_agreement"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-amber-50 dark:bg-amber-950">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        data-testid="checkbox-agreement"
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>
-                        I agree to the sample policy and authorize storing my card on file
-                      </FormLabel>
-                      <FormDescription>
-                        I authorize Artisan Tile to store my card on file and charge it for the full retail price of the sample if it is not returned by the due date or is returned damaged.
-                      </FormDescription>
-                      <FormMessage />
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              <div className="rounded-lg border bg-card p-6 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <PenLine className="h-4 w-4 text-primary" />
-                    <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Customer Signature</h3>
-                  </div>
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={clearSignature}
-                    data-testid="button-clear-signature"
-                  >
-                    <RotateCcw className="h-4 w-4 mr-1" />
-                    Clear
-                  </Button>
-                </div>
-                
-                <div className="border-2 border-dashed rounded-lg bg-white touch-none overflow-hidden" style={{ height: '200px' }}>
-                  <SignatureCanvas
-                    ref={signatureRef}
-                    canvasProps={{
-                      width: 500,
-                      height: 200,
-                      className: 'rounded-lg',
-                      style: { width: '100%', height: '100%', touchAction: 'none' }
-                    }}
-                    onEnd={handleSignatureEnd}
-                    penColor="black"
-                    backgroundColor="rgb(255, 255, 255)"
-                    data-testid="signature-canvas"
+              {/* Only show payment requirements when samples are selected */}
+              {selectedItemIds.length > 0 && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="payment_agreement"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-amber-50 dark:bg-amber-950">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="checkbox-agreement"
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            I agree to the sample policy and authorize storing my card on file
+                          </FormLabel>
+                          <FormDescription>
+                            I authorize Artisan Tile to store my card on file and charge it for the full retail price of the sample if it is not returned by the due date or is returned damaged.
+                          </FormDescription>
+                          <FormMessage />
+                        </div>
+                      </FormItem>
+                    )}
                   />
-                </div>
-                <p className="text-xs text-center text-muted-foreground mt-2">
-                  Sign above using your finger or stylus to acknowledge the sample policy.
-                </p>
-                {hasSignature && (
-                  <div className="flex items-center justify-center gap-1 mt-2 text-green-600 text-sm">
-                    <Check className="h-4 w-4" />
-                    Signature captured
-                  </div>
-                )}
-                {!hasSignature && paymentAgreement && (
-                  <p className="text-xs text-center text-amber-600 mt-2">
-                    Please sign above before proceeding to payment.
-                  </p>
-                )}
-              </div>
 
-              <div className="rounded-lg border bg-card p-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                   <Lock className="h-4 w-4 text-green-600" />
-                   <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Secure Payment Method</h3>
-                </div>
-
-                {!cardVerified ? (
-                  <div className="space-y-4">
-                    <div className="relative">
-                      <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        placeholder="Card number" 
-                        className="pl-9 font-mono"
-                        maxLength={19}
-                        data-testid="input-card-number"
-                        onChange={(e) => {
-                          let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '')
-                          let matches = v.match(/\d{4,16}/g);
-                          let match = matches && matches[0] || ''
-                          let parts = []
-                          for (let i=0, len=match.length; i<len; i+=4) {
-                            parts.push(match.substring(i, i+4))
-                          }
-                          if (parts.length) {
-                            e.target.value = parts.join(' ')
-                          } else {
-                            e.target.value = v
-                          }
+                  <div className="rounded-lg border bg-card p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <PenLine className="h-4 w-4 text-primary" />
+                        <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Customer Signature</h3>
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={clearSignature}
+                        data-testid="button-clear-signature"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Clear
+                      </Button>
+                    </div>
+                    
+                    <div className="border-2 border-dashed rounded-lg bg-white touch-none overflow-hidden" style={{ height: '200px' }}>
+                      <SignatureCanvas
+                        ref={signatureRef}
+                        canvasProps={{
+                          width: 500,
+                          height: 200,
+                          className: 'rounded-lg',
+                          style: { width: '100%', height: '100%', touchAction: 'none' }
                         }}
+                        onEnd={handleSignatureEnd}
+                        penColor="black"
+                        backgroundColor="rgb(255, 255, 255)"
+                        data-testid="signature-canvas"
                       />
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <Input placeholder="MM / YY" className="font-mono text-center" maxLength={7} data-testid="input-card-exp" />
-                      <Input placeholder="CVC" className="font-mono text-center" maxLength={4} type="password" data-testid="input-card-cvc" />
-                      <Input placeholder="Zip Code" className="font-mono text-center" maxLength={5} data-testid="input-card-zip" />
-                    </div>
+                    <p className="text-xs text-center text-muted-foreground mt-2">
+                      Sign above using your finger or stylus to acknowledge the sample policy.
+                    </p>
+                    {hasSignature && (
+                      <div className="flex items-center justify-center gap-1 mt-2 text-green-600 text-sm">
+                        <Check className="h-4 w-4" />
+                        Signature captured
+                      </div>
+                    )}
+                    {!hasSignature && paymentAgreement && (
+                      <p className="text-xs text-center text-amber-600 mt-2">
+                        Please sign above before proceeding to payment.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
 
-                    <Button 
-                      type="button" 
-                      className="w-full" 
-                      onClick={handleChargeCard}
-                      disabled={isProcessingCard || !paymentAgreement || !hasSignature}
-                      data-testid="button-charge-card"
-                    >
-                      {isProcessingCard ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Saving Card...
-                        </>
-                      ) : (
-                        "Save Card on File"
+              {/* Only show credit card section when samples are selected */}
+              {selectedItemIds.length > 0 && (
+                <div className="rounded-lg border bg-card p-6 shadow-sm">
+                  <div className="flex items-center gap-2 mb-4">
+                     <Lock className="h-4 w-4 text-green-600" />
+                     <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Secure Payment Method</h3>
+                  </div>
+
+                  {!cardVerified ? (
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          placeholder="Card number" 
+                          className="pl-9 font-mono"
+                          maxLength={19}
+                          data-testid="input-card-number"
+                          onChange={(e) => {
+                            let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '')
+                            let matches = v.match(/\d{4,16}/g);
+                            let match = matches && matches[0] || ''
+                            let parts = []
+                            for (let i=0, len=match.length; i<len; i+=4) {
+                              parts.push(match.substring(i, i+4))
+                            }
+                            if (parts.length) {
+                              e.target.value = parts.join(' ')
+                            } else {
+                              e.target.value = v
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <Input placeholder="MM / YY" className="font-mono text-center" maxLength={7} data-testid="input-card-exp" />
+                        <Input placeholder="CVC" className="font-mono text-center" maxLength={4} type="password" data-testid="input-card-cvc" />
+                        <Input placeholder="Zip Code" className="font-mono text-center" maxLength={5} data-testid="input-card-zip" />
+                      </div>
+
+                      <Button 
+                        type="button" 
+                        className="w-full" 
+                        onClick={handleChargeCard}
+                        disabled={isProcessingCard || !paymentAgreement || !hasSignature}
+                        data-testid="button-charge-card"
+                      >
+                        {isProcessingCard ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving Card...
+                          </>
+                        ) : (
+                          "Save Card on File"
+                        )}
+                      </Button>
+                      {!paymentAgreement && (
+                        <p className="text-xs text-center text-amber-600">
+                          Please agree to the sample policy above to enable payment processing.
+                        </p>
                       )}
-                    </Button>
-                    {!paymentAgreement && (
-                      <p className="text-xs text-center text-amber-600">
-                        Please agree to the sample policy above to enable payment processing.
+                      {paymentAgreement && !hasSignature && (
+                        <p className="text-xs text-center text-amber-600">
+                          Please sign the agreement above before processing payment.
+                        </p>
+                      )}
+                      <p className="text-xs text-center text-muted-foreground">
+                        Your card will be stored securely in case of issues with sample return.
                       </p>
-                    )}
-                    {paymentAgreement && !hasSignature && (
-                      <p className="text-xs text-center text-amber-600">
-                        Please sign the agreement above before processing payment.
-                      </p>
-                    )}
-                    <p className="text-xs text-center text-muted-foreground">
-                      Your card will be stored securely in case of issues with sample return.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-md p-4 text-center">
-                    <div className="flex items-center justify-center gap-2 text-green-700 font-medium mb-1">
-                      <Check className="h-5 w-5" />
-                      Card on File
                     </div>
-                    <p className="text-sm text-green-600">
-                      {(() => {
-                        const customer = customers.find(c => c.id === selectedCustomerId);
-                        if (customer?.card_last4) {
-                          return `${customer.card_brand || 'Card'} ending in ${customer.card_last4} is securely stored.`;
-                        }
-                        return "Card is securely stored on file.";
-                      })()}
-                    </p>
-                    <Button 
-                      variant="link" 
-                      className="text-xs text-muted-foreground h-auto p-0 mt-2"
-                      onClick={() => {
-                        setCardVerified(false);
-                        form.setValue("auth_notes", "");
-                      }}
-                    >
-                      Use a different card
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  ) : (
+                    <div className="bg-green-50 border border-green-200 rounded-md p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 text-green-700 font-medium mb-1">
+                        <Check className="h-5 w-5" />
+                        Card on File
+                      </div>
+                      <p className="text-sm text-green-600">
+                        {(() => {
+                          const customer = customers.find(c => c.id === selectedCustomerId);
+                          if (customer?.card_last4) {
+                            return `${customer.card_brand || 'Card'} ending in ${customer.card_last4} is securely stored.`;
+                          }
+                          return "Card is securely stored on file.";
+                        })()}
+                      </p>
+                      <Button 
+                        variant="link" 
+                        className="text-xs text-muted-foreground h-auto p-0 mt-2"
+                        onClick={() => {
+                          setCardVerified(false);
+                          form.setValue("auth_notes", "");
+                        }}
+                      >
+                        Use a different card
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <FormField
                 control={form.control}
@@ -819,7 +849,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                   Cancel
                 </Button>
                 <Button type="submit" data-testid="button-submit">
-                  {initialData ? "Update Checkout" : "Complete Checkout"}
+                  {initialData ? "Update Checkout" : (selectedItemIds.length > 0 ? "Complete Checkout" : "Save Customer Info")}
                 </Button>
               </div>
             </form>

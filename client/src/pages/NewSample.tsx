@@ -15,6 +15,15 @@ export function NewSample() {
       const itemIds: number[] = data.inventory_item_ids || [];
       const checkoutIds: number[] = [];
       
+      // If no samples selected, just show success for customer info collection
+      if (itemIds.length === 0) {
+        toast({
+          title: "Customer Info Saved",
+          description: "Customer information has been recorded successfully.",
+        });
+        return;
+      }
+      
       for (const itemId of itemIds) {
         const checkout = await createCheckoutMutation.mutateAsync({
           customer_id: data.customer_id,
