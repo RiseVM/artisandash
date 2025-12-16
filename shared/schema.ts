@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, timestamp, integer, index, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, timestamp, integer, index, jsonb, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -201,3 +201,34 @@ export const insertContractSchema = createInsertSchema(contracts).omit({
 
 export type InsertContract = z.infer<typeof insertContractSchema>;
 export type Contract = typeof contracts.$inferSelect;
+
+// Role permissions for access control
+export const rolePermissions = pgTable("role_permissions", {
+  id: serial("id").primaryKey(),
+  role: varchar("role").notNull(), // admin | manager | staff
+  permission: varchar("permission").notNull(), // manage_customers | manage_inventory | create_checkouts | view_contracts | create_contracts | manage_users | view_reports
+  enabled: text("enabled").default("yes").notNull(), // yes | no
+}, (table) => [
+  unique("unique_role_permission").on(table.role, table.permission),
+]);
+
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({
+  id: true,
+});
+
+export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
+export type RolePermission = typeof rolePermissions.$inferSelect;
+
+// Available permissions list
+export const AVAILABLE_PERMISSIONS = [
+  { key: "manage_customers", label: "Manage Customers", description: "Create, edit, and delete customers" },
+  { key: "manage_inventory", label: "Manage Inventory", description: "Create, edit, and delete inventory items" },
+  { key: "create_checkouts", label: "Create Checkouts", description: "Check out items to customers" },
+  { key: "manage_checkouts", label: "Manage Checkouts", description: "Edit and delete checkouts, mark as returned" },
+  { key: "view_contracts", label: "View Contracts", description: "View signed contracts" },
+  { key: "create_contracts", label: "Create Contracts", description: "Create and sign new contracts" },
+  { key: "manage_users", label: "Manage Users", description: "Create, edit, and delete users" },
+  { key: "view_reports", label: "View Reports", description: "Access activity reports and analytics" },
+] as const;
+
+export type PermissionKey = typeof AVAILABLE_PERMISSIONS[number]["key"];

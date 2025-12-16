@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Key, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Key, Loader2, Shield } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { AVAILABLE_PERMISSIONS } from "@shared/schema";
 
 interface User {
   id: string;
@@ -21,6 +23,13 @@ interface User {
   role: string;
   isActive: string;
   createdAt: string;
+}
+
+interface RolePermission {
+  id: number;
+  role: string;
+  permission: string;
+  enabled: string;
 }
 
 export function UserManagement() {
@@ -43,6 +52,34 @@ export function UserManagement() {
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
   });
+
+  const { data: rolePermissions = [] } = useQuery<RolePermission[]>({
+    queryKey: ["/api/role-permissions"],
+  });
+
+  const updatePermissionMutation = useMutation({
+    mutationFn: async (data: { role: string; permission: string; enabled: boolean }) => {
+      return apiRequest("PUT", "/api/role-permissions", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/role-permissions"] });
+      toast({ title: "Permission updated" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Failed to update permission", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const getPermissionEnabled = (role: string, permission: string): boolean => {
+    if (role === "admin") return true;
+    const perm = rolePermissions.find(p => p.role === role && p.permission === permission);
+    return perm?.enabled === "yes";
+  };
+
+  const togglePermission = (role: string, permission: string) => {
+    const currentValue = getPermissionEnabled(role, permission);
+    updatePermissionMutation.mutate({ role, permission, enabled: !currentValue });
+  };
 
   const createUserMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -149,95 +186,105 @@ export function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-muted-foreground">Manage staff accounts and permissions</p>
-        </div>
-        
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-user">
-              <Plus className="h-4 w-4 mr-2" />
-              Add User
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New User</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleCreateSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    data-testid="input-user-firstname"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    data-testid="input-user-lastname"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  required
-                  data-testid="input-user-email"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password *</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                  data-testid="input-user-password"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) => setFormData({ ...formData, role: value })}
-                >
-                  <SelectTrigger data-testid="select-user-role">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="staff">Staff</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button type="submit" disabled={createUserMutation.isPending} data-testid="button-save-user">
-                  {createUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Create User
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+      <div>
+        <h1 className="text-3xl font-bold">User Management</h1>
+        <p className="text-muted-foreground">Manage staff accounts and permissions</p>
       </div>
+
+      <Tabs defaultValue="users" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
+          <TabsTrigger value="permissions" data-testid="tab-permissions">
+            <Shield className="h-4 w-4 mr-2" />
+            Role Permissions
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-4">
+          <div className="flex justify-end">
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-create-user">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add User
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New User</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleCreateSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name</Label>
+                      <Input
+                        id="firstName"
+                        value={formData.firstName}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        data-testid="input-user-firstname"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name</Label>
+                      <Input
+                        id="lastName"
+                        value={formData.lastName}
+                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                        data-testid="input-user-lastname"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      required
+                      data-testid="input-user-email"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password *</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                      data-testid="input-user-password"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="role">Role</Label>
+                    <Select
+                      value={formData.role}
+                      onValueChange={(value) => setFormData({ ...formData, role: value })}
+                    >
+                      <SelectTrigger data-testid="select-user-role">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="staff">Staff</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button type="button" variant="outline">Cancel</Button>
+                    </DialogClose>
+                    <Button type="submit" disabled={createUserMutation.isPending} data-testid="button-save-user">
+                      {createUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Create User
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
 
       <Card>
         <CardHeader>
@@ -428,6 +475,68 @@ export function UserManagement() {
           </form>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="permissions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Role Permissions</CardTitle>
+              <CardDescription>
+                Configure what each role can do in the system. Admin always has full access.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[250px]">Permission</TableHead>
+                      <TableHead className="text-center">Admin</TableHead>
+                      <TableHead className="text-center">Manager</TableHead>
+                      <TableHead className="text-center">Staff</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {AVAILABLE_PERMISSIONS.map((perm) => (
+                      <TableRow key={perm.key} data-testid={`row-permission-${perm.key}`}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{perm.label}</div>
+                            <div className="text-sm text-muted-foreground">{perm.description}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={true}
+                            disabled={true}
+                            data-testid={`switch-permission-admin-${perm.key}`}
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={getPermissionEnabled("manager", perm.key)}
+                            onCheckedChange={() => togglePermission("manager", perm.key)}
+                            disabled={updatePermissionMutation.isPending}
+                            data-testid={`switch-permission-manager-${perm.key}`}
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Switch
+                            checked={getPermissionEnabled("staff", perm.key)}
+                            onCheckedChange={() => togglePermission("staff", perm.key)}
+                            disabled={updatePermissionMutation.isPending}
+                            data-testid={`switch-permission-staff-${perm.key}`}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

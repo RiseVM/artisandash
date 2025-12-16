@@ -313,6 +313,57 @@ export async function registerRoutes(
     }
   });
 
+  // Initialize default permissions on startup
+  await storage.initializeDefaultPermissions();
+
+  // Role permissions routes (admin only)
+  app.get('/api/role-permissions', isAdmin, async (req: any, res) => {
+    try {
+      const permissions = await storage.getRolePermissions();
+      res.json(permissions);
+    } catch (error) {
+      console.error("Error fetching role permissions:", error);
+      res.status(500).json({ error: "Failed to fetch role permissions" });
+    }
+  });
+
+  const validRoles = ["manager", "staff"];
+  const validPermissions = ["manage_customers", "manage_inventory", "create_checkouts", "manage_checkouts", "view_contracts", "create_contracts", "manage_users", "view_reports"];
+
+  app.put('/api/role-permissions', isAdmin, async (req: any, res) => {
+    try {
+      const { role, permission, enabled } = req.body;
+      
+      if (!role || !permission || typeof enabled !== "boolean") {
+        return res.status(400).json({ error: "Role, permission, and enabled (boolean) are required" });
+      }
+      
+      if (!validRoles.includes(role)) {
+        return res.status(400).json({ error: "Invalid role. Must be 'manager' or 'staff'" });
+      }
+      
+      if (!validPermissions.includes(permission)) {
+        return res.status(400).json({ error: "Invalid permission" });
+      }
+      
+      const result = await storage.setRolePermission(role, permission, enabled);
+      
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: "update_permission",
+        entityType: "role_permission",
+        details: `Set ${role} permission '${permission}' to ${enabled ? 'enabled' : 'disabled'}`,
+        ipAddress: req.ip,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating role permission:", error);
+      res.status(500).json({ error: "Failed to update role permission" });
+    }
+  });
+
   // Contract template downloads
   app.get('/api/contract-templates/cabinetry', (req, res) => {
     const templatePath = path.join(process.cwd(), 'attached_assets', 'Cabinet_Contract_2025_1765835290052.pdf');

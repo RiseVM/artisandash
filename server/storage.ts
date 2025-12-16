@@ -8,6 +8,7 @@ import {
   signedAgreements,
   contracts,
   activityLogs,
+  rolePermissions,
   type Customer,
   type Inventory,
   type Checkout,
@@ -25,7 +26,9 @@ import {
   type InsertContract,
   type Contract,
   type InsertActivityLog,
-  type ActivityLog
+  type ActivityLog,
+  type RolePermission,
+  type InsertRolePermission
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or } from "drizzle-orm";
 
@@ -84,6 +87,13 @@ export interface IStorage {
   createContract(contract: InsertContract): Promise<Contract>;
   updateContract(id: number, contract: Partial<InsertContract>): Promise<Contract | undefined>;
   deleteContract(id: number): Promise<boolean>;
+
+  // Role Permissions
+  getRolePermissions(): Promise<RolePermission[]>;
+  getRolePermissionsByRole(role: string): Promise<RolePermission[]>;
+  setRolePermission(role: string, permission: string, enabled: boolean): Promise<RolePermission>;
+  hasPermission(role: string, permission: string): Promise<boolean>;
+  initializeDefaultPermissions(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -404,6 +414,81 @@ export class DatabaseStorage implements IStorage {
   async deleteContract(id: number): Promise<boolean> {
     const result = await db.delete(contracts).where(eq(contracts.id, id)).returning();
     return result.length > 0;
+  }
+
+  // Role Permissions
+  async getRolePermissions(): Promise<RolePermission[]> {
+    return db.select().from(rolePermissions);
+  }
+
+  async getRolePermissionsByRole(role: string): Promise<RolePermission[]> {
+    return db.select().from(rolePermissions).where(eq(rolePermissions.role, role));
+  }
+
+  async setRolePermission(role: string, permission: string, enabled: boolean): Promise<RolePermission> {
+    const enabledValue = enabled ? "yes" : "no";
+    const existing = await db.select().from(rolePermissions)
+      .where(and(eq(rolePermissions.role, role), eq(rolePermissions.permission, permission)));
+    
+    if (existing.length > 0) {
+      const [updated] = await db.update(rolePermissions)
+        .set({ enabled: enabledValue })
+        .where(eq(rolePermissions.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(rolePermissions)
+        .values({ role, permission, enabled: enabledValue })
+        .returning();
+      return created;
+    }
+  }
+
+  async hasPermission(role: string, permission: string): Promise<boolean> {
+    if (role === "admin") return true;
+    
+    const [result] = await db.select().from(rolePermissions)
+      .where(and(eq(rolePermissions.role, role), eq(rolePermissions.permission, permission)));
+    
+    return result?.enabled === "yes";
+  }
+
+  async initializeDefaultPermissions(): Promise<void> {
+    const defaultPermissions = [
+      { role: "admin", permission: "manage_customers", enabled: "yes" },
+      { role: "admin", permission: "manage_inventory", enabled: "yes" },
+      { role: "admin", permission: "create_checkouts", enabled: "yes" },
+      { role: "admin", permission: "manage_checkouts", enabled: "yes" },
+      { role: "admin", permission: "view_contracts", enabled: "yes" },
+      { role: "admin", permission: "create_contracts", enabled: "yes" },
+      { role: "admin", permission: "manage_users", enabled: "yes" },
+      { role: "admin", permission: "view_reports", enabled: "yes" },
+      { role: "manager", permission: "manage_customers", enabled: "yes" },
+      { role: "manager", permission: "manage_inventory", enabled: "yes" },
+      { role: "manager", permission: "create_checkouts", enabled: "yes" },
+      { role: "manager", permission: "manage_checkouts", enabled: "yes" },
+      { role: "manager", permission: "view_contracts", enabled: "yes" },
+      { role: "manager", permission: "create_contracts", enabled: "yes" },
+      { role: "manager", permission: "manage_users", enabled: "no" },
+      { role: "manager", permission: "view_reports", enabled: "yes" },
+      { role: "staff", permission: "manage_customers", enabled: "yes" },
+      { role: "staff", permission: "manage_inventory", enabled: "yes" },
+      { role: "staff", permission: "create_checkouts", enabled: "yes" },
+      { role: "staff", permission: "manage_checkouts", enabled: "no" },
+      { role: "staff", permission: "view_contracts", enabled: "yes" },
+      { role: "staff", permission: "create_contracts", enabled: "yes" },
+      { role: "staff", permission: "manage_users", enabled: "no" },
+      { role: "staff", permission: "view_reports", enabled: "no" },
+    ];
+
+    for (const perm of defaultPermissions) {
+      const existing = await db.select().from(rolePermissions)
+        .where(and(eq(rolePermissions.role, perm.role), eq(rolePermissions.permission, perm.permission)));
+      
+      if (existing.length === 0) {
+        await db.insert(rolePermissions).values(perm);
+      }
+    }
   }
 }
 
