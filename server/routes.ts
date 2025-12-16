@@ -8,6 +8,8 @@ import { sendSampleReminder, sendContractEmail } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
+import { getSession } from "./replitAuth";
+import passport from "passport";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -52,6 +54,16 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  
+  // Set up session middleware
+  app.set("trust proxy", 1);
+  app.use(getSession());
+  app.use(passport.initialize());
+  app.use(passport.session());
+  
+  // Passport serialization for session support
+  passport.serializeUser((user: Express.User, cb) => cb(null, user));
+  passport.deserializeUser((user: Express.User, cb) => cb(null, user));
   
   // Seed admin user on startup
   await seedAdminUser();
