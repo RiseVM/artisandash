@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, type User } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
@@ -689,25 +689,41 @@ export async function registerRoutes(
         created_by_user_id: userId,
       });
       
+      // Send follow-up emails based on customer needs
+      const customer = await storage.getCustomer(data.customer_id);
+      const item = await storage.getInventoryItem(data.inventory_item_id);
+      
       // Send installer follow-up email if customer needs an installer
-      if (data.needs_installer === "yes") {
+      if (data.needs_installer === "yes" && customer && item) {
         try {
-          const customer = await storage.getCustomer(data.customer_id);
-          const item = await storage.getInventoryItem(data.inventory_item_id);
-          if (customer && item) {
-            await sendInstallerFollowUp(
-              customer.name,
-              customer.email,
-              customer.phone,
-              data.project_type || null,
-              data.start_date || null,
-              item.name,
-              data.checkout_date
-            );
-          }
+          await sendInstallerFollowUp(
+            customer.name,
+            customer.email,
+            customer.phone,
+            data.project_type || null,
+            data.start_date || null,
+            item.name,
+            data.checkout_date
+          );
         } catch (emailError) {
           console.error("Failed to send installer follow-up email:", emailError);
-          // Don't fail the checkout if email fails
+        }
+      }
+      
+      // Send designer follow-up email if customer wants a designer
+      if (data.wants_designer === "yes" && customer && item) {
+        try {
+          await sendDesignerFollowUp(
+            customer.name,
+            customer.email,
+            customer.phone,
+            data.project_type || null,
+            data.start_date || null,
+            item.name,
+            data.checkout_date
+          );
+        } catch (emailError) {
+          console.error("Failed to send designer follow-up email:", emailError);
         }
       }
       

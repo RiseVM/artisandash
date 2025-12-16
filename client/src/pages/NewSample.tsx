@@ -23,6 +23,7 @@ export function NewSample() {
           due_date: data.due_date,
           project_type: data.project_type || null,
           needs_installer: data.needs_installer || "no",
+          wants_designer: data.wants_designer || "no",
           start_date: data.start_date || null,
           status: 'checked_out',
           notes: data.notes || null,

@@ -177,6 +177,72 @@ export async function sendInstallerFollowUp(
   }
 }
 
+export async function sendDesignerFollowUp(
+  customerName: string,
+  customerEmail: string,
+  customerPhone: string | null,
+  projectType: string | null,
+  startDate: string | null,
+  sampleName: string,
+  checkoutDate: string
+): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+    
+    const subject = `Designer Consultation Request - ${customerName}`;
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">Designer Consultation Request</h2>
+        <p>A customer has indicated they are interested in working with a designer. Here are the details:</p>
+        <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Customer Name:</td>
+            <td style="padding: 10px;">${customerName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Email:</td>
+            <td style="padding: 10px;">${customerEmail}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Phone:</td>
+            <td style="padding: 10px;">${customerPhone || 'Not provided'}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Project Type:</td>
+            <td style="padding: 10px;">${projectType || 'Not specified'}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Start Date:</td>
+            <td style="padding: 10px;">${startDate || 'Not specified'}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Sample:</td>
+            <td style="padding: 10px;">${sampleName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Checkout Date:</td>
+            <td style="padding: 10px;">${checkoutDate}</td>
+          </tr>
+        </table>
+        <p>Please follow up with this customer regarding their design consultation needs.</p>
+      </div>
+    `;
+
+    const result = await client.emails.send({
+      from: fromEmail || 'noreply@artisantile.com',
+      to: ['claudia@artisantilect.com', 'michele@artisantilect.com'],
+      subject,
+      html: bodyHtml,
+    });
+
+    console.log(`Designer follow-up email sent for ${customerName}:`, result);
+    return true;
+  } catch (error) {
+    console.error(`Failed to send designer follow-up email:`, error);
+    return false;
+  }
+}
+
 export async function sendContractEmail(
   customerEmail: string,
   customerName: string,

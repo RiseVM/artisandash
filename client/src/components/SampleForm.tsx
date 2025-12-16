@@ -59,6 +59,7 @@ const formSchema = z.object({
   due_date: z.string().min(1, "Due date is required"),
   project_type: z.string().optional(),
   needs_installer: z.string().default("no"),
+  wants_designer: z.string().default("no"),
   start_date: z.string().optional(),
   notes: z.string().optional(),
   auth_notes: z.string().optional(),
@@ -120,6 +121,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       due_date: format(new Date(), 'yyyy-MM-dd'),
       project_type: "",
       needs_installer: "no",
+      wants_designer: "no",
       start_date: "",
       notes: "",
       auth_notes: "",
@@ -570,6 +572,31 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                         </SelectContent>
                       </Select>
                       <FormDescription>If yes, we'll follow up with installer information</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="wants_designer"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Interested in working with a designer?</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || "no"}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-wants-designer">
+                            <SelectValue placeholder="Select option" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="no">No</SelectItem>
+                          <SelectItem value="yes">Yes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>If yes, our design team will reach out</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
