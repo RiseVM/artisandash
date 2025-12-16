@@ -2,6 +2,7 @@ import { useCreateCheckout, useCreateSignedAgreement, useCustomers, useInventory
 import { SampleForm } from "@/components/SampleForm";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { apiRequest } from "@/lib/queryClient";
 
 export function NewSample() {
   const createCheckoutMutation = useCreateCheckout();
@@ -15,11 +16,24 @@ export function NewSample() {
       const itemIds: number[] = data.inventory_item_ids || [];
       const checkoutIds: number[] = [];
       
-      // If no samples selected, just show success for customer info collection
+      // If no samples selected, send follow-up emails and show success
       if (itemIds.length === 0) {
+        // Send follow-up emails if any were requested
+        if (data.needs_installer === "yes" || data.wants_designer === "yes" || data.has_special_request === "yes") {
+          await apiRequest("POST", "/api/send-followup-emails", {
+            customer_id: data.customer_id,
+            needs_installer: data.needs_installer || "no",
+            wants_designer: data.wants_designer || "no",
+            has_special_request: data.has_special_request || "no",
+            special_request: data.special_request || null,
+            project_type: data.project_type || null,
+            start_date: data.start_date || null,
+            notes: data.notes || null,
+          });
+        }
         toast({
           title: "Customer Info Saved",
-          description: "Customer information has been recorded successfully.",
+          description: "Customer information has been recorded and notifications sent.",
         });
         return;
       }

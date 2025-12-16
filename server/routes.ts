@@ -791,6 +791,82 @@ export async function registerRoutes(
     }
   });
 
+  // Send follow-up emails without creating a checkout (for customer info collection only)
+  app.post("/api/send-followup-emails", isAuthenticated, async (req, res) => {
+    try {
+      const { customer_id, needs_installer, wants_designer, has_special_request, special_request, project_type, start_date, notes } = req.body;
+      
+      const customer = await storage.getCustomer(customer_id);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      const emailsSent: string[] = [];
+      const today = new Date().toLocaleDateString();
+
+      // Send installer follow-up email if customer needs an installer
+      if (needs_installer === "yes") {
+        try {
+          await sendInstallerFollowUp(
+            customer.name,
+            customer.email,
+            customer.phone,
+            project_type || null,
+            start_date || null,
+            null,
+            today,
+            notes || null
+          );
+          emailsSent.push("installer");
+        } catch (emailError) {
+          console.error("Failed to send installer follow-up email:", emailError);
+        }
+      }
+      
+      // Send designer follow-up email if customer wants a designer
+      if (wants_designer === "yes") {
+        try {
+          await sendDesignerFollowUp(
+            customer.name,
+            customer.email,
+            customer.phone,
+            project_type || null,
+            start_date || null,
+            null,
+            today,
+            notes || null
+          );
+          emailsSent.push("designer");
+        } catch (emailError) {
+          console.error("Failed to send designer follow-up email:", emailError);
+        }
+      }
+      
+      // Send special request follow-up email if customer has a special request
+      if (has_special_request === "yes") {
+        try {
+          await sendSpecialRequestFollowUp(
+            customer.name,
+            customer.email,
+            customer.phone,
+            special_request || "No details provided",
+            null,
+            today,
+            notes || null
+          );
+          emailsSent.push("special_request");
+        } catch (emailError) {
+          console.error("Failed to send special request follow-up email:", emailError);
+        }
+      }
+
+      res.json({ success: true, emailsSent });
+    } catch (error) {
+      console.error("Error sending follow-up emails:", error);
+      res.status(500).json({ error: "Failed to send follow-up emails" });
+    }
+  });
+
   app.post("/api/test-email", isAuthenticated, async (req: any, res) => {
     try {
       const { email } = req.body;
