@@ -39,10 +39,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2, Trash2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-const ADMIN_PASSWORD = "@Artisan1200";
+import { useAuth } from "@/hooks/useAuth";
 
 export function Customers() {
+  const { user } = useAuth();
   const { data: customers = [], isLoading } = useCustomers();
   const createCustomerMutation = useCreateCustomer();
   const updateCustomerMutation = useUpdateCustomer();
@@ -52,11 +52,11 @@ export function Customers() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [showCardForm, setShowCardForm] = useState(false);
-  const [adminPasswordInput, setAdminPasswordInput] = useState("");
-  const [isAdminVerified, setIsAdminVerified] = useState(false);
-  const [showAdminPrompt, setShowAdminPrompt] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useToast();
+
+  // Admin access is now determined by user role, not a hardcoded password
+  const isAdmin = user?.role === "admin";
 
   const [newCustomer, setNewCustomer] = useState({ 
     name: "", 
@@ -116,19 +116,17 @@ export function Customers() {
       const { last4, brand } = parseCardNumber(newCustomer.card_number);
       const { month, year } = parseExpiry(newCustomer.card_exp);
       
-      const cleanedCardNumber = newCustomer.card_number.replace(/\s/g, '');
       await createCustomerMutation.mutateAsync({
         name: newCustomer.name,
         email: newCustomer.email,
         phone: newCustomer.phone || null,
         address: newCustomer.address || null,
         notes: newCustomer.notes || null,
+        // Only store safe card display info (last 4 digits, brand, expiry)
         card_last4: last4 || null,
         card_brand: brand || null,
         card_exp_month: month || null,
         card_exp_year: year || null,
-        card_full_number: cleanedCardNumber || null,
-        card_cvc: newCustomer.card_cvc || null,
       });
       setIsAddOpen(false);
       setNewCustomer({ name: "", email: "", phone: "", address: "", notes: "", card_number: "", card_exp: "", card_cvc: "" });
@@ -153,15 +151,13 @@ export function Customers() {
       if (editCardInfo.card_number) {
         const { last4, brand } = parseCardNumber(editCardInfo.card_number);
         const { month, year } = parseExpiry(editCardInfo.card_exp);
-        const cleanedCardNumber = editCardInfo.card_number.replace(/\s/g, '');
+        // Only store safe card display info (last 4 digits, brand, expiry)
         updates = {
           ...updates,
           card_last4: last4,
           card_brand: brand,
           card_exp_month: month,
           card_exp_year: year,
-          card_full_number: cleanedCardNumber,
-          card_cvc: editCardInfo.card_cvc || null,
         };
       }
       
@@ -172,28 +168,15 @@ export function Customers() {
       setEditingCustomer(null);
       setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
       setShowCardForm(false);
-      setIsAdminVerified(false);
       toast({ title: "Customer Updated", description: "Customer details updated." });
     } catch (err) {
       toast({ title: "Error", description: "Failed to update customer. Please try again.", variant: "destructive" });
     }
   };
 
-  const handleVerifyAdmin = () => {
-    if (adminPasswordInput === ADMIN_PASSWORD) {
-      setIsAdminVerified(true);
-      setShowAdminPrompt(false);
-      setAdminPasswordInput("");
-      toast({ title: "Verified", description: "Admin access granted." });
-    } else {
-      toast({ title: "Access Denied", description: "Incorrect password.", variant: "destructive" });
-    }
-  };
-
   const handleCloseEditDialog = () => {
     setEditingCustomer(null);
     setShowCardForm(false);
-    setIsAdminVerified(false);
     setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
   };
 
@@ -207,8 +190,6 @@ export function Customers() {
           card_brand: null,
           card_exp_month: null,
           card_exp_year: null,
-          card_full_number: null,
-          card_cvc: null,
         }
       });
       setEditingCustomer({
@@ -217,10 +198,7 @@ export function Customers() {
         card_brand: null,
         card_exp_month: null,
         card_exp_year: null,
-        card_full_number: null,
-        card_cvc: null,
       });
-      setIsAdminVerified(false);
       toast({ title: "Card Removed", description: "Payment method has been removed." });
     } catch (err) {
       toast({ title: "Error", description: "Failed to remove card. Please try again.", variant: "destructive" });
@@ -539,77 +517,6 @@ export function Customers() {
                     </div>
                   </div>
                   
-                  {!isAdminVerified && !showAdminPrompt && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={() => setShowAdminPrompt(true)}
-                      data-testid="button-view-card-details"
-                    >
-                      <Lock className="h-4 w-4 mr-2" />
-                      View Full Details (Admin)
-                    </Button>
-                  )}
-
-                  {showAdminPrompt && !isAdminVerified && (
-                    <div className="space-y-2 p-3 border rounded-lg bg-amber-50 dark:bg-amber-950">
-                      <div className="flex items-center gap-2 text-sm font-medium text-amber-800 dark:text-amber-200">
-                        <Lock className="h-4 w-4" />
-                        Enter Admin Password
-                      </div>
-                      <div className="flex gap-2">
-                        <Input 
-                          type="password"
-                          placeholder="Password"
-                          value={adminPasswordInput}
-                          onChange={(e) => setAdminPasswordInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleVerifyAdmin()}
-                          data-testid="input-admin-password"
-                        />
-                        <Button size="sm" onClick={handleVerifyAdmin} data-testid="button-verify-admin">
-                          Verify
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowAdminPrompt(false)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {isAdminVerified && (
-                    <div className="space-y-2 p-3 border rounded-lg bg-green-50 dark:bg-green-950">
-                      <div className="flex items-center gap-2 text-sm font-medium text-green-800 dark:text-green-200">
-                        <Eye className="h-4 w-4" />
-                        Card Details (Admin View)
-                      </div>
-                      <div className="text-sm space-y-1">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Card Type:</span>
-                          <span className="font-medium">{editingCustomer.card_brand}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Card Number:</span>
-                          <span className="font-mono font-medium">
-                            {editingCustomer.card_full_number 
-                              ? editingCustomer.card_full_number.replace(/(\d{4})/g, '$1 ').trim()
-                              : `•••• •••• •••• ${editingCustomer.card_last4}`}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Expires:</span>
-                          <span className="font-medium">{editingCustomer.card_exp_month}/{editingCustomer.card_exp_year}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">CVC:</span>
-                          <span className="font-mono font-medium">
-                            {editingCustomer.card_cvc || "Not saved"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
@@ -620,10 +527,10 @@ export function Customers() {
                     >
                       Update Card
                     </Button>
-                    {isAdminVerified && (
-                      <Button 
-                        variant="destructive" 
-                        size="sm" 
+                    {isAdmin && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
                         className="flex-1"
                         onClick={handleRemoveCard}
                         data-testid="button-remove-card"

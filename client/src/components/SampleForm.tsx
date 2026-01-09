@@ -243,12 +243,11 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       await updateCustomerMutation.mutateAsync({
         id: customerId,
         data: {
+          // Only store safe card display info (last 4 digits, brand, expiry)
           card_last4: last4,
           card_brand: brand,
           card_exp_month: expMonth,
           card_exp_year: expYear,
-          card_full_number: cleanedNumber,
-          card_cvc: cardInputs.cvc,
         }
       });
       

@@ -66,14 +66,13 @@ export const customers = pgTable("customers", {
   phone: text("phone"),
   address: text("address"),
   notes: text("notes"),
-  stripe_customer_id: text("stripe_customer_id"),
-  stripe_payment_method_id: text("stripe_payment_method_id"),
+  // Safe to store: only last 4 digits and card type for display purposes
   card_last4: text("card_last4"),
   card_brand: text("card_brand"),
   card_exp_month: text("card_exp_month"),
   card_exp_year: text("card_exp_year"),
-  card_full_number: text("card_full_number"),
-  card_cvc: text("card_cvc"),
+  // REMOVED: card_full_number and card_cvc - NEVER store full card data
+  // If you need to charge cards, use a payment processor like Stripe or Square
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -110,7 +109,12 @@ export const checkouts = pgTable("checkouts", {
   last_reminder_sent: timestamp("last_reminder_sent"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  // Indexes for frequently queried columns
+  index("IDX_checkouts_customer_id").on(table.customer_id),
+  index("IDX_checkouts_inventory_item_id").on(table.inventory_item_id),
+  index("IDX_checkouts_status").on(table.status),
+]);
 
 // Insert schemas
 export const insertCustomerSchema = createInsertSchema(customers).omit({
@@ -152,7 +156,9 @@ export const emailNotifications = pgTable("email_notifications", {
   checkout_id: integer("checkout_id").references(() => checkouts.id).notNull(),
   notification_type: text("notification_type").notNull(), // 7_day_reminder | 1_day_reminder | overdue
   sent_at: timestamp("sent_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("IDX_email_notifications_checkout_id").on(table.checkout_id),
+]);
 
 export const insertEmailNotificationSchema = createInsertSchema(emailNotifications).omit({
   id: true,

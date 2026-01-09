@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx drizzle-kit push:*)",
+      "Bash(curl:*)",
+      "Bash(echo:*)",
+      "Bash(printf:*)",
+      "Bash(node -e \"console.log\\(JSON.stringify\\({email:''''admin@artisantile.com'''',password:''''ChangeMe123!''''}\\)\\)\")",
+      "Bash(xargs -0 -I {} curl -s -X POST \"http://localhost:5000/api/auth/login\" -H \"Content-Type: application/json\" -d \"{}\")",
+      "Bash(node:*)"
+    ]
+  }
+}

@@ -214,19 +214,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveCheckoutsByCustomer(customerId: number): Promise<Checkout[]> {
-    const result = await db.select().from(checkouts).where(
+    // Optimized: single query with OR condition instead of two separate queries
+    return db.select().from(checkouts).where(
       and(
         eq(checkouts.customer_id, customerId),
-        eq(checkouts.status, 'checked_out')
+        or(
+          eq(checkouts.status, 'checked_out'),
+          eq(checkouts.status, 'overdue')
+        )
       )
     );
-    const overdueResult = await db.select().from(checkouts).where(
-      and(
-        eq(checkouts.customer_id, customerId),
-        eq(checkouts.status, 'overdue')
-      )
-    );
-    return [...result, ...overdueResult];
   }
 
   async deleteCustomer(id: number): Promise<boolean> {
@@ -273,19 +270,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveCheckoutsByInventoryItem(itemId: number): Promise<Checkout[]> {
-    const result = await db.select().from(checkouts).where(
+    // Optimized: single query with OR condition instead of two separate queries
+    return db.select().from(checkouts).where(
       and(
         eq(checkouts.inventory_item_id, itemId),
-        eq(checkouts.status, 'checked_out')
+        or(
+          eq(checkouts.status, 'checked_out'),
+          eq(checkouts.status, 'overdue')
+        )
       )
     );
-    const overdueResult = await db.select().from(checkouts).where(
-      and(
-        eq(checkouts.inventory_item_id, itemId),
-        eq(checkouts.status, 'overdue')
-      )
-    );
-    return [...result, ...overdueResult];
   }
 
   async deleteInventoryItem(id: number): Promise<boolean> {

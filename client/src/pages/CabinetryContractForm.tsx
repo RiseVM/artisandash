@@ -316,8 +316,7 @@ export function CabinetryContractForm() {
                     ref={sigCanvas}
                     canvasProps={{
                       className: "w-full h-32 border border-dashed border-gray-300 rounded",
-                      "data-testid": "signature-canvas"
-                    }}
+                    } as React.CanvasHTMLAttributes<HTMLCanvasElement>}
                   />
                 </div>
                 <Button type="button" variant="outline" size="sm" className="mt-2" onClick={clearSignature} data-testid="button-clear-signature">

@@ -3,8 +3,9 @@ import { storage } from "./storage";
 import type { User } from "@shared/schema";
 
 const SALT_ROUNDS = 10;
-const ADMIN_EMAIL = "ed@risevm.com";
-const DEFAULT_ADMIN_PASSWORD = "Mara1234!";
+// Use environment variables for sensitive credentials
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@artisantile.com";
+const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_DEFAULT_PASSWORD || "ChangeMe123!";
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -36,25 +37,25 @@ export async function authenticateUser(email: string, password: string): Promise
 
 export async function seedAdminUser(): Promise<void> {
   const existingAdmin = await storage.getUserByEmail(ADMIN_EMAIL);
-  const passwordHash = await hashPassword(DEFAULT_ADMIN_PASSWORD);
-  
+
   if (!existingAdmin) {
+    // Only create admin user if it doesn't exist
+    const passwordHash = await hashPassword(DEFAULT_ADMIN_PASSWORD);
     await storage.createUser({
       email: ADMIN_EMAIL,
       passwordHash,
-      firstName: "Ed",
-      lastName: "Admin",
+      firstName: "Admin",
+      lastName: "User",
       role: "admin",
       isActive: "yes",
     });
-    console.log(`Admin user created: ${ADMIN_EMAIL}`);
+    console.log(`Admin user created: ${ADMIN_EMAIL} - PLEASE CHANGE THE DEFAULT PASSWORD IMMEDIATELY`);
   } else {
-    // Always ensure admin has correct role and current password
-    await storage.updateUser(existingAdmin.id, { 
-      role: "admin",
-      passwordHash,
-    });
-    console.log(`Admin user updated: ${ADMIN_EMAIL}`);
+    // Only ensure admin role is set, do NOT reset the password
+    if (existingAdmin.role !== "admin") {
+      await storage.updateUser(existingAdmin.id, { role: "admin" });
+      console.log(`Admin role restored for: ${ADMIN_EMAIL}`);
+    }
   }
 }
 

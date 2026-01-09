@@ -529,15 +529,28 @@ export async function registerRoutes(
 
   // Customers
   app.get("/api/customers", isAuthenticated, async (req, res) => {
-    const customers = await storage.getCustomers();
-    res.json(customers);
+    try {
+      const customers = await storage.getCustomers();
+      res.json(customers);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      res.status(500).json({ error: "Failed to fetch customers" });
+    }
   });
 
   app.get("/api/customers/:id", isAuthenticated, async (req, res) => {
-    const id = parseInt(req.params.id);
-    const customer = await storage.getCustomer(id);
-    if (!customer) return res.status(404).json({ error: "Customer not found" });
-    res.json(customer);
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid customer ID" });
+      }
+      const customer = await storage.getCustomer(id);
+      if (!customer) return res.status(404).json({ error: "Customer not found" });
+      res.json(customer);
+    } catch (error) {
+      console.error("Error fetching customer:", error);
+      res.status(500).json({ error: "Failed to fetch customer" });
+    }
   });
 
   app.post("/api/customers", requirePermission("manage_customers"), async (req, res) => {
@@ -556,6 +569,9 @@ export async function registerRoutes(
   app.patch("/api/customers/:id", requirePermission("manage_customers"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid customer ID" });
+      }
       const data = insertCustomerSchema.partial().parse(req.body);
       const customer = await storage.updateCustomer(id, data);
       if (!customer) return res.status(404).json({ error: "Customer not found" });
@@ -571,6 +587,9 @@ export async function registerRoutes(
   app.delete("/api/customers/:id", requirePermission("manage_customers"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid customer ID" });
+      }
       const activeCheckouts = await storage.getActiveCheckoutsByCustomer(id);
       if (activeCheckouts.length > 0) {
         const overdueCount = activeCheckouts.filter(c => c.status === 'overdue').length;
@@ -596,15 +615,28 @@ export async function registerRoutes(
 
   // Inventory
   app.get("/api/inventory", isAuthenticated, async (req, res) => {
-    const items = await storage.getInventory();
-    res.json(items);
+    try {
+      const items = await storage.getInventory();
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching inventory:", error);
+      res.status(500).json({ error: "Failed to fetch inventory" });
+    }
   });
 
   app.get("/api/inventory/:id", isAuthenticated, async (req, res) => {
-    const id = parseInt(req.params.id);
-    const item = await storage.getInventoryItem(id);
-    if (!item) return res.status(404).json({ error: "Item not found" });
-    res.json(item);
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid inventory item ID" });
+      }
+      const item = await storage.getInventoryItem(id);
+      if (!item) return res.status(404).json({ error: "Item not found" });
+      res.json(item);
+    } catch (error) {
+      console.error("Error fetching inventory item:", error);
+      res.status(500).json({ error: "Failed to fetch inventory item" });
+    }
   });
 
   app.post("/api/inventory", requirePermission("manage_inventory"), async (req, res) => {
@@ -623,6 +655,9 @@ export async function registerRoutes(
   app.patch("/api/inventory/:id", requirePermission("manage_inventory"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid inventory item ID" });
+      }
       const data = insertInventorySchema.partial().parse(req.body);
       const item = await storage.updateInventoryItem(id, data);
       if (!item) return res.status(404).json({ error: "Item not found" });
@@ -638,6 +673,9 @@ export async function registerRoutes(
   app.delete("/api/inventory/:id", requirePermission("manage_inventory"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid inventory item ID" });
+      }
       const activeCheckouts = await storage.getActiveCheckoutsByInventoryItem(id);
       if (activeCheckouts.length > 0) {
         const overdueCount = activeCheckouts.filter(c => c.status === 'overdue').length;
@@ -661,15 +699,28 @@ export async function registerRoutes(
 
   // Checkouts
   app.get("/api/checkouts", isAuthenticated, async (req, res) => {
-    const checkoutViews = await storage.getCheckoutViews();
-    res.json(checkoutViews);
+    try {
+      const checkoutViews = await storage.getCheckoutViews();
+      res.json(checkoutViews);
+    } catch (error) {
+      console.error("Error fetching checkouts:", error);
+      res.status(500).json({ error: "Failed to fetch checkouts" });
+    }
   });
 
   app.get("/api/checkouts/:id", isAuthenticated, async (req, res) => {
-    const id = parseInt(req.params.id);
-    const checkoutView = await storage.getCheckoutView(id);
-    if (!checkoutView) return res.status(404).json({ error: "Checkout not found" });
-    res.json(checkoutView);
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid checkout ID" });
+      }
+      const checkoutView = await storage.getCheckoutView(id);
+      if (!checkoutView) return res.status(404).json({ error: "Checkout not found" });
+      res.json(checkoutView);
+    } catch (error) {
+      console.error("Error fetching checkout:", error);
+      res.status(500).json({ error: "Failed to fetch checkout" });
+    }
   });
 
   app.post("/api/checkouts", requirePermission("create_checkouts"), async (req: any, res) => {
@@ -758,6 +809,9 @@ export async function registerRoutes(
   app.patch("/api/checkouts/:id", requirePermission("manage_checkouts"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid checkout ID" });
+      }
       const data = insertCheckoutSchema.partial().parse(req.body);
       const checkout = await storage.updateCheckout(id, data);
       if (!checkout) return res.status(404).json({ error: "Checkout not found" });
@@ -773,6 +827,9 @@ export async function registerRoutes(
   app.delete("/api/checkouts/:id", requirePermission("manage_checkouts"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid checkout ID" });
+      }
       const deleted = await storage.deleteCheckout(id);
       if (!deleted) return res.status(404).json({ error: "Checkout not found" });
       res.json({ success: true });
