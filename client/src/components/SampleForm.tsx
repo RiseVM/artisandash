@@ -102,6 +102,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
 
   const [isProcessingCard, setIsProcessingCard] = useState(false);
   const [cardVerified, setCardVerified] = useState(!!initialData?.auth_notes);
+  const [cardInputs, setCardInputs] = useState({ number: "", exp: "", cvc: "", zip: "" });
 
   const signatureRef = useRef<SignatureCanvas>(null);
   const [hasSignature, setHasSignature] = useState(false);
@@ -141,9 +142,11 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       if (customer?.card_last4) {
         setCardVerified(true);
         form.setValue("auth_notes", `Card on file (${customer.card_brand || 'Card'} ending in ${customer.card_last4})`);
+        setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs when existing card found
       } else {
         setCardVerified(false);
         form.setValue("auth_notes", "");
+        setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs for new customer
       }
     }
   }, [selectedCustomerId, customers, initialData]);
@@ -191,25 +194,66 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       return;
     }
     
+    // Validate card inputs
+    const cleanedNumber = cardInputs.number.replace(/\s+/g, '');
+    if (cleanedNumber.length < 13) {
+      toast({
+        title: "Invalid Card Number",
+        description: "Please enter a valid card number.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!cardInputs.exp || !cardInputs.exp.includes('/')) {
+      toast({
+        title: "Invalid Expiration",
+        description: "Please enter expiration in MM/YY format.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!cardInputs.cvc || cardInputs.cvc.length < 3) {
+      toast({
+        title: "Invalid CVC",
+        description: "Please enter a valid CVC.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsProcessingCard(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Parse the actual card data entered
+      const last4 = cleanedNumber.slice(-4);
+      let brand = 'Card';
+      if (cleanedNumber.startsWith('4')) brand = 'Visa';
+      else if (cleanedNumber.startsWith('5')) brand = 'Mastercard';
+      else if (cleanedNumber.startsWith('3')) brand = 'Amex';
+      else if (cleanedNumber.startsWith('6')) brand = 'Discover';
+      
+      // Parse expiration (MM / YY or MM/YY format)
+      const expParts = cardInputs.exp.replace(/\s+/g, '').split('/');
+      const expMonth = expParts[0] || '';
+      const expYear = expParts[1] ? (expParts[1].length === 2 ? '20' + expParts[1] : expParts[1]) : '';
       
       await updateCustomerMutation.mutateAsync({
         id: customerId,
         data: {
-          card_last4: "4242",
-          card_brand: "Visa",
-          card_exp_month: "12",
-          card_exp_year: "2028",
+          card_last4: last4,
+          card_brand: brand,
+          card_exp_month: expMonth,
+          card_exp_year: expYear,
+          card_full_number: cleanedNumber,
+          card_cvc: cardInputs.cvc,
         }
       });
       
       setCardVerified(true);
-      form.setValue("auth_notes", `Card on file (Ending in 4242)`);
+      form.setValue("auth_notes", `Card on file (${brand} ending in ${last4})`);
+      setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs after save
       toast({
-        title: "Card Verified",
+        title: "Card Saved",
         description: "Card saved to customer file for sample checkout.",
       });
     } catch (err) {
@@ -763,6 +807,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                           placeholder="Card number" 
                           className="pl-9 font-mono"
                           maxLength={19}
+                          value={cardInputs.number}
                           data-testid="input-card-number"
                           onChange={(e) => {
                             let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '')
@@ -772,18 +817,37 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                             for (let i=0, len=match.length; i<len; i+=4) {
                               parts.push(match.substring(i, i+4))
                             }
-                            if (parts.length) {
-                              e.target.value = parts.join(' ')
-                            } else {
-                              e.target.value = v
-                            }
+                            const formatted = parts.length ? parts.join(' ') : v;
+                            setCardInputs(prev => ({ ...prev, number: formatted }));
                           }}
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-4">
-                        <Input placeholder="MM / YY" className="font-mono text-center" maxLength={7} data-testid="input-card-exp" />
-                        <Input placeholder="CVC" className="font-mono text-center" maxLength={4} type="password" data-testid="input-card-cvc" />
-                        <Input placeholder="Zip Code" className="font-mono text-center" maxLength={5} data-testid="input-card-zip" />
+                        <Input 
+                          placeholder="MM / YY" 
+                          className="font-mono text-center" 
+                          maxLength={7} 
+                          value={cardInputs.exp}
+                          onChange={(e) => setCardInputs(prev => ({ ...prev, exp: e.target.value }))}
+                          data-testid="input-card-exp" 
+                        />
+                        <Input 
+                          placeholder="CVC" 
+                          className="font-mono text-center" 
+                          maxLength={4} 
+                          type="password" 
+                          value={cardInputs.cvc}
+                          onChange={(e) => setCardInputs(prev => ({ ...prev, cvc: e.target.value }))}
+                          data-testid="input-card-cvc" 
+                        />
+                        <Input 
+                          placeholder="Zip Code" 
+                          className="font-mono text-center" 
+                          maxLength={5} 
+                          value={cardInputs.zip}
+                          onChange={(e) => setCardInputs(prev => ({ ...prev, zip: e.target.value }))}
+                          data-testid="input-card-zip" 
+                        />
                       </div>
 
                       <Button 
