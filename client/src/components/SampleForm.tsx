@@ -103,6 +103,7 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const [isProcessingCard, setIsProcessingCard] = useState(false);
   const [cardVerified, setCardVerified] = useState(!!initialData?.auth_notes);
   const [cardInputs, setCardInputs] = useState({ number: "", exp: "", cvc: "", zip: "" });
+  const [savedCardDisplay, setSavedCardDisplay] = useState<{ brand: string; last4: string } | null>(null);
 
   const signatureRef = useRef<SignatureCanvas>(null);
   const [hasSignature, setHasSignature] = useState(false);
@@ -142,10 +143,12 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       if (customer?.card_last4) {
         setCardVerified(true);
         form.setValue("auth_notes", `Card on file (${customer.card_brand || 'Card'} ending in ${customer.card_last4})`);
+        setSavedCardDisplay({ brand: customer.card_brand || 'Card', last4: customer.card_last4 });
         setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs when existing card found
       } else {
         setCardVerified(false);
         form.setValue("auth_notes", "");
+        setSavedCardDisplay(null);
         setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs for new customer
       }
     }
@@ -250,11 +253,12 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
       });
       
       setCardVerified(true);
+      setSavedCardDisplay({ brand, last4 }); // Update local display state immediately
       form.setValue("auth_notes", `Card on file (${brand} ending in ${last4})`);
       setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs after save
       toast({
         title: "Card Saved",
-        description: "Card saved to customer file for sample checkout.",
+        description: `${brand} ending in ${last4} saved to customer file.`,
       });
     } catch (err) {
       toast({
@@ -887,13 +891,9 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                         Card on File
                       </div>
                       <p className="text-sm text-green-600">
-                        {(() => {
-                          const customer = customers.find(c => c.id === selectedCustomerId);
-                          if (customer?.card_last4) {
-                            return `${customer.card_brand || 'Card'} ending in ${customer.card_last4} is securely stored.`;
-                          }
-                          return "Card is securely stored on file.";
-                        })()}
+                        {savedCardDisplay 
+                          ? `${savedCardDisplay.brand} ending in ${savedCardDisplay.last4} is securely stored.`
+                          : "Card is securely stored on file."}
                       </p>
                       <Button 
                         variant="link" 
