@@ -117,7 +117,7 @@ export async function sendInstallerFollowUp(
   customerPhone: string | null,
   projectType: string | null,
   startDate: string | null,
-  sampleName: string,
+  sampleName: string | null,
   checkoutDate: string,
   notes: string | null
 ): Promise<boolean> {
