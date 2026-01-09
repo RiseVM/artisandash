@@ -11,7 +11,8 @@
       "Bash(xargs -0 -I {} curl -s -X POST \"http://localhost:5000/api/auth/login\" -H \"Content-Type: application/json\" -d \"{}\")",
       "Bash(node:*)",
       "Bash(pkill:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(git push:*)"
     ]
   }
 }
