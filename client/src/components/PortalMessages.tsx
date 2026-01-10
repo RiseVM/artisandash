@@ -152,9 +152,9 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
   }
 
   return (
-    <Card className="flex flex-col h-[500px]">
+    <Card className="flex flex-col h-[350px] sm:h-[500px] mt-6">
       <CardHeader className="flex-none border-b py-3">
-        <CardTitle className="flex items-center gap-2 text-lg">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           <MessageCircle className="h-5 w-5" />
           Messages
           {unreadData?.count ? (

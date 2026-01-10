@@ -285,23 +285,24 @@ export function PortalProject() {
     <PortalLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-3 sm:gap-4">
           <Button
             variant="ghost"
             size="icon"
+            className="shrink-0"
             onClick={() => setLocation("/portal")}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold">{project.name}</h1>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold">{project.name}</h1>
               <Badge className={statusColors[project.status]}>
                 {statusLabels[project.status]}
               </Badge>
             </div>
             {project.description && (
-              <p className="text-muted-foreground">{project.description}</p>
+              <p className="text-muted-foreground text-sm sm:text-base">{project.description}</p>
             )}
           </div>
         </div>
@@ -342,36 +343,36 @@ export function PortalProject() {
                   onOpenChange={() => togglePhase(phase.id)}
                 >
                   <CollapsibleTrigger asChild>
-                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors p-3 sm:p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 sm:justify-between">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                           {expandedPhases.has(phase.id) ? (
-                            <ChevronDown className="h-4 w-4" />
+                            <ChevronDown className="h-4 w-4 shrink-0" />
                           ) : (
-                            <ChevronRight className="h-4 w-4" />
+                            <ChevronRight className="h-4 w-4 shrink-0" />
                           )}
-                          <div className="flex items-center gap-2">
-                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-sm font-medium">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-sm font-medium shrink-0">
                               {index + 1}
                             </span>
-                            <div>
-                              <CardTitle className="text-base">{phase.name}</CardTitle>
+                            <div className="min-w-0">
+                              <CardTitle className="text-sm sm:text-base truncate">{phase.name}</CardTitle>
                               {phase.description && (
-                                <CardDescription>{phase.description}</CardDescription>
+                                <CardDescription className="truncate">{phase.description}</CardDescription>
                               )}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1 text-sm">
+                        <div className="flex items-center gap-2 sm:gap-3 pl-6 sm:pl-0">
+                          <div className="flex items-center gap-1 text-xs sm:text-sm">
                             {phaseStatusIcons[phase.status]}
-                            <span className="text-muted-foreground">
+                            <span className="text-muted-foreground hidden sm:inline">
                               {phaseStatusLabels[phase.status]}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2 min-w-[100px]">
+                          <div className="flex items-center gap-2 min-w-[80px] sm:min-w-[100px]">
                             <Progress value={phase.progress} className="h-2 flex-1" />
-                            <span className="text-sm text-muted-foreground w-10 text-right">
+                            <span className="text-xs sm:text-sm text-muted-foreground w-8 sm:w-10 text-right">
                               {phase.progress}%
                             </span>
                           </div>
@@ -439,11 +440,11 @@ export function PortalProject() {
             <div className="space-y-3">
               {changeOrders.map((co) => (
                 <Card key={co.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">CO-{co.co_number}: {co.title}</span>
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-medium text-sm sm:text-base">CO-{co.co_number}: {co.title}</span>
                           <Badge className={changeOrderStatusColors[co.status || "draft"]}>
                             {changeOrderStatusLabels[co.status || "draft"]}
                           </Badge>
@@ -451,7 +452,7 @@ export function PortalProject() {
                         {co.description && (
                           <p className="text-sm text-muted-foreground mb-2">{co.description}</p>
                         )}
-                        <div className="flex flex-wrap gap-4 text-sm">
+                        <div className="flex flex-wrap gap-3 sm:gap-4 text-sm">
                           {co.cost_impact && (
                             <span className="flex items-center gap-1">
                               <DollarSign className="h-3 w-3" />
@@ -467,7 +468,7 @@ export function PortalProject() {
                         </div>
                       </div>
                       {co.status === "pending_approval" && (
-                        <Button size="sm" onClick={() => setApproveChangeOrder(co)}>
+                        <Button size="sm" className="w-full sm:w-auto" onClick={() => setApproveChangeOrder(co)}>
                           <PenLine className="h-4 w-4 mr-1" />
                           Sign & Approve
                         </Button>

@@ -121,9 +121,9 @@ export function ProjectMessages({ projectId }: ProjectMessagesProps) {
   }
 
   return (
-    <Card className="flex flex-col h-[600px]">
-      <CardHeader className="flex-none border-b">
-        <CardTitle className="flex items-center gap-2">
+    <Card className="flex flex-col h-[400px] sm:h-[600px]">
+      <CardHeader className="flex-none border-b py-3 sm:py-6">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           <MessageCircle className="h-5 w-5" />
           Messages
           {unreadData?.count ? (

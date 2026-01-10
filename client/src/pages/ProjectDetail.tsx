@@ -294,30 +294,33 @@ export function ProjectDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => setLocation("/projects")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <FolderKanban className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-bold">{project.name}</h1>
-            <Badge className={statusColors[project.status]}>{statusLabels[project.status]}</Badge>
-          </div>
-          <div className="flex items-center gap-4 mt-1 text-muted-foreground text-sm">
-            <span className="flex items-center gap-1">
-              <User className="h-4 w-4" />
-              {project.customer.name}
-            </span>
-            <span className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              Created {new Date(project.created_at).toLocaleDateString()}
-            </span>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => setLocation("/projects")}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <FolderKanban className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              <h1 className="text-xl sm:text-2xl font-bold">{project.name}</h1>
+              <Badge className={statusColors[project.status]}>{statusLabels[project.status]}</Badge>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-1 text-muted-foreground text-sm">
+              <span className="flex items-center gap-1">
+                <User className="h-4 w-4" />
+                {project.customer.name}
+              </span>
+              <span className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                Created {new Date(project.created_at).toLocaleDateString()}
+              </span>
+            </div>
           </div>
         </div>
         {canManageProjects && (
           <Button
             variant="outline"
+            className="w-full sm:w-auto"
             onClick={() => {
               setEditedProject({
                 name: project.name,
@@ -336,7 +339,7 @@ export function ProjectDetail() {
       {/* Progress Overview */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">Overall Progress</span>
@@ -344,15 +347,17 @@ export function ProjectDetail() {
               </div>
               <Progress value={project.overall_progress} className="h-3" />
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">{project.phases.length}</div>
-              <div className="text-sm text-muted-foreground">Phases</div>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold">
-                {project.phases.reduce((sum, p) => sum + p.tasks.length, 0)}
+            <div className="flex sm:flex-col gap-4 sm:gap-0 justify-around sm:justify-start">
+              <div className="text-center sm:text-right">
+                <div className="text-xl sm:text-2xl font-bold">{project.phases.length}</div>
+                <div className="text-sm text-muted-foreground">Phases</div>
               </div>
-              <div className="text-sm text-muted-foreground">Tasks</div>
+              <div className="text-center sm:text-right">
+                <div className="text-xl sm:text-2xl font-bold">
+                  {project.phases.reduce((sum, p) => sum + p.tasks.length, 0)}
+                </div>
+                <div className="text-sm text-muted-foreground">Tasks</div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -384,58 +389,62 @@ export function ProjectDetail() {
                   className={`border rounded-lg ${phaseStatusColors[phase.status]}`}
                 >
                   {/* Phase Header */}
-                  <div className="flex items-center p-3 gap-2">
-                    <button
-                      onClick={() => togglePhaseExpanded(phase.id)}
-                      className="p-1 hover:bg-black/5 rounded"
-                    >
-                      {expandedPhases.has(phase.id) ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4" />
-                      )}
-                    </button>
+                  <div className="flex flex-col sm:flex-row sm:items-center p-3 gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <button
+                        onClick={() => togglePhaseExpanded(phase.id)}
+                        className="p-1 hover:bg-black/5 rounded shrink-0"
+                      >
+                        {expandedPhases.has(phase.id) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </button>
 
-                    {getPhaseStatusIcon(phase.status)}
+                      <span className="shrink-0">{getPhaseStatusIcon(phase.status)}</span>
 
-                    <span className="font-medium flex-1">{phase.name}</span>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">{phase.progress}%</span>
-                      <Progress value={phase.progress} className="h-2 w-20" />
+                      <span className="font-medium truncate">{phase.name}</span>
                     </div>
 
-                    {canManageProjects && (
-                      <Select
-                        value={phase.status}
-                        onValueChange={(value) => handleUpdatePhaseStatus(phase, value)}
-                      >
-                        <SelectTrigger className="w-32 h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="not_started">Not Started</SelectItem>
-                          <SelectItem value="in_progress">In Progress</SelectItem>
-                          <SelectItem value="on_hold">On Hold</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="skipped">Skipped</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
+                    <div className="flex items-center gap-2 pl-8 sm:pl-0">
+                      <div className="flex items-center gap-2 flex-1 sm:flex-none">
+                        <span className="text-sm text-muted-foreground">{phase.progress}%</span>
+                        <Progress value={phase.progress} className="h-2 w-16 sm:w-20" />
+                      </div>
 
-                    {canManageProjects && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletePhase(phase);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                      {canManageProjects && (
+                        <Select
+                          value={phase.status}
+                          onValueChange={(value) => handleUpdatePhaseStatus(phase, value)}
+                        >
+                          <SelectTrigger className="w-28 sm:w-32 h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="not_started">Not Started</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="on_hold">On Hold</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="skipped">Skipped</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+
+                      {canManageProjects && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeletePhase(phase);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Phase Tasks */}

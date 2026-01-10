@@ -177,13 +177,13 @@ export function Projects() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Projects</h1>
-          <p className="text-muted-foreground">Manage and track your client projects</p>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage and track your client projects</p>
         </div>
         {canManageProjects && (
-          <Button onClick={() => setIsAddOpen(true)}>
+          <Button onClick={() => setIsAddOpen(true)} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             New Project
           </Button>
@@ -192,14 +192,14 @@ export function Projects() {
 
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
               <FolderKanban className="h-5 w-5" />
               Projects ({filteredProjects.length})
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full sm:w-32">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -210,7 +210,7 @@ export function Projects() {
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="relative w-64">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search projects..."
@@ -223,79 +223,113 @@ export function Projects() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Progress</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead className="w-10"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProjects.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
-                      No projects found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredProjects.map((project) => (
-                    <TableRow
-                      key={project.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setLocation(`/projects/${project.id}`)}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <FolderKanban className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <div className="font-medium">{project.name}</div>
-                            {project.description && (
-                              <div className="text-sm text-muted-foreground truncate max-w-[200px]">
-                                {project.description}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          {project.customer.name}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={statusColors[project.status]}>
-                          {statusLabels[project.status]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 min-w-[120px]">
-                          <Progress value={project.overall_progress} className="h-2 flex-1" />
-                          <span className="text-sm text-muted-foreground w-10">
-                            {project.overall_progress}%
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(project.created_at).toLocaleDateString()}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </TableCell>
+          {filteredProjects.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <FolderKanban className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No projects found</p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {filteredProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setLocation(`/projects/${project.id}`)}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FolderKanban className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium truncate">{project.name}</span>
+                      </div>
+                      <Badge className={`${statusColors[project.status]} shrink-0`}>
+                        {statusLabels[project.status]}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                      <User className="h-3 w-3" />
+                      {project.customer.name}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Progress value={project.overall_progress} className="h-2 flex-1" />
+                      <span className="text-sm text-muted-foreground w-10">
+                        {project.overall_progress}%
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProjects.map((project) => (
+                      <TableRow
+                        key={project.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setLocation(`/projects/${project.id}`)}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <FolderKanban className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="font-medium">{project.name}</div>
+                              {project.description && (
+                                <div className="text-sm text-muted-foreground truncate max-w-[200px]">
+                                  {project.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            {project.customer.name}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={statusColors[project.status]}>
+                            {statusLabels[project.status]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 min-w-[120px]">
+                            <Progress value={project.overall_progress} className="h-2 flex-1" />
+                            <span className="text-sm text-muted-foreground w-10">
+                              {project.overall_progress}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(project.created_at).toLocaleDateString()}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
