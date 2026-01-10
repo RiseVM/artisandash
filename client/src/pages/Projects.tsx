@@ -38,6 +38,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +58,7 @@ import {
   User,
   Layers,
 } from "lucide-react";
+import { ProjectTemplates } from "./ProjectTemplates";
 import type { ProjectWithCustomer } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
@@ -184,13 +191,29 @@ export function Projects() {
           <h1 className="text-2xl font-bold">Projects</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage and track your client projects</p>
         </div>
-        {canManageProjects && (
-          <Button onClick={() => setIsAddOpen(true)} className="w-full sm:w-auto">
-            <Plus className="h-4 w-4 mr-2" />
-            New Project
-          </Button>
-        )}
       </div>
+
+      <Tabs defaultValue="projects" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="projects" className="gap-2">
+            <FolderKanban className="h-4 w-4" />
+            Projects
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-2">
+            <Layers className="h-4 w-4" />
+            Templates
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="projects" className="space-y-6">
+          {canManageProjects && (
+            <div className="flex justify-end">
+              <Button onClick={() => setIsAddOpen(true)} className="w-full sm:w-auto">
+                <Plus className="h-4 w-4 mr-2" />
+                New Project
+              </Button>
+            </div>
+          )}
 
       <Card>
         <CardHeader className="pb-3">
@@ -335,6 +358,12 @@ export function Projects() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <ProjectTemplates />
+        </TabsContent>
+      </Tabs>
 
       {/* Add Project Dialog */}
       <Dialog open={isAddOpen} onOpenChange={(open) => {
