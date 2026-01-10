@@ -24,7 +24,9 @@
       "Bash(xargs kill:*)",
       "Bash(npx tsx:*)",
       "Bash(grep:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(psql:*)",
+      "Bash(ls:*)"
     ]
   }
 }
