@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, type User } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
@@ -18,6 +18,10 @@ declare module "express-session" {
     userId: string;
     userEmail: string;
     userRole: string;
+    // Portal session data
+    portalUserId: number;
+    portalCustomerId: number;
+    portalEmail: string;
   }
 }
 
@@ -1865,6 +1869,273 @@ export async function registerRoutes(
       }
       console.error("Error creating project from template:", error);
       res.status(500).json({ error: "Failed to create project from template" });
+    }
+  });
+
+  // ============================================
+  // CLIENT PORTAL ROUTES
+  // ============================================
+
+  // Portal authentication middleware
+  const isPortalAuthenticated: RequestHandler = async (req: any, res, next) => {
+    if (!req.session?.portalUserId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const portalUser = await storage.getClientPortalUser(req.session.portalUserId);
+    if (!portalUser || portalUser.is_active !== "yes") {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: "Portal access is inactive" });
+    }
+
+    req.portalUser = portalUser;
+    next();
+  };
+
+  // Portal login
+  app.post("/api/portal/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+
+      const access = await storage.getClientPortalAccessByEmail(email);
+      if (!access) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      if (access.is_active !== "yes") {
+        return res.status(401).json({ error: "Portal access is inactive" });
+      }
+
+      // Verify password
+      const bcrypt = await import("bcrypt");
+      const isValidPassword = await bcrypt.compare(password, access.password_hash);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: "Invalid email or password" });
+      }
+
+      // Update last login
+      await storage.updateClientPortalLastLogin(access.id);
+
+      // Get full portal user with customer info
+      const portalUser = await storage.getClientPortalUser(access.id);
+
+      // Set session
+      req.session.portalUserId = access.id;
+      req.session.portalCustomerId = access.customer_id;
+      req.session.portalEmail = access.email;
+
+      res.json({ user: portalUser });
+    } catch (error) {
+      console.error("Portal login error:", error);
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Portal logout
+  app.post("/api/portal/logout", (req, res) => {
+    req.session.portalUserId = undefined;
+    req.session.portalCustomerId = undefined;
+    req.session.portalEmail = undefined;
+    res.json({ success: true });
+  });
+
+  // Get current portal user
+  app.get("/api/portal/me", isPortalAuthenticated, async (req: any, res) => {
+    res.json({ user: req.portalUser });
+  });
+
+  // Get client's projects
+  app.get("/api/portal/projects", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projects = await storage.getClientProjects(req.portalUser.customer.id);
+      res.json(projects);
+    } catch (error) {
+      console.error("Error fetching portal projects:", error);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  // Get single project with details (client-visible only)
+  app.get("/api/portal/projects/:id", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await storage.getClientProjectWithDetails(id, req.portalUser.customer.id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      res.json(project);
+    } catch (error) {
+      console.error("Error fetching portal project:", error);
+      res.status(500).json({ error: "Failed to fetch project" });
+    }
+  });
+
+  // ============================================
+  // ADMIN ROUTES FOR MANAGING PORTAL ACCESS
+  // ============================================
+
+  // Get all portal access entries
+  app.get("/api/client-portal-access", requirePermission("manage_customers"), async (req, res) => {
+    try {
+      const accessList = await storage.getAllClientPortalAccess();
+      // Don't send password hashes
+      const sanitized = accessList.map(({ password_hash, ...rest }) => rest);
+      res.json(sanitized);
+    } catch (error) {
+      console.error("Error fetching portal access list:", error);
+      res.status(500).json({ error: "Failed to fetch portal access" });
+    }
+  });
+
+  // Get portal access for a specific customer
+  app.get("/api/client-portal-access/customer/:customerId", requirePermission("manage_customers"), async (req, res) => {
+    try {
+      const customerId = parseInt(req.params.customerId);
+      if (isNaN(customerId)) {
+        return res.status(400).json({ error: "Invalid customer ID" });
+      }
+
+      const access = await storage.getClientPortalAccessByCustomerId(customerId);
+      if (!access) {
+        return res.json(null);
+      }
+
+      const { password_hash, ...sanitized } = access;
+      res.json(sanitized);
+    } catch (error) {
+      console.error("Error fetching customer portal access:", error);
+      res.status(500).json({ error: "Failed to fetch portal access" });
+    }
+  });
+
+  // Create portal access for a customer
+  app.post("/api/client-portal-access", requirePermission("manage_customers"), async (req: any, res) => {
+    try {
+      const { customer_id, email, password, ...settings } = req.body;
+
+      if (!customer_id || !email || !password) {
+        return res.status(400).json({ error: "Customer ID, email, and password are required" });
+      }
+
+      // Check if customer exists
+      const customer = await storage.getCustomer(customer_id);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      // Check if email is already in use
+      const existingAccess = await storage.getClientPortalAccessByEmail(email);
+      if (existingAccess) {
+        return res.status(400).json({ error: "Email is already in use for portal access" });
+      }
+
+      // Check if customer already has portal access
+      const customerAccess = await storage.getClientPortalAccessByCustomerId(customer_id);
+      if (customerAccess) {
+        return res.status(400).json({ error: "Customer already has portal access" });
+      }
+
+      // Hash password
+      const bcrypt = await import("bcrypt");
+      const password_hash = await bcrypt.hash(password, 10);
+
+      const access = await storage.createClientPortalAccess({
+        customer_id,
+        email,
+        password_hash,
+        ...settings,
+      });
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "create_portal_access",
+        entityType: "client_portal_access",
+        entityId: access.id.toString(),
+        details: `Created portal access for customer: ${customer.name}`,
+      });
+
+      const { password_hash: _, ...sanitized } = access;
+      res.status(201).json(sanitized);
+    } catch (error) {
+      console.error("Error creating portal access:", error);
+      res.status(500).json({ error: "Failed to create portal access" });
+    }
+  });
+
+  // Update portal access
+  app.patch("/api/client-portal-access/:id", requirePermission("manage_customers"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid portal access ID" });
+      }
+
+      const { password, ...data } = req.body;
+
+      // If password is being updated, hash it
+      if (password) {
+        const bcrypt = await import("bcrypt");
+        data.password_hash = await bcrypt.hash(password, 10);
+      }
+
+      const access = await storage.updateClientPortalAccess(id, data);
+      if (!access) {
+        return res.status(404).json({ error: "Portal access not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "update_portal_access",
+        entityType: "client_portal_access",
+        entityId: id.toString(),
+        details: `Updated portal access settings`,
+      });
+
+      const { password_hash, ...sanitized } = access;
+      res.json(sanitized);
+    } catch (error) {
+      console.error("Error updating portal access:", error);
+      res.status(500).json({ error: "Failed to update portal access" });
+    }
+  });
+
+  // Delete portal access
+  app.delete("/api/client-portal-access/:id", requirePermission("manage_customers"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid portal access ID" });
+      }
+
+      const deleted = await storage.deleteClientPortalAccess(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Portal access not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "delete_portal_access",
+        entityType: "client_portal_access",
+        entityId: id.toString(),
+        details: `Deleted portal access`,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting portal access:", error);
+      res.status(500).json({ error: "Failed to delete portal access" });
     }
   });
 

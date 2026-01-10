@@ -15,6 +15,7 @@ import {
   projectTemplates,
   phaseTemplates,
   taskTemplates,
+  clientPortalAccess,
   type Customer,
   type Inventory,
   type Checkout,
@@ -52,6 +53,9 @@ import {
   type InsertTaskTemplate,
   type PhaseTemplateWithTasks,
   type ProjectTemplateWithDetails,
+  type ClientPortalAccess,
+  type InsertClientPortalAccess,
+  type ClientPortalUser,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
@@ -169,6 +173,19 @@ export interface IStorage {
 
   // Create project from template
   createProjectFromTemplate(templateId: number, projectData: InsertProject): Promise<Project>;
+
+  // Client Portal Access
+  getClientPortalAccessByEmail(email: string): Promise<ClientPortalAccess | undefined>;
+  getClientPortalAccessByCustomerId(customerId: number): Promise<ClientPortalAccess | undefined>;
+  getClientPortalAccessById(id: number): Promise<ClientPortalAccess | undefined>;
+  getClientPortalUser(id: number): Promise<ClientPortalUser | undefined>;
+  getAllClientPortalAccess(): Promise<ClientPortalAccess[]>;
+  createClientPortalAccess(data: InsertClientPortalAccess): Promise<ClientPortalAccess>;
+  updateClientPortalAccess(id: number, data: Partial<InsertClientPortalAccess>): Promise<ClientPortalAccess | undefined>;
+  updateClientPortalLastLogin(id: number): Promise<void>;
+  deleteClientPortalAccess(id: number): Promise<boolean>;
+  getClientProjects(customerId: number): Promise<ProjectWithCustomer[]>;
+  getClientProjectWithDetails(projectId: number, customerId: number): Promise<ProjectWithDetails | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1051,6 +1068,155 @@ export class DatabaseStorage implements IStorage {
     }
 
     return project;
+  }
+
+  // ============================================
+  // CLIENT PORTAL ACCESS
+  // ============================================
+
+  async getClientPortalAccessByEmail(email: string): Promise<ClientPortalAccess | undefined> {
+    const [access] = await db
+      .select()
+      .from(clientPortalAccess)
+      .where(eq(clientPortalAccess.email, email));
+    return access;
+  }
+
+  async getClientPortalAccessByCustomerId(customerId: number): Promise<ClientPortalAccess | undefined> {
+    const [access] = await db
+      .select()
+      .from(clientPortalAccess)
+      .where(eq(clientPortalAccess.customer_id, customerId));
+    return access;
+  }
+
+  async getClientPortalAccessById(id: number): Promise<ClientPortalAccess | undefined> {
+    const [access] = await db
+      .select()
+      .from(clientPortalAccess)
+      .where(eq(clientPortalAccess.id, id));
+    return access;
+  }
+
+  async getClientPortalUser(id: number): Promise<ClientPortalUser | undefined> {
+    const result = await db
+      .select({
+        access: clientPortalAccess,
+        customer: customers,
+      })
+      .from(clientPortalAccess)
+      .innerJoin(customers, eq(clientPortalAccess.customer_id, customers.id))
+      .where(eq(clientPortalAccess.id, id));
+
+    if (!result[0]) return undefined;
+
+    const { password_hash, ...accessWithoutPassword } = result[0].access;
+    return {
+      ...accessWithoutPassword,
+      customer: result[0].customer,
+    };
+  }
+
+  async getAllClientPortalAccess(): Promise<ClientPortalAccess[]> {
+    return db
+      .select()
+      .from(clientPortalAccess)
+      .orderBy(desc(clientPortalAccess.created_at));
+  }
+
+  async createClientPortalAccess(data: InsertClientPortalAccess): Promise<ClientPortalAccess> {
+    const [result] = await db.insert(clientPortalAccess).values(data).returning();
+    return result;
+  }
+
+  async updateClientPortalAccess(id: number, data: Partial<InsertClientPortalAccess>): Promise<ClientPortalAccess | undefined> {
+    const [result] = await db
+      .update(clientPortalAccess)
+      .set({ ...data, updated_at: new Date() })
+      .where(eq(clientPortalAccess.id, id))
+      .returning();
+    return result;
+  }
+
+  async updateClientPortalLastLogin(id: number): Promise<void> {
+    await db
+      .update(clientPortalAccess)
+      .set({ last_login: new Date(), updated_at: new Date() })
+      .where(eq(clientPortalAccess.id, id));
+  }
+
+  async deleteClientPortalAccess(id: number): Promise<boolean> {
+    const result = await db
+      .delete(clientPortalAccess)
+      .where(eq(clientPortalAccess.id, id))
+      .returning();
+    return result.length > 0;
+  }
+
+  async getClientProjects(customerId: number): Promise<ProjectWithCustomer[]> {
+    const result = await db
+      .select({
+        project: projects,
+        customer: customers,
+      })
+      .from(projects)
+      .innerJoin(customers, eq(projects.customer_id, customers.id))
+      .where(eq(projects.customer_id, customerId))
+      .orderBy(desc(projects.created_at));
+
+    return result.map((row) => ({
+      ...row.project,
+      customer: row.customer,
+    }));
+  }
+
+  async getClientProjectWithDetails(projectId: number, customerId: number): Promise<ProjectWithDetails | undefined> {
+    // Get project with customer, ensuring it belongs to the customer
+    const projectResult = await db
+      .select({
+        project: projects,
+        customer: customers,
+      })
+      .from(projects)
+      .innerJoin(customers, eq(projects.customer_id, customers.id))
+      .where(and(eq(projects.id, projectId), eq(projects.customer_id, customerId)));
+
+    if (!projectResult[0]) return undefined;
+
+    // Get phases for this project (only client-visible ones)
+    const phases = await db
+      .select()
+      .from(projectPhases)
+      .where(
+        and(
+          eq(projectPhases.project_id, projectId),
+          eq(projectPhases.client_visible, "yes")
+        )
+      )
+      .orderBy(asc(projectPhases.display_order));
+
+    // Get tasks for each phase (only client-visible ones)
+    const phasesWithTasks: ProjectPhaseWithTasks[] = await Promise.all(
+      phases.map(async (phase) => {
+        const tasks = await db
+          .select()
+          .from(projectTasks)
+          .where(
+            and(
+              eq(projectTasks.phase_id, phase.id),
+              eq(projectTasks.client_visible, "yes")
+            )
+          )
+          .orderBy(asc(projectTasks.display_order));
+        return { ...phase, tasks };
+      })
+    );
+
+    return {
+      ...projectResult[0].project,
+      customer: projectResult[0].customer,
+      phases: phasesWithTasks,
+    };
   }
 }
 

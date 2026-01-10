@@ -489,3 +489,51 @@ export const AVAILABLE_PERMISSIONS = [
 ] as const;
 
 export type PermissionKey = typeof AVAILABLE_PERMISSIONS[number]["key"];
+
+// ============================================
+// CLIENT PORTAL
+// ============================================
+
+// Client Portal Access - Customer login credentials and settings
+export const clientPortalAccess = pgTable("client_portal_access", {
+  id: serial("id").primaryKey(),
+  customer_id: integer("customer_id").references(() => customers.id, { onDelete: 'cascade' }).notNull(),
+
+  // Authentication
+  email: text("email").notNull(),
+  password_hash: text("password_hash").notNull(),
+
+  // Status
+  is_active: text("is_active").default("yes").notNull(), // yes | no
+  last_login: timestamp("last_login"),
+
+  // Visibility settings - what the client can see
+  show_pricing: text("show_pricing").default("no").notNull(), // yes | no
+  show_internal_notes: text("show_internal_notes").default("no").notNull(), // yes | no
+
+  // Notification preferences
+  email_on_phase_complete: text("email_on_phase_complete").default("yes").notNull(), // yes | no
+  email_on_task_complete: text("email_on_task_complete").default("no").notNull(), // yes | no
+  email_on_approval_needed: text("email_on_approval_needed").default("yes").notNull(), // yes | no
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_client_portal_customer_id").on(table.customer_id),
+  index("IDX_client_portal_email").on(table.email),
+]);
+
+export const insertClientPortalAccessSchema = createInsertSchema(clientPortalAccess).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  last_login: true,
+});
+
+export type InsertClientPortalAccess = z.infer<typeof insertClientPortalAccessSchema>;
+export type ClientPortalAccess = typeof clientPortalAccess.$inferSelect;
+
+// Client portal view type (without password hash)
+export type ClientPortalUser = Omit<ClientPortalAccess, 'password_hash'> & {
+  customer: Customer;
+};
