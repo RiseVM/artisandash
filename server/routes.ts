@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
@@ -1395,11 +1395,43 @@ export async function registerRoutes(
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid phase ID" });
       }
+
+      // Get the existing phase to check if status is changing
+      const existingPhase = await storage.getProjectPhase(id);
+
       const data = insertProjectPhaseSchema.partial().parse(req.body);
       const phase = await storage.updateProjectPhase(id, data);
       if (!phase) {
         return res.status(404).json({ error: "Phase not found" });
       }
+
+      // Send notification if phase was just completed
+      if (existingPhase && existingPhase.status !== "completed" && data.status === "completed" && phase.client_visible === "yes") {
+        try {
+          const portalAccess = await storage.getClientPortalAccessByProjectId(phase.project_id);
+          if (portalAccess && portalAccess.is_active === "yes" && portalAccess.email_on_phase_complete === "yes") {
+            const project = await storage.getProject(phase.project_id);
+            const customer = project?.customer_id ? await storage.getCustomer(project.customer_id) : null;
+            if (project && customer) {
+              // Find the next phase
+              const phases = await storage.getProjectPhases(phase.project_id);
+              const currentIndex = phases.findIndex(p => p.id === phase.id);
+              const nextPhase = phases.find((p, i) => i > currentIndex && p.status !== "completed" && p.status !== "skipped" && p.client_visible === "yes");
+
+              await sendPhaseCompletedNotification(
+                portalAccess.email,
+                customer.name,
+                project.name,
+                phase.name,
+                nextPhase?.name || null
+              );
+            }
+          }
+        } catch (emailError) {
+          console.error("Failed to send phase completion notification:", emailError);
+        }
+      }
+
       res.json(phase);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1607,6 +1639,10 @@ export async function registerRoutes(
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid delivery ID" });
       }
+
+      // Get existing delivery to check for status change
+      const existingDelivery = await storage.getProjectDelivery(id);
+
       const data = insertProjectDeliverySchema.partial().parse(req.body);
       const delivery = await storage.updateProjectDelivery(id, data);
       if (!delivery) {
@@ -1622,6 +1658,33 @@ export async function registerRoutes(
         details: `Updated delivery: ${delivery.description}`,
         ipAddress: req.ip,
       });
+
+      // Send notification if status changed and delivery is client visible
+      if (existingDelivery && existingDelivery.status !== data.status && data.status && delivery.client_visible === "yes") {
+        try {
+          const portalAccess = await storage.getClientPortalAccessByProjectId(delivery.project_id);
+          if (portalAccess && portalAccess.is_active === "yes" && portalAccess.email_on_delivery_update === "yes") {
+            const project = await storage.getProject(delivery.project_id);
+            const customer = project?.customer_id ? await storage.getCustomer(project.customer_id) : null;
+            if (project && customer) {
+              const expectedDate = delivery.expected_date
+                ? new Date(delivery.expected_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                : null;
+
+              await sendDeliveryUpdateNotification(
+                portalAccess.email,
+                customer.name,
+                project.name,
+                delivery.description,
+                data.status,
+                expectedDate
+              );
+            }
+          }
+        } catch (emailError) {
+          console.error("Failed to send delivery update notification:", emailError);
+        }
+      }
 
       res.json(delivery);
     } catch (error) {
@@ -1813,6 +1876,29 @@ export async function registerRoutes(
         details: `Submitted change order CO-${existing.co_number} for approval`,
         ipAddress: req.ip,
       });
+
+      // Send email notification to client if they have it enabled
+      try {
+        const portalAccess = await storage.getClientPortalAccessByProjectId(existing.project_id);
+        if (portalAccess && portalAccess.is_active === "yes" && portalAccess.email_on_approval_needed === "yes") {
+          const project = await storage.getProject(existing.project_id);
+          const customer = project?.customer_id ? await storage.getCustomer(project.customer_id) : null;
+          if (project && customer) {
+            const costImpact = existing.cost_impact ? `$${Number(existing.cost_impact).toFixed(2)}` : null;
+            await sendChangeOrderApprovalNeeded(
+              portalAccess.email,
+              customer.name,
+              project.name,
+              existing.co_number,
+              existing.title,
+              costImpact,
+              existing.description
+            );
+          }
+        }
+      } catch (emailError) {
+        console.error("Failed to send change order approval notification:", emailError);
+      }
 
       res.json(changeOrder);
     } catch (error) {
@@ -2616,6 +2702,26 @@ export async function registerRoutes(
         details: `Sent message to client for project "${project.name}"`,
         ipAddress: req.ip,
       });
+
+      // Send email notification to client if they have it enabled
+      try {
+        const portalAccess = await storage.getClientPortalAccessByProjectId(projectId);
+        if (portalAccess && portalAccess.is_active === "yes" && portalAccess.email_on_new_message === "yes") {
+          const customer = await storage.getCustomer(project.customer_id!);
+          if (customer) {
+            await sendNewMessageNotification(
+              portalAccess.email,
+              customer.name,
+              project.name,
+              message.content,
+              userName
+            );
+          }
+        }
+      } catch (emailError) {
+        console.error("Failed to send message notification email:", emailError);
+        // Don't fail the request if email fails
+      }
 
       res.status(201).json(message);
     } catch (error) {
@@ -3459,7 +3565,7 @@ export async function registerRoutes(
   // Create portal access for a customer
   app.post("/api/client-portal-access", requirePermission("manage_customers"), async (req: any, res) => {
     try {
-      const { customer_id, email, password, ...settings } = req.body;
+      const { customer_id, email, password, send_invite, project_name, ...settings } = req.body;
 
       if (!customer_id || !email || !password) {
         return res.status(400).json({ error: "Customer ID, email, and password are required" });
@@ -3502,6 +3608,21 @@ export async function registerRoutes(
         entityId: access.id.toString(),
         details: `Created portal access for customer: ${customer.name}`,
       });
+
+      // Send invite email if requested
+      if (send_invite) {
+        try {
+          await sendPortalInvite(
+            email,
+            customer.name,
+            project_name || "Your Project",
+            password
+          );
+        } catch (emailError) {
+          console.error("Failed to send portal invite email:", emailError);
+          // Don't fail the request if email fails
+        }
+      }
 
       const { password_hash: _, ...sanitized } = access;
       res.status(201).json(sanitized);
@@ -3546,6 +3667,119 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error updating portal access:", error);
       res.status(500).json({ error: "Failed to update portal access" });
+    }
+  });
+
+  // Send/resend portal invite
+  app.post("/api/client-portal-access/:id/send-invite", requirePermission("manage_customers"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid portal access ID" });
+      }
+
+      const { project_name, password } = req.body;
+      if (!password) {
+        return res.status(400).json({ error: "Password is required to send invite" });
+      }
+
+      const access = await storage.getClientPortalAccessById(id);
+      if (!access) {
+        return res.status(404).json({ error: "Portal access not found" });
+      }
+
+      const customer = await storage.getCustomer(access.customer_id);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      // Update password if provided
+      const bcrypt = await import("bcrypt");
+      const password_hash = await bcrypt.hash(password, 10);
+      await storage.updateClientPortalAccess(id, { password_hash });
+
+      // Send the invite email
+      const success = await sendPortalInvite(
+        access.email,
+        customer.name,
+        project_name || "Your Project",
+        password
+      );
+
+      if (!success) {
+        return res.status(500).json({ error: "Failed to send invite email" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "send_portal_invite",
+        entityType: "client_portal_access",
+        entityId: id.toString(),
+        details: `Sent portal invite to ${access.email}`,
+      });
+
+      res.json({ success: true, message: "Invite sent successfully" });
+    } catch (error) {
+      console.error("Error sending portal invite:", error);
+      res.status(500).json({ error: "Failed to send portal invite" });
+    }
+  });
+
+  // Reset portal password
+  app.post("/api/client-portal-access/:id/reset-password", requirePermission("manage_customers"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid portal access ID" });
+      }
+
+      const { new_password, send_email } = req.body;
+      if (!new_password) {
+        return res.status(400).json({ error: "New password is required" });
+      }
+
+      const access = await storage.getClientPortalAccessById(id);
+      if (!access) {
+        return res.status(404).json({ error: "Portal access not found" });
+      }
+
+      const customer = await storage.getCustomer(access.customer_id);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      // Hash and update password
+      const bcrypt = await import("bcrypt");
+      const password_hash = await bcrypt.hash(new_password, 10);
+      await storage.updateClientPortalAccess(id, { password_hash });
+
+      // Send password reset email if requested
+      if (send_email) {
+        try {
+          await sendPortalPasswordReset(
+            access.email,
+            customer.name,
+            new_password
+          );
+        } catch (emailError) {
+          console.error("Failed to send password reset email:", emailError);
+        }
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "reset_portal_password",
+        entityType: "client_portal_access",
+        entityId: id.toString(),
+        details: `Reset portal password for ${access.email}`,
+      });
+
+      res.json({ success: true, message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Error resetting portal password:", error);
+      res.status(500).json({ error: "Failed to reset password" });
     }
   });
 

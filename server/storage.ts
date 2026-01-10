@@ -206,6 +206,7 @@ export interface IStorage {
   getClientPortalAccessByEmail(email: string): Promise<ClientPortalAccess | undefined>;
   getClientPortalAccessByCustomerId(customerId: number): Promise<ClientPortalAccess | undefined>;
   getClientPortalAccessById(id: number): Promise<ClientPortalAccess | undefined>;
+  getClientPortalAccessByProjectId(projectId: number): Promise<ClientPortalAccess | undefined>;
   getClientPortalUser(id: number): Promise<ClientPortalUser | undefined>;
   getAllClientPortalAccess(): Promise<ClientPortalAccess[]>;
   createClientPortalAccess(data: InsertClientPortalAccess): Promise<ClientPortalAccess>;
@@ -1191,6 +1192,16 @@ export class DatabaseStorage implements IStorage {
       .from(clientPortalAccess)
       .where(eq(clientPortalAccess.id, id));
     return access;
+  }
+
+  async getClientPortalAccessByProjectId(projectId: number): Promise<ClientPortalAccess | undefined> {
+    // First get the project to find the customer ID
+    const project = await this.getProject(projectId);
+    if (!project || !project.customer_id) {
+      return undefined;
+    }
+    // Then get the portal access for that customer
+    return this.getClientPortalAccessByCustomerId(project.customer_id);
   }
 
   async getClientPortalUser(id: number): Promise<ClientPortalUser | undefined> {

@@ -515,6 +515,8 @@ export const clientPortalAccess = pgTable("client_portal_access", {
   email_on_phase_complete: text("email_on_phase_complete").default("yes").notNull(), // yes | no
   email_on_task_complete: text("email_on_task_complete").default("no").notNull(), // yes | no
   email_on_approval_needed: text("email_on_approval_needed").default("yes").notNull(), // yes | no
+  email_on_new_message: text("email_on_new_message").default("yes").notNull(), // yes | no
+  email_on_delivery_update: text("email_on_delivery_update").default("yes").notNull(), // yes | no
 
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
