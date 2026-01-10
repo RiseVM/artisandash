@@ -650,3 +650,54 @@ export async function sendDeliveryUpdateNotification(
     return false;
   }
 }
+
+export async function sendClientMessageToAdminNotification(
+  clientName: string,
+  clientEmail: string,
+  projectName: string,
+  messageContent: string
+): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+
+    const subject = `New Client Message: ${clientName} - ${projectName}`;
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #3498db;">New Message from Client</h2>
+        <p>A client has sent a new message through the portal.</p>
+        <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Client:</td>
+            <td style="padding: 10px;">${clientName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Email:</td>
+            <td style="padding: 10px;">${clientEmail}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Project:</td>
+            <td style="padding: 10px;">${projectName}</td>
+          </tr>
+        </table>
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3498db;">
+          <p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">Message:</p>
+          <p style="margin: 0; white-space: pre-wrap;">${messageContent}</p>
+        </div>
+        <p>Please log in to the admin dashboard to respond to this message.</p>
+      </div>
+    `;
+
+    const result = await client.emails.send({
+      from: fromEmail || 'noreply@artisantile.com',
+      to: ['showroom@artisantilect.com', 'claudia@artisantilect.com', 'michele@artisantilect.com'],
+      subject,
+      html: bodyHtml,
+    });
+
+    console.log(`Client message notification sent to admin team:`, result);
+    return true;
+  } catch (error) {
+    console.error(`Failed to send client message notification to admin:`, error);
+    return false;
+  }
+}

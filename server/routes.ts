@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, insertCustomFieldDefinitionSchema, insertOutOfScopeItemSchema, insertClientFeedbackSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
@@ -3477,13 +3477,14 @@ export async function registerRoutes(
       }
 
       // Verify client has access to this project
-      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
-      if (!hasAccess) {
+      const project = req.portalUser.projects.find((p: any) => p.id === projectId);
+      if (!project) {
         return res.status(403).json({ error: "Access denied to this project" });
       }
 
       const portalUserId = req.portalUser.id;
       const clientName = req.portalUser.customer?.name || req.portalUser.email;
+      const clientEmail = req.portalUser.email;
 
       const data = insertProjectMessageSchema.parse({
         ...req.body,
@@ -3495,6 +3496,20 @@ export async function registerRoutes(
       });
 
       const message = await storage.createProjectMessage(data);
+
+      // Send notification email to admin team
+      try {
+        await sendClientMessageToAdminNotification(
+          clientName,
+          clientEmail,
+          project.name,
+          req.body.content || ''
+        );
+      } catch (emailError) {
+        console.error("Failed to send admin notification email:", emailError);
+        // Don't fail the request if email fails
+      }
+
       res.status(201).json(message);
     } catch (error) {
       if (error instanceof z.ZodError) {
