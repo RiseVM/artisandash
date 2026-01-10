@@ -838,6 +838,17 @@ export async function registerRoutes(
     }
   });
 
+  // Return all active checkouts (admin only)
+  app.post("/api/checkouts/return-all", requirePermission("manage_checkouts"), async (req, res) => {
+    try {
+      const count = await storage.returnAllActiveCheckouts();
+      res.json({ success: true, returned: count, message: `${count} checkout(s) marked as returned` });
+    } catch (error) {
+      console.error("Error returning all checkouts:", error);
+      res.status(500).json({ error: "Failed to return checkouts" });
+    }
+  });
+
   app.post("/api/notifications/send", isAuthenticated, async (req, res) => {
     try {
       const results = await checkAndSendNotifications();

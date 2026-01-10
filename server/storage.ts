@@ -69,6 +69,7 @@ export interface IStorage {
   createCheckout(checkout: InsertCheckout): Promise<Checkout>;
   updateCheckout(id: number, checkout: Partial<InsertCheckout>): Promise<Checkout | undefined>;
   deleteCheckout(id: number): Promise<boolean>;
+  returnAllActiveCheckouts(): Promise<number>;
 
   // Email notifications
   getNotificationsByCheckout(checkoutId: number): Promise<EmailNotification[]>;
@@ -353,9 +354,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCheckout(id: number): Promise<boolean> {
+    // Delete associated notifications first
     await db.delete(emailNotifications).where(eq(emailNotifications.checkout_id, id));
+    // Delete the checkout - this automatically releases the inventory item
     const result = await db.delete(checkouts).where(eq(checkouts.id, id)).returning();
     return result.length > 0;
+  }
+
+  async returnAllActiveCheckouts(): Promise<number> {
+    // Mark all active checkouts (checked_out or overdue) as returned
+    const result = await db
+      .update(checkouts)
+      .set({ status: 'returned', updated_at: new Date() })
+      .where(
+        or(
+          eq(checkouts.status, 'checked_out'),
+          eq(checkouts.status, 'overdue')
+        )
+      )
+      .returning();
+    return result.length;
   }
 
   // Email notifications

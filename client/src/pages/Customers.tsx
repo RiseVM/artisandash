@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, User, CreditCard, Eye, EyeOff, Lock, X, Loader2, Trash2, Download } from "lucide-react";
+import { Search, Plus, User, Loader2, Trash2, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -51,28 +51,15 @@ export function Customers() {
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [showCardForm, setShowCardForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { toast } = useToast();
 
-  // Admin access is now determined by user role, not a hardcoded password
-  const isAdmin = user?.role === "admin";
-
-  const [newCustomer, setNewCustomer] = useState({ 
-    name: "", 
-    email: "", 
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    email: "",
     phone: "",
     address: "",
     notes: "",
-    card_number: "",
-    card_exp: "",
-    card_cvc: "",
-  });
-
-  const [editCardInfo, setEditCardInfo] = useState({
-    card_number: "",
-    card_exp: "",
-    card_cvc: "",
   });
 
   const filteredCustomers = customers.filter((c) =>
@@ -80,56 +67,19 @@ export function Customers() {
     c.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  const parseCardNumber = (cardNum: string) => {
-    const cleaned = cardNum.replace(/\s/g, '');
-    if (cleaned.length < 4) return { last4: '', brand: '' };
-    const last4 = cleaned.slice(-4);
-    let brand = 'Card';
-    if (cleaned.startsWith('4')) brand = 'Visa';
-    else if (cleaned.startsWith('5')) brand = 'Mastercard';
-    else if (cleaned.startsWith('3')) brand = 'Amex';
-    else if (cleaned.startsWith('6')) brand = 'Discover';
-    return { last4, brand };
-  };
-
-  const parseExpiry = (exp: string) => {
-    const parts = exp.split('/');
-    if (parts.length !== 2) return { month: '', year: '' };
-    return { month: parts[0].trim(), year: '20' + parts[1].trim() };
-  };
-
-  const formatCardNumber = (value: string) => {
-    const v = value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-    const matches = v.match(/\d{4,16}/g);
-    const match = matches && matches[0] || '';
-    const parts = [];
-    for (let i = 0, len = match.length; i < len; i += 4) {
-      parts.push(match.substring(i, i + 4));
-    }
-    return parts.length ? parts.join(' ') : v;
-  };
-
   const handleAddCustomer = async () => {
     if (!newCustomer.name || !newCustomer.email) return;
-    
+
     try {
-      const { last4, brand } = parseCardNumber(newCustomer.card_number);
-      const { month, year } = parseExpiry(newCustomer.card_exp);
-      
       await createCustomerMutation.mutateAsync({
         name: newCustomer.name,
         email: newCustomer.email,
         phone: newCustomer.phone || null,
         address: newCustomer.address || null,
         notes: newCustomer.notes || null,
-        // Only store safe card display info (last 4 digits, brand, expiry)
-        card_last4: last4 || null,
-        card_brand: brand || null,
-        card_exp_month: month || null,
-        card_exp_year: year || null,
       });
       setIsAddOpen(false);
-      setNewCustomer({ name: "", email: "", phone: "", address: "", notes: "", card_number: "", card_exp: "", card_cvc: "" });
+      setNewCustomer({ name: "", email: "", phone: "", address: "", notes: "" });
       toast({ title: "Customer Added", description: `${newCustomer.name} added.` });
     } catch (err) {
       toast({ title: "Error", description: "Failed to add customer. Please try again.", variant: "destructive" });
@@ -138,36 +88,19 @@ export function Customers() {
 
   const handleUpdateCustomer = async () => {
     if (!editingCustomer) return;
-    
-    try {
-      let updates: any = {
-        name: editingCustomer.name,
-        email: editingCustomer.email,
-        phone: editingCustomer.phone,
-        address: editingCustomer.address,
-        notes: editingCustomer.notes,
-      };
 
-      if (editCardInfo.card_number) {
-        const { last4, brand } = parseCardNumber(editCardInfo.card_number);
-        const { month, year } = parseExpiry(editCardInfo.card_exp);
-        // Only store safe card display info (last 4 digits, brand, expiry)
-        updates = {
-          ...updates,
-          card_last4: last4,
-          card_brand: brand,
-          card_exp_month: month,
-          card_exp_year: year,
-        };
-      }
-      
+    try {
       await updateCustomerMutation.mutateAsync({
         id: editingCustomer.id,
-        data: updates
+        data: {
+          name: editingCustomer.name,
+          email: editingCustomer.email,
+          phone: editingCustomer.phone,
+          address: editingCustomer.address,
+          notes: editingCustomer.notes,
+        }
       });
       setEditingCustomer(null);
-      setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
-      setShowCardForm(false);
       toast({ title: "Customer Updated", description: "Customer details updated." });
     } catch (err) {
       toast({ title: "Error", description: "Failed to update customer. Please try again.", variant: "destructive" });
@@ -176,33 +109,6 @@ export function Customers() {
 
   const handleCloseEditDialog = () => {
     setEditingCustomer(null);
-    setShowCardForm(false);
-    setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
-  };
-
-  const handleRemoveCard = async () => {
-    if (!editingCustomer) return;
-    try {
-      await updateCustomerMutation.mutateAsync({
-        id: editingCustomer.id,
-        data: {
-          card_last4: null,
-          card_brand: null,
-          card_exp_month: null,
-          card_exp_year: null,
-        }
-      });
-      setEditingCustomer({
-        ...editingCustomer,
-        card_last4: null,
-        card_brand: null,
-        card_exp_month: null,
-        card_exp_year: null,
-      });
-      toast({ title: "Card Removed", description: "Payment method has been removed." });
-    } catch (err) {
-      toast({ title: "Error", description: "Failed to remove card. Please try again.", variant: "destructive" });
-    }
   };
 
   const handleDeleteCustomer = async () => {
@@ -326,44 +232,6 @@ export function Customers() {
                 />
               </div>
 
-              <div className="border-t pt-4 mt-2">
-                <div className="flex items-center gap-2 mb-4">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Payment Method (Optional)</span>
-                </div>
-                <div className="space-y-3">
-                  <div className="relative">
-                    <CreditCard className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                      placeholder="Card number" 
-                      className="pl-9 font-mono"
-                      maxLength={19}
-                      value={newCustomer.card_number}
-                      onChange={(e) => setNewCustomer({...newCustomer, card_number: formatCardNumber(e.target.value)})}
-                      data-testid="input-new-customer-card"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input 
-                      placeholder="MM / YY" 
-                      className="font-mono text-center" 
-                      maxLength={7}
-                      value={newCustomer.card_exp}
-                      onChange={(e) => setNewCustomer({...newCustomer, card_exp: e.target.value})}
-                      data-testid="input-new-customer-exp"
-                    />
-                    <Input 
-                      placeholder="CVC" 
-                      className="font-mono text-center" 
-                      maxLength={4}
-                      type="password"
-                      value={newCustomer.card_cvc}
-                      onChange={(e) => setNewCustomer({...newCustomer, card_cvc: e.target.value})}
-                      data-testid="input-new-customer-cvc"
-                    />
-                  </div>
-                </div>
-              </div>
             </div>
             <DialogFooter>
               <Button onClick={handleAddCustomer} disabled={createCustomerMutation.isPending} data-testid="button-save-new-customer">
@@ -400,7 +268,7 @@ export function Customers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Payment</TableHead>
+                  <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -420,15 +288,7 @@ export function Customers() {
                     <TableCell>{customer.email}</TableCell>
                     <TableCell>{customer.phone || "—"}</TableCell>
                     <TableCell>
-                      {customer.card_last4 ? (
-                        <div className="flex items-center gap-2 text-sm">
-                          <CreditCard className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">{customer.card_brand}</span>
-                          <span className="font-mono">••••{customer.card_last4}</span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">No card</span>
-                      )}
+                      <span className="text-muted-foreground text-sm">{customer.notes || "—"}</span>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -492,119 +352,6 @@ export function Customers() {
               />
             </div>
 
-            <div className="border-t pt-4 mt-2">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Payment Method</span>
-                </div>
-              </div>
-              
-              {editingCustomer?.card_last4 && !showCardForm ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <CreditCard className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <div className="font-medium text-sm">{editingCustomer.card_brand}</div>
-                        <div className="text-sm text-muted-foreground font-mono">
-                          •••• •••• •••• {editingCustomer.card_last4}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {editingCustomer.card_exp_month}/{editingCustomer.card_exp_year?.slice(-2)}
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => setShowCardForm(true)}
-                      data-testid="button-update-card"
-                    >
-                      Update Card
-                    </Button>
-                    {isAdmin && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="flex-1"
-                        onClick={handleRemoveCard}
-                        data-testid="button-remove-card"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Remove Card
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {!editingCustomer?.card_last4 && !showCardForm && (
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={() => setShowCardForm(true)}
-                      data-testid="button-add-card"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Payment Method
-                    </Button>
-                  )}
-                  
-                  {showCardForm && (
-                    <div className="space-y-3">
-                      <div className="relative">
-                        <CreditCard className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          placeholder="Card number" 
-                          className="pl-9 font-mono"
-                          maxLength={19}
-                          value={editCardInfo.card_number}
-                          onChange={(e) => setEditCardInfo({...editCardInfo, card_number: formatCardNumber(e.target.value)})}
-                          data-testid="input-edit-card-number"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Input 
-                          placeholder="MM / YY" 
-                          className="font-mono text-center" 
-                          maxLength={7}
-                          value={editCardInfo.card_exp}
-                          onChange={(e) => setEditCardInfo({...editCardInfo, card_exp: e.target.value})}
-                          data-testid="input-edit-card-exp"
-                        />
-                        <Input 
-                          placeholder="CVC" 
-                          className="font-mono text-center" 
-                          maxLength={4}
-                          type="password"
-                          value={editCardInfo.card_cvc}
-                          onChange={(e) => setEditCardInfo({...editCardInfo, card_cvc: e.target.value})}
-                          data-testid="input-edit-card-cvc"
-                        />
-                      </div>
-                      {editingCustomer?.card_last4 && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="w-full"
-                          onClick={() => {
-                            setShowCardForm(false);
-                            setEditCardInfo({ card_number: "", card_exp: "", card_cvc: "" });
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
           <DialogFooter className="flex justify-between">
             <Button 

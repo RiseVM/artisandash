@@ -12,7 +12,9 @@
       "Bash(node:*)",
       "Bash(pkill:*)",
       "Bash(lsof:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
