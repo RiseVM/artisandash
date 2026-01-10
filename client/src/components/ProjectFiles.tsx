@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import {
   useProjectFiles,
-  useCreateProjectFile,
+  useUploadProjectFile,
   useDeleteProjectFile,
 } from "@/hooks/use-api";
 import { useToast } from "@/hooks/use-toast";
@@ -77,7 +77,7 @@ export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: files = [], isLoading } = useProjectFiles(projectId);
-  const createMutation = useCreateProjectFile();
+  const uploadMutation = useUploadProjectFile();
   const deleteMutation = useDeleteProjectFile();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -128,38 +128,31 @@ export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps
   };
 
   const handleCreate = async () => {
-    if (!formData.name) {
-      toast({ title: "File name is required", variant: "destructive" });
+    if (!selectedFile) {
+      toast({ title: "Please select a file to upload", variant: "destructive" });
       return;
     }
 
     try {
-      // For now, we'll create a placeholder URL - in a real app this would upload to storage
-      const fileUrl = selectedFile
-        ? URL.createObjectURL(selectedFile)
-        : `placeholder://${formData.name}`;
-
-      await createMutation.mutateAsync({
+      await uploadMutation.mutateAsync({
         projectId,
-        data: {
-          name: formData.name,
-          file_url: fileUrl,
-          file_size: selectedFile?.size || null,
-          mime_type: selectedFile?.type || null,
-          category: formData.category || null,
-          description: formData.description || null,
+        file: selectedFile,
+        metadata: {
+          name: formData.name || selectedFile.name,
+          category: formData.category || undefined,
+          description: formData.description || undefined,
           entity_type: formData.entity_type,
-          entity_id: formData.entity_id ? parseInt(formData.entity_id) : null,
+          entity_id: formData.entity_id ? parseInt(formData.entity_id) : undefined,
           is_photo: formData.is_photo,
-          photo_type: formData.is_photo === "yes" ? formData.photo_type || null : null,
+          photo_type: formData.is_photo === "yes" ? formData.photo_type || undefined : undefined,
           client_visible: formData.client_visible,
         },
       });
       resetForm();
       setIsAddOpen(false);
-      toast({ title: "File Added" });
+      toast({ title: "File Uploaded" });
     } catch (err: any) {
-      toast({ title: "Error", description: err?.message, variant: "destructive" });
+      toast({ title: "Upload Failed", description: err?.message, variant: "destructive" });
     }
   };
 
@@ -504,9 +497,9 @@ export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps
             </Button>
             <Button
               onClick={handleCreate}
-              disabled={createMutation.isPending}
+              disabled={uploadMutation.isPending}
             >
-              {createMutation.isPending ? "Uploading..." : "Add File"}
+              {uploadMutation.isPending ? "Uploading..." : "Add File"}
             </Button>
           </DialogFooter>
         </DialogContent>

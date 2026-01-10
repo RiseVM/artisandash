@@ -12,6 +12,16 @@ import { getSession } from "./replitAuth";
 import passport from "passport";
 import * as fs from "fs";
 import * as path from "path";
+import multer from "multer";
+import { uploadProjectFile, generateThumbnail, uploadThumbnail, deleteProjectFile, getDirectDownloadUrl } from "./fileUploadService";
+
+// Configure multer for memory storage
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB limit
+  },
+});
 
 declare module "express-session" {
   interface SessionData {
@@ -2296,6 +2306,104 @@ export async function registerRoutes(
       }
       console.error("Error creating file record:", error);
       res.status(500).json({ error: "Failed to create file record" });
+    }
+  });
+
+  // Upload a file to Google Drive and create a file record
+  app.post("/api/projects/:projectId/files/upload", requirePermission("manage_projects"), upload.single("file"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const userId = req.user?.id;
+      const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null;
+
+      // Parse metadata from request body
+      const category = req.body.category || "other";
+      const description = req.body.description || null;
+      const entityType = req.body.entity_type || "project";
+      const entityId = req.body.entity_id ? parseInt(req.body.entity_id) : null;
+      const isPhoto = req.body.is_photo === "yes" || req.file.mimetype.startsWith("image/");
+      const photoType = req.body.photo_type || null;
+      const clientVisible = req.body.client_visible || "yes";
+
+      // Upload to Google Drive
+      const uploadResult = await uploadProjectFile({
+        projectId,
+        projectName: project.name,
+        fileName: req.file.originalname,
+        fileBuffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+      });
+
+      if (!uploadResult) {
+        return res.status(500).json({ error: "Failed to upload file to storage" });
+      }
+
+      // Generate and upload thumbnail for images
+      let thumbnailUrl: string | null = null;
+      if (isPhoto || req.file.mimetype.startsWith("image/")) {
+        const thumbnailBuffer = await generateThumbnail(req.file.buffer, req.file.mimetype);
+        if (thumbnailBuffer) {
+          thumbnailUrl = await uploadThumbnail({
+            projectId,
+            projectName: project.name,
+            originalFileName: req.file.originalname,
+            thumbnailBuffer,
+          });
+        }
+      }
+
+      // Create file record in database
+      const fileUrl = getDirectDownloadUrl(uploadResult.webViewLink);
+      const data = insertProjectFileSchema.parse({
+        project_id: projectId,
+        name: req.body.name || req.file.originalname,
+        file_url: fileUrl,
+        file_size: req.file.size,
+        mime_type: req.file.mimetype,
+        category,
+        description,
+        entity_type: entityType,
+        entity_id: entityId,
+        is_photo: isPhoto ? "yes" : "no",
+        thumbnail_url: thumbnailUrl ? getDirectDownloadUrl(thumbnailUrl) : null,
+        photo_type: isPhoto ? photoType : null,
+        client_visible: clientVisible,
+        uploaded_by_user_id: userId,
+        uploaded_by_user_name: userName,
+      });
+
+      const file = await storage.createProjectFile(data);
+
+      // Log activity
+      await storage.createActivityLog({
+        userId: userId || null,
+        userEmail: req.user?.email || null,
+        action: "upload_file",
+        entityType: "project_file",
+        entityId: file.id.toString(),
+        details: `Uploaded file "${req.file.originalname}" to project "${project.name}"`,
+      });
+
+      res.status(201).json(file);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error uploading file:", error);
+      res.status(500).json({ error: "Failed to upload file" });
     }
   });
 

@@ -961,6 +961,55 @@ export function useCreateProjectFile() {
   });
 }
 
+export function useUploadProjectFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, file, metadata }: {
+      projectId: number;
+      file: File;
+      metadata: {
+        name?: string;
+        category?: string;
+        description?: string;
+        entity_type?: string;
+        entity_id?: number;
+        is_photo?: string;
+        photo_type?: string;
+        client_visible?: string;
+      };
+    }) => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      // Append metadata fields
+      if (metadata.name) formData.append("name", metadata.name);
+      if (metadata.category) formData.append("category", metadata.category);
+      if (metadata.description) formData.append("description", metadata.description);
+      if (metadata.entity_type) formData.append("entity_type", metadata.entity_type);
+      if (metadata.entity_id) formData.append("entity_id", metadata.entity_id.toString());
+      if (metadata.is_photo) formData.append("is_photo", metadata.is_photo);
+      if (metadata.photo_type) formData.append("photo_type", metadata.photo_type);
+      if (metadata.client_visible) formData.append("client_visible", metadata.client_visible);
+
+      const res = await fetch(`/api/projects/${projectId}/files/upload`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(error.error || "Upload failed");
+      }
+
+      return res.json() as Promise<ProjectFile>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+    },
+  });
+}
+
 export function useUpdateProjectFile() {
   const queryClient = useQueryClient();
   return useMutation({
