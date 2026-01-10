@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import {
   useProject,
   useUpdateProject,
@@ -7,6 +8,7 @@ import {
   useCreatePhase,
   useUpdatePhase,
   useDeletePhase,
+  useReorderPhases,
   useCreateTask,
   useUpdateTask,
   useDeleteTask,
@@ -60,6 +62,7 @@ import {
   Circle,
   Clock,
   FolderKanban,
+  GripVertical,
 } from "lucide-react";
 import type { ProjectPhase, ProjectTask, ProjectPhaseWithTasks } from "@shared/schema";
 import { ProjectDeliveries } from "@/components/ProjectDeliveries";
@@ -107,6 +110,7 @@ export function ProjectDetail() {
   const createPhaseMutation = useCreatePhase();
   const updatePhaseMutation = useUpdatePhase();
   const deletePhaseMutation = useDeletePhase();
+  const reorderPhasesMutation = useReorderPhases();
   const createTaskMutation = useCreateTask();
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
@@ -145,6 +149,33 @@ export function ProjectDetail() {
       newExpanded.add(phaseId);
     }
     setExpandedPhases(newExpanded);
+  };
+
+  const handleDragEnd = async (result: DropResult) => {
+    if (!result.destination || !project) return;
+
+    const sourceIndex = result.source.index;
+    const destIndex = result.destination.index;
+
+    if (sourceIndex === destIndex) return;
+
+    // Reorder the phases array
+    const reorderedPhases = Array.from(project.phases);
+    const [removed] = reorderedPhases.splice(sourceIndex, 1);
+    reorderedPhases.splice(destIndex, 0, removed);
+
+    // Get the new order of phase IDs
+    const phaseIds = reorderedPhases.map((p) => p.id);
+
+    try {
+      await reorderPhasesMutation.mutateAsync({ projectId, phaseIds });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to reorder phases.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getPhaseStatusIcon = (status: string) => {
@@ -430,30 +461,55 @@ export function ProjectDetail() {
               No phases yet. Add a phase to start tracking progress.
             </div>
           ) : (
-            <div className="space-y-2">
-              {project.phases.map((phase) => (
-                <div
-                  key={phase.id}
-                  className={`border rounded-lg ${phaseStatusColors[phase.status]}`}
-                >
-                  {/* Phase Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center p-3 gap-2">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <button
-                        onClick={() => togglePhaseExpanded(phase.id)}
-                        className="p-1 hover:bg-black/5 rounded shrink-0"
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="phases">
+                {(provided) => (
+                  <div
+                    className="space-y-2"
+                    {...provided.droppableProps}
+                    ref={provided.innerRef}
+                  >
+                    {project.phases.map((phase, index) => (
+                      <Draggable
+                        key={phase.id}
+                        draggableId={`phase-${phase.id}`}
+                        index={index}
+                        isDragDisabled={!canManageProjects}
                       >
-                        {expandedPhases.has(phase.id) ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
-                      </button>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`border rounded-lg ${phaseStatusColors[phase.status]} ${
+                              snapshot.isDragging ? "shadow-lg ring-2 ring-primary" : ""
+                            }`}
+                          >
+                            {/* Phase Header */}
+                            <div className="flex flex-col sm:flex-row sm:items-center p-3 gap-2">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                {canManageProjects && (
+                                  <div
+                                    {...provided.dragHandleProps}
+                                    className="p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0"
+                                  >
+                                    <GripVertical className="h-4 w-4" />
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => togglePhaseExpanded(phase.id)}
+                                  className="p-1 hover:bg-black/5 rounded shrink-0"
+                                >
+                                  {expandedPhases.has(phase.id) ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </button>
 
-                      <span className="shrink-0">{getPhaseStatusIcon(phase.status)}</span>
+                                <span className="shrink-0">{getPhaseStatusIcon(phase.status)}</span>
 
-                      <span className="font-medium truncate">{phase.name}</span>
-                    </div>
+                                <span className="font-medium truncate">{phase.name}</span>
+                              </div>
 
                     <div className="flex items-center gap-2 pl-8 sm:pl-0">
                       <div className="flex items-center gap-2 flex-1 sm:flex-none">
@@ -563,9 +619,15 @@ export function ProjectDetail() {
                       </div>
                     </div>
                   )}
-                </div>
-              ))}
-            </div>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
           )}
         </CardContent>
       </Card>
