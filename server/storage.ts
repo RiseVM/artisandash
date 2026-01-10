@@ -1,7 +1,7 @@
 import { db } from "../db/index";
-import { 
-  customers, 
-  inventory, 
+import {
+  customers,
+  inventory,
   checkouts,
   users,
   emailNotifications,
@@ -9,6 +9,9 @@ import {
   contracts,
   activityLogs,
   rolePermissions,
+  projects,
+  projectPhases,
+  projectTasks,
   type Customer,
   type Inventory,
   type Checkout,
@@ -28,9 +31,18 @@ import {
   type InsertActivityLog,
   type ActivityLog,
   type RolePermission,
-  type InsertRolePermission
+  type InsertRolePermission,
+  type Project,
+  type InsertProject,
+  type ProjectPhase,
+  type InsertProjectPhase,
+  type ProjectTask,
+  type InsertProjectTask,
+  type ProjectWithCustomer,
+  type ProjectWithDetails,
+  type ProjectPhaseWithTasks,
 } from "@shared/schema";
-import { eq, and, desc, gte, lte, or } from "drizzle-orm";
+import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -96,6 +108,32 @@ export interface IStorage {
   setRolePermission(role: string, permission: string, enabled: boolean): Promise<RolePermission>;
   hasPermission(role: string, permission: string): Promise<boolean>;
   initializeDefaultPermissions(): Promise<void>;
+
+  // Projects
+  getProjects(): Promise<ProjectWithCustomer[]>;
+  getProject(id: number): Promise<Project | undefined>;
+  getProjectWithDetails(id: number): Promise<ProjectWithDetails | undefined>;
+  getProjectsByCustomer(customerId: number): Promise<Project[]>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProject(id: number, project: Partial<InsertProject>): Promise<Project | undefined>;
+  deleteProject(id: number): Promise<boolean>;
+  updateProjectProgress(projectId: number): Promise<number>;
+
+  // Project Phases
+  getProjectPhases(projectId: number): Promise<ProjectPhase[]>;
+  getProjectPhase(id: number): Promise<ProjectPhase | undefined>;
+  createProjectPhase(phase: InsertProjectPhase): Promise<ProjectPhase>;
+  updateProjectPhase(id: number, phase: Partial<InsertProjectPhase>): Promise<ProjectPhase | undefined>;
+  deleteProjectPhase(id: number): Promise<boolean>;
+  reorderProjectPhases(projectId: number, phaseIds: number[]): Promise<void>;
+  updatePhaseProgress(phaseId: number): Promise<number>;
+
+  // Project Tasks
+  getPhaseTasks(phaseId: number): Promise<ProjectTask[]>;
+  getProjectTask(id: number): Promise<ProjectTask | undefined>;
+  createProjectTask(task: InsertProjectTask): Promise<ProjectTask>;
+  updateProjectTask(id: number, task: Partial<InsertProjectTask>): Promise<ProjectTask | undefined>;
+  deleteProjectTask(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -508,18 +546,282 @@ export class DatabaseStorage implements IStorage {
       { role: "staff", permission: "manage_checkouts", enabled: "no" },
       { role: "staff", permission: "view_contracts", enabled: "yes" },
       { role: "staff", permission: "create_contracts", enabled: "yes" },
+      { role: "staff", permission: "manage_projects", enabled: "no" },
       { role: "staff", permission: "manage_users", enabled: "no" },
       { role: "staff", permission: "view_reports", enabled: "no" },
+      // Manager and admin get manage_projects
+      { role: "manager", permission: "manage_projects", enabled: "yes" },
+      { role: "admin", permission: "manage_projects", enabled: "yes" },
     ];
 
     for (const perm of defaultPermissions) {
       const existing = await db.select().from(rolePermissions)
         .where(and(eq(rolePermissions.role, perm.role), eq(rolePermissions.permission, perm.permission)));
-      
+
       if (existing.length === 0) {
         await db.insert(rolePermissions).values(perm);
       }
     }
+  }
+
+  // ============================================
+  // PROJECTS
+  // ============================================
+
+  async getProjects(): Promise<ProjectWithCustomer[]> {
+    const result = await db
+      .select({
+        project: projects,
+        customer: customers,
+        user: users,
+      })
+      .from(projects)
+      .innerJoin(customers, eq(projects.customer_id, customers.id))
+      .leftJoin(users, eq(projects.created_by_user_id, users.id))
+      .orderBy(desc(projects.created_at));
+
+    return result.map((row) => ({
+      ...row.project,
+      customer: row.customer,
+      createdByUser: row.user || null,
+    }));
+  }
+
+  async getProject(id: number): Promise<Project | undefined> {
+    const [project] = await db.select().from(projects).where(eq(projects.id, id));
+    return project;
+  }
+
+  async getProjectWithDetails(id: number): Promise<ProjectWithDetails | undefined> {
+    // Get project with customer
+    const projectResult = await db
+      .select({
+        project: projects,
+        customer: customers,
+        user: users,
+      })
+      .from(projects)
+      .innerJoin(customers, eq(projects.customer_id, customers.id))
+      .leftJoin(users, eq(projects.created_by_user_id, users.id))
+      .where(eq(projects.id, id));
+
+    if (!projectResult[0]) return undefined;
+
+    // Get phases for this project
+    const phases = await db
+      .select()
+      .from(projectPhases)
+      .where(eq(projectPhases.project_id, id))
+      .orderBy(asc(projectPhases.display_order));
+
+    // Get tasks for each phase
+    const phasesWithTasks: ProjectPhaseWithTasks[] = await Promise.all(
+      phases.map(async (phase) => {
+        const tasks = await db
+          .select()
+          .from(projectTasks)
+          .where(eq(projectTasks.phase_id, phase.id))
+          .orderBy(asc(projectTasks.display_order));
+        return { ...phase, tasks };
+      })
+    );
+
+    return {
+      ...projectResult[0].project,
+      customer: projectResult[0].customer,
+      phases: phasesWithTasks,
+      createdByUser: projectResult[0].user || null,
+    };
+  }
+
+  async getProjectsByCustomer(customerId: number): Promise<Project[]> {
+    return db
+      .select()
+      .from(projects)
+      .where(eq(projects.customer_id, customerId))
+      .orderBy(desc(projects.created_at));
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    const [result] = await db.insert(projects).values(project).returning();
+    return result;
+  }
+
+  async updateProject(id: number, project: Partial<InsertProject>): Promise<Project | undefined> {
+    const [result] = await db
+      .update(projects)
+      .set({ ...project, updated_at: new Date() })
+      .where(eq(projects.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProject(id: number): Promise<boolean> {
+    // Phases and tasks will cascade delete due to foreign key constraints
+    const result = await db.delete(projects).where(eq(projects.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateProjectProgress(projectId: number): Promise<number> {
+    // Get all phases for this project (excluding skipped)
+    const phases = await db
+      .select()
+      .from(projectPhases)
+      .where(
+        and(
+          eq(projectPhases.project_id, projectId),
+          // Don't count skipped phases
+        )
+      );
+
+    const activePhases = phases.filter((p) => p.status !== "skipped");
+    if (activePhases.length === 0) {
+      await db.update(projects).set({ overall_progress: 0, updated_at: new Date() }).where(eq(projects.id, projectId));
+      return 0;
+    }
+
+    const totalProgress = activePhases.reduce((sum, phase) => sum + phase.progress, 0);
+    const overallProgress = Math.round(totalProgress / activePhases.length);
+
+    // Find current phase (first non-completed, non-skipped phase)
+    const currentPhase = activePhases.find((p) => p.status !== "completed");
+    const currentPhaseId = currentPhase?.id || null;
+
+    await db
+      .update(projects)
+      .set({ overall_progress: overallProgress, current_phase_id: currentPhaseId, updated_at: new Date() })
+      .where(eq(projects.id, projectId));
+
+    return overallProgress;
+  }
+
+  // ============================================
+  // PROJECT PHASES
+  // ============================================
+
+  async getProjectPhases(projectId: number): Promise<ProjectPhase[]> {
+    return db
+      .select()
+      .from(projectPhases)
+      .where(eq(projectPhases.project_id, projectId))
+      .orderBy(asc(projectPhases.display_order));
+  }
+
+  async getProjectPhase(id: number): Promise<ProjectPhase | undefined> {
+    const [phase] = await db.select().from(projectPhases).where(eq(projectPhases.id, id));
+    return phase;
+  }
+
+  async createProjectPhase(phase: InsertProjectPhase): Promise<ProjectPhase> {
+    const [result] = await db.insert(projectPhases).values(phase).returning();
+    return result;
+  }
+
+  async updateProjectPhase(id: number, phase: Partial<InsertProjectPhase>): Promise<ProjectPhase | undefined> {
+    const [result] = await db
+      .update(projectPhases)
+      .set({ ...phase, updated_at: new Date() })
+      .where(eq(projectPhases.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProjectPhase(id: number): Promise<boolean> {
+    // Tasks will cascade delete due to foreign key constraints
+    const result = await db.delete(projectPhases).where(eq(projectPhases.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async reorderProjectPhases(projectId: number, phaseIds: number[]): Promise<void> {
+    for (let i = 0; i < phaseIds.length; i++) {
+      await db
+        .update(projectPhases)
+        .set({ display_order: i + 1, updated_at: new Date() })
+        .where(and(eq(projectPhases.id, phaseIds[i]), eq(projectPhases.project_id, projectId)));
+    }
+  }
+
+  async updatePhaseProgress(phaseId: number): Promise<number> {
+    // Get all tasks for this phase
+    const tasks = await db.select().from(projectTasks).where(eq(projectTasks.phase_id, phaseId));
+
+    if (tasks.length === 0) {
+      // No tasks - use phase status to determine progress
+      const [phase] = await db.select().from(projectPhases).where(eq(projectPhases.id, phaseId));
+      let progress = 0;
+      if (phase?.status === "completed") progress = 100;
+      else if (phase?.status === "in_progress") progress = 50;
+
+      await db.update(projectPhases).set({ progress, updated_at: new Date() }).where(eq(projectPhases.id, phaseId));
+      return progress;
+    }
+
+    const completedTasks = tasks.filter((t) => t.status === "completed").length;
+    const progress = Math.round((completedTasks / tasks.length) * 100);
+
+    await db.update(projectPhases).set({ progress, updated_at: new Date() }).where(eq(projectPhases.id, phaseId));
+
+    // Also update the parent project's progress
+    const [phase] = await db.select().from(projectPhases).where(eq(projectPhases.id, phaseId));
+    if (phase) {
+      await this.updateProjectProgress(phase.project_id);
+    }
+
+    return progress;
+  }
+
+  // ============================================
+  // PROJECT TASKS
+  // ============================================
+
+  async getPhaseTasks(phaseId: number): Promise<ProjectTask[]> {
+    return db
+      .select()
+      .from(projectTasks)
+      .where(eq(projectTasks.phase_id, phaseId))
+      .orderBy(asc(projectTasks.display_order));
+  }
+
+  async getProjectTask(id: number): Promise<ProjectTask | undefined> {
+    const [task] = await db.select().from(projectTasks).where(eq(projectTasks.id, id));
+    return task;
+  }
+
+  async createProjectTask(task: InsertProjectTask): Promise<ProjectTask> {
+    const [result] = await db.insert(projectTasks).values(task).returning();
+    // Update phase progress after adding task
+    await this.updatePhaseProgress(task.phase_id);
+    return result;
+  }
+
+  async updateProjectTask(id: number, task: Partial<InsertProjectTask>): Promise<ProjectTask | undefined> {
+    // Get the task first to get phase_id for progress update
+    const [existing] = await db.select().from(projectTasks).where(eq(projectTasks.id, id));
+    if (!existing) return undefined;
+
+    const [result] = await db
+      .update(projectTasks)
+      .set({ ...task, updated_at: new Date() })
+      .where(eq(projectTasks.id, id))
+      .returning();
+
+    // Update phase progress after task update
+    await this.updatePhaseProgress(existing.phase_id);
+
+    return result;
+  }
+
+  async deleteProjectTask(id: number): Promise<boolean> {
+    // Get the task first to get phase_id for progress update
+    const [existing] = await db.select().from(projectTasks).where(eq(projectTasks.id, id));
+    if (!existing) return false;
+
+    const result = await db.delete(projectTasks).where(eq(projectTasks.id, id)).returning();
+
+    // Update phase progress after task deletion
+    await this.updatePhaseProgress(existing.phase_id);
+
+    return result.length > 0;
   }
 }
 

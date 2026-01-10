@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, timestamp, integer, index, jsonb, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, timestamp, integer, index, jsonb, unique, numeric, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -218,6 +218,157 @@ export const insertContractSchema = createInsertSchema(contracts).omit({
 export type InsertContract = z.infer<typeof insertContractSchema>;
 export type Contract = typeof contracts.$inferSelect;
 
+// ============================================
+// PROJECT TRACKER TABLES
+// ============================================
+
+// Projects - Main project entity linked to customers
+export const projects = pgTable("projects", {
+  id: serial("id").primaryKey(),
+  customer_id: integer("customer_id").references(() => customers.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  status: text("status").default("active").notNull(), // active | on_hold | completed | cancelled
+
+  // Address
+  address_street: text("address_street"),
+  address_city: text("address_city"),
+  address_state: text("address_state"),
+  address_zip: text("address_zip"),
+
+  // Dates
+  estimated_start_date: text("estimated_start_date"),
+  estimated_end_date: text("estimated_end_date"),
+  actual_start_date: text("actual_start_date"),
+  actual_end_date: text("actual_end_date"),
+
+  // Pricing
+  original_estimate: numeric("original_estimate", { precision: 12, scale: 2 }),
+
+  // Progress
+  overall_progress: integer("overall_progress").default(0).notNull(),
+  current_phase_id: integer("current_phase_id"),
+
+  // Internal
+  internal_notes: text("internal_notes"),
+
+  // Metadata
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_projects_customer_id").on(table.customer_id),
+  index("IDX_projects_status").on(table.status),
+]);
+
+// Project Phases - Major stages of a project
+export const projectPhases = pgTable("project_phases", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  display_order: integer("display_order").notNull(),
+  status: text("status").default("not_started").notNull(), // not_started | in_progress | on_hold | completed | skipped
+
+  // Client visibility and approval
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+  requires_approval: text("requires_approval").default("no").notNull(), // yes | no
+  approved_at: timestamp("approved_at"),
+  approved_by: text("approved_by"),
+  approval_signature: text("approval_signature"),
+
+  // Dates
+  started_at: timestamp("started_at"),
+  completed_at: timestamp("completed_at"),
+  estimated_start: text("estimated_start"),
+  estimated_end: text("estimated_end"),
+
+  // Progress (calculated from tasks)
+  progress: integer("progress").default(0).notNull(),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_phases_project_id").on(table.project_id),
+  index("IDX_project_phases_status").on(table.status),
+]);
+
+// Project Tasks - Checklist items within phases
+export const projectTasks = pgTable("project_tasks", {
+  id: serial("id").primaryKey(),
+  phase_id: integer("phase_id").references(() => projectPhases.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  display_order: integer("display_order").notNull(),
+  status: text("status").default("pending").notNull(), // pending | in_progress | completed | skipped
+
+  // Assignment
+  assigned_to: varchar("assigned_to").references(() => users.id, { onDelete: 'set null' }),
+
+  // Dates
+  due_date: text("due_date"),
+  completed_at: timestamp("completed_at"),
+  completed_by: varchar("completed_by").references(() => users.id, { onDelete: 'set null' }),
+
+  // Client visibility and approval
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+  requires_approval: text("requires_approval").default("no").notNull(), // yes | no
+  approved_at: timestamp("approved_at"),
+  approved_by: text("approved_by"),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_tasks_phase_id").on(table.phase_id),
+  index("IDX_project_tasks_status").on(table.status),
+]);
+
+// Insert schemas for projects
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertProjectPhaseSchema = createInsertSchema(projectPhases).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertProjectTaskSchema = createInsertSchema(projectTasks).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Types for projects
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type Project = typeof projects.$inferSelect;
+
+export type InsertProjectPhase = z.infer<typeof insertProjectPhaseSchema>;
+export type ProjectPhase = typeof projectPhases.$inferSelect;
+
+export type InsertProjectTask = z.infer<typeof insertProjectTaskSchema>;
+export type ProjectTask = typeof projectTasks.$inferSelect;
+
+// View types for joined data
+export type ProjectWithCustomer = Project & {
+  customer: Customer;
+  createdByUser?: User | null;
+};
+
+export type ProjectPhaseWithTasks = ProjectPhase & {
+  tasks: ProjectTask[];
+};
+
+export type ProjectWithDetails = Project & {
+  customer: Customer;
+  phases: ProjectPhaseWithTasks[];
+  createdByUser?: User | null;
+};
+
 // Role permissions for access control
 export const rolePermissions = pgTable("role_permissions", {
   id: serial("id").primaryKey(),
@@ -243,6 +394,7 @@ export const AVAILABLE_PERMISSIONS = [
   { key: "manage_checkouts", label: "Manage Checkouts", description: "Edit and delete checkouts, mark as returned" },
   { key: "view_contracts", label: "View Contracts", description: "View signed contracts" },
   { key: "create_contracts", label: "Create Contracts", description: "Create and sign new contracts" },
+  { key: "manage_projects", label: "Manage Projects", description: "Create, edit, and manage project tracking" },
   { key: "manage_users", label: "Manage Users", description: "Create, edit, and delete users" },
   { key: "view_reports", label: "View Reports", description: "Access activity reports and analytics" },
 ] as const;

@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, type User } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, type User } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
@@ -1197,6 +1197,327 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting contract:", error);
       res.status(500).json({ error: "Failed to delete contract" });
+    }
+  });
+
+  // ============================================
+  // PROJECT TRACKER ROUTES
+  // ============================================
+
+  // List all projects
+  app.get("/api/projects", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projects = await storage.getProjects();
+      res.json(projects);
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  // Get single project with full details (phases and tasks)
+  app.get("/api/projects/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const project = await storage.getProjectWithDetails(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      res.json(project);
+    } catch (error) {
+      console.error("Error fetching project:", error);
+      res.status(500).json({ error: "Failed to fetch project" });
+    }
+  });
+
+  // Create new project
+  app.post("/api/projects", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null;
+      const data = insertProjectSchema.parse(req.body);
+
+      const project = await storage.createProject({
+        ...data,
+        created_by_user_id: userId,
+        created_by_user_name: userName,
+      });
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "create_project",
+        entityType: "project",
+        entityId: project.id.toString(),
+        details: `Created project: ${project.name}`,
+        ipAddress: req.ip,
+      });
+
+      res.status(201).json(project);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating project:", error);
+      res.status(500).json({ error: "Failed to create project" });
+    }
+  });
+
+  // Update project
+  app.patch("/api/projects/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const data = insertProjectSchema.partial().parse(req.body);
+      const project = await storage.updateProject(id, data);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "update_project",
+        entityType: "project",
+        entityId: id.toString(),
+        details: `Updated project: ${project.name}`,
+        ipAddress: req.ip,
+      });
+
+      res.json(project);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating project:", error);
+      res.status(500).json({ error: "Failed to update project" });
+    }
+  });
+
+  // Delete project
+  app.delete("/api/projects/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const project = await storage.getProject(id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const deleted = await storage.deleteProject(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "delete_project",
+        entityType: "project",
+        entityId: id.toString(),
+        details: `Deleted project: ${project.name}`,
+        ipAddress: req.ip,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      res.status(500).json({ error: "Failed to delete project" });
+    }
+  });
+
+  // ============================================
+  // PROJECT PHASES ROUTES
+  // ============================================
+
+  // Add phase to project
+  app.post("/api/projects/:projectId/phases", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify project exists
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get existing phases to determine display order
+      const existingPhases = await storage.getProjectPhases(projectId);
+      const maxOrder = existingPhases.length > 0
+        ? Math.max(...existingPhases.map(p => p.display_order))
+        : 0;
+
+      const data = insertProjectPhaseSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        display_order: req.body.display_order ?? maxOrder + 1,
+      });
+
+      const phase = await storage.createProjectPhase(data);
+      res.status(201).json(phase);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating phase:", error);
+      res.status(500).json({ error: "Failed to create phase" });
+    }
+  });
+
+  // Update phase
+  app.patch("/api/phases/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid phase ID" });
+      }
+      const data = insertProjectPhaseSchema.partial().parse(req.body);
+      const phase = await storage.updateProjectPhase(id, data);
+      if (!phase) {
+        return res.status(404).json({ error: "Phase not found" });
+      }
+      res.json(phase);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating phase:", error);
+      res.status(500).json({ error: "Failed to update phase" });
+    }
+  });
+
+  // Delete phase
+  app.delete("/api/phases/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid phase ID" });
+      }
+      const deleted = await storage.deleteProjectPhase(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Phase not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting phase:", error);
+      res.status(500).json({ error: "Failed to delete phase" });
+    }
+  });
+
+  // Reorder phases
+  app.post("/api/projects/:projectId/phases/reorder", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const { phaseIds } = req.body;
+      if (!Array.isArray(phaseIds)) {
+        return res.status(400).json({ error: "phaseIds must be an array" });
+      }
+      await storage.reorderProjectPhases(projectId, phaseIds);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error reordering phases:", error);
+      res.status(500).json({ error: "Failed to reorder phases" });
+    }
+  });
+
+  // ============================================
+  // PROJECT TASKS ROUTES
+  // ============================================
+
+  // Add task to phase
+  app.post("/api/phases/:phaseId/tasks", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const phaseId = parseInt(req.params.phaseId);
+      if (isNaN(phaseId)) {
+        return res.status(400).json({ error: "Invalid phase ID" });
+      }
+
+      // Verify phase exists
+      const phase = await storage.getProjectPhase(phaseId);
+      if (!phase) {
+        return res.status(404).json({ error: "Phase not found" });
+      }
+
+      // Get existing tasks to determine display order
+      const existingTasks = await storage.getPhaseTasks(phaseId);
+      const maxOrder = existingTasks.length > 0
+        ? Math.max(...existingTasks.map(t => t.display_order))
+        : 0;
+
+      const data = insertProjectTaskSchema.parse({
+        ...req.body,
+        phase_id: phaseId,
+        display_order: req.body.display_order ?? maxOrder + 1,
+      });
+
+      const task = await storage.createProjectTask(data);
+      res.status(201).json(task);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating task:", error);
+      res.status(500).json({ error: "Failed to create task" });
+    }
+  });
+
+  // Update task
+  app.patch("/api/tasks/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid task ID" });
+      }
+      const data = insertProjectTaskSchema.partial().parse(req.body);
+
+      // If marking as completed, set completed_at and completed_by
+      if (data.status === "completed") {
+        data.completed_at = new Date();
+        data.completed_by = req.user?.id;
+      }
+
+      const task = await storage.updateProjectTask(id, data);
+      if (!task) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating task:", error);
+      res.status(500).json({ error: "Failed to update task" });
+    }
+  });
+
+  // Delete task
+  app.delete("/api/tasks/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid task ID" });
+      }
+      const deleted = await storage.deleteProjectTask(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Task not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting task:", error);
+      res.status(500).json({ error: "Failed to delete task" });
     }
   });
 

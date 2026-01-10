@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { PlusCircle, LayoutDashboard, Users, Package, LogOut, Calendar, ChevronDown, FileText, ClipboardList, Shield, Activity } from "lucide-react";
+import { PlusCircle, LayoutDashboard, Users, Package, LogOut, Calendar, ChevronDown, FileText, ClipboardList, Shield, Activity, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +21,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/new", label: "New Checkout", icon: PlusCircle },
     { href: "/agreements", label: "Checkouts", icon: FileText },
     { href: "/contracts", label: "Contracts", icon: ClipboardList },
+    { href: "/projects", label: "Projects", icon: FolderKanban },
     { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },

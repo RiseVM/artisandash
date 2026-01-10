@@ -1,6 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { Customer, Inventory, Checkout, CheckoutView, InsertCustomer, InsertInventory, InsertCheckout, SignedAgreement, InsertSignedAgreement, Contract, InsertContract } from "@shared/schema";
+import type {
+  Customer,
+  Inventory,
+  Checkout,
+  CheckoutView,
+  InsertCustomer,
+  InsertInventory,
+  InsertCheckout,
+  SignedAgreement,
+  InsertSignedAgreement,
+  Contract,
+  InsertContract,
+  Project,
+  ProjectWithCustomer,
+  ProjectWithDetails,
+  ProjectPhase,
+  ProjectTask,
+  InsertProject,
+  InsertProjectPhase,
+  InsertProjectTask,
+} from "@shared/schema";
 
 export function useCustomers() {
   return useQuery<Customer[]>({
@@ -206,6 +226,163 @@ export function useDeleteContract() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+    },
+  });
+}
+
+// ============================================
+// PROJECT TRACKER HOOKS
+// ============================================
+
+export function useProjects() {
+  return useQuery<ProjectWithCustomer[]>({
+    queryKey: ["/api/projects"],
+  });
+}
+
+export function useProject(id: number) {
+  return useQuery<ProjectWithDetails>({
+    queryKey: ["/api/projects", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/projects/${id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch project");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: InsertProject) => {
+      const res = await apiRequest("POST", "/api/projects", data);
+      return res.json() as Promise<Project>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+export function useUpdateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertProject> }) => {
+      const res = await apiRequest("PATCH", `/api/projects/${id}`, data);
+      return res.json() as Promise<Project>;
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", id] });
+    },
+  });
+}
+
+export function useDeleteProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/projects/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+// Project Phases
+export function useCreatePhase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectPhase> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/phases`, data);
+      return res.json() as Promise<ProjectPhase>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+export function useUpdatePhase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data, projectId }: { id: number; data: Partial<InsertProjectPhase>; projectId: number }) => {
+      const res = await apiRequest("PATCH", `/api/phases/${id}`, data);
+      return res.json() as Promise<ProjectPhase>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+export function useDeletePhase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/phases/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+export function useReorderPhases() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, phaseIds }: { projectId: number; phaseIds: number[] }) => {
+      await apiRequest("POST", `/api/projects/${projectId}/phases/reorder`, { phaseIds });
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    },
+  });
+}
+
+// Project Tasks
+export function useCreateTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ phaseId, data, projectId }: { phaseId: number; data: Partial<InsertProjectTask>; projectId: number }) => {
+      const res = await apiRequest("POST", `/api/phases/${phaseId}/tasks`, data);
+      return res.json() as Promise<ProjectTask>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+export function useUpdateTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data, projectId }: { id: number; data: Partial<InsertProjectTask>; projectId: number }) => {
+      const res = await apiRequest("PATCH", `/api/tasks/${id}`, data);
+      return res.json() as Promise<ProjectTask>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+export function useDeleteTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/tasks/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
     },
   });
 }
