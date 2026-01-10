@@ -345,7 +345,15 @@ export async function sendContractEmail(
 // CLIENT PORTAL NOTIFICATION EMAILS
 // ============================================
 
-const PORTAL_BASE_URL = process.env.PORTAL_BASE_URL || 'https://artisantile.replit.app/portal';
+// Build portal URL from environment or Replit variables
+const getPortalBaseUrl = () => {
+  if (process.env.PORTAL_BASE_URL) return process.env.PORTAL_BASE_URL;
+  if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+    return `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/portal`;
+  }
+  return 'https://workspace.risevm.repl.co/portal';
+};
+const PORTAL_BASE_URL = getPortalBaseUrl();
 
 export async function sendPortalInvite(
   customerEmail: string,
