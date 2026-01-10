@@ -3146,7 +3146,9 @@ export async function registerRoutes(
       return res.status(401).json({ error: "Portal access is inactive" });
     }
 
-    req.portalUser = portalUser;
+    // Load the customer's projects for access checks
+    const projects = await storage.getClientProjects(portalUser.customer.id);
+    req.portalUser = { ...portalUser, projects };
     next();
   };
 
