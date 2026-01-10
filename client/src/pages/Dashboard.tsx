@@ -178,6 +178,7 @@ export function Dashboard() {
       const response = await fetch(`/api/checkouts/${checkoutId}/send-reminder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       });
       const data = await response.json();
       if (response.ok) {
