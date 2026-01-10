@@ -895,14 +895,16 @@ export function Dashboard() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={async () => {
+              onClick={async (e) => {
+                e.preventDefault();
                 if (!editingCheckout) return;
                 try {
                   await deleteCheckoutMutation.mutateAsync(editingCheckout.id);
-                  setEditingCheckout(null);
                   setShowDeleteConfirm(false);
+                  setEditingCheckout(null);
                   toast({ title: "Checkout Cancelled", description: "The checkout has been deleted." });
                 } catch (err) {
+                  setShowDeleteConfirm(false);
                   toast({ title: "Error", description: "Failed to delete checkout.", variant: "destructive" });
                 }
               }}
