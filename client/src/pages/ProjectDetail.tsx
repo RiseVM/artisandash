@@ -509,6 +509,17 @@ export function ProjectDetail() {
                                 <span className="shrink-0">{getPhaseStatusIcon(phase.status)}</span>
 
                                 <span className="font-medium truncate">{phase.name}</span>
+
+                                {phase.requires_approval === "yes" && (
+                                  <Badge variant="outline" className="text-xs shrink-0 hidden sm:inline-flex">
+                                    Approval Required
+                                  </Badge>
+                                )}
+                                {phase.client_visible === "no" && (
+                                  <Badge variant="secondary" className="text-xs shrink-0 hidden sm:inline-flex">
+                                    Internal Only
+                                  </Badge>
+                                )}
                               </div>
 
                     <div className="flex items-center gap-2 pl-8 sm:pl-0">
