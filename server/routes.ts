@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, type User, type ClientPortalUser } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
@@ -2448,6 +2448,105 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // PROJECT UPDATES (Activity Feed)
+  // ============================================
+
+  // Get updates for a project
+  app.get("/api/projects/:projectId/updates", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const updates = await storage.getProjectUpdates(projectId, true);
+      res.json(updates);
+    } catch (error) {
+      console.error("Error fetching project updates:", error);
+      res.status(500).json({ error: "Failed to fetch project updates" });
+    }
+  });
+
+  // Create a project update
+  app.post("/api/projects/:projectId/updates", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const userId = req.user?.id;
+      const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null;
+
+      const data = insertProjectUpdateSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        user_id: userId,
+        user_name: userName,
+      });
+
+      const update = await storage.createProjectUpdate(data);
+
+      await storage.createActivityLog({
+        userId,
+        userEmail: req.user?.email,
+        action: "create_project_update",
+        entityType: "project_update",
+        entityId: update.id.toString(),
+        details: `Added update to project "${project.name}": ${update.title || update.update_type}`,
+        ipAddress: req.ip,
+      });
+
+      res.status(201).json(update);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating project update:", error);
+      res.status(500).json({ error: "Failed to create project update" });
+    }
+  });
+
+  // Delete a project update
+  app.delete("/api/updates/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid update ID" });
+      }
+
+      const update = await storage.getProjectUpdate(id);
+      if (!update) {
+        return res.status(404).json({ error: "Update not found" });
+      }
+
+      const deleted = await storage.deleteProjectUpdate(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Update not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "delete_project_update",
+        entityType: "project_update",
+        entityId: id.toString(),
+        details: `Deleted project update: ${update.title || update.update_type}`,
+        ipAddress: req.ip,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting project update:", error);
+      res.status(500).json({ error: "Failed to delete project update" });
+    }
+  });
+
+  // ============================================
   // PROJECT TEMPLATES
   // ============================================
 
@@ -3024,6 +3123,66 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching portal files:", error);
       res.status(500).json({ error: "Failed to fetch files" });
+    }
+  });
+
+  // Portal: Get client-visible updates for a project
+  app.get("/api/portal/projects/:id/updates", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify client has access to this project
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      // Get updates, excluding internal ones
+      const updates = await storage.getProjectUpdates(projectId, false);
+      res.json(updates);
+    } catch (error) {
+      console.error("Error fetching portal updates:", error);
+      res.status(500).json({ error: "Failed to fetch updates" });
+    }
+  });
+
+  // Portal: Add a client update/comment
+  app.post("/api/portal/projects/:id/updates", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify client has access to this project
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      const portalUserId = req.portalUser.id;
+      const clientName = req.portalUser.customer?.name || req.portalUser.email;
+
+      const data = insertProjectUpdateSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        client_portal_user_id: portalUserId,
+        client_name: clientName,
+        update_type: req.body.update_type || "client_comment",
+        is_internal: "no", // Client updates are never internal
+      });
+
+      const update = await storage.createProjectUpdate(data);
+      res.status(201).json(update);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating portal update:", error);
+      res.status(500).json({ error: "Failed to create update" });
     }
   });
 

@@ -43,6 +43,8 @@ import type {
   InsertProjectPayment,
   ProjectFile,
   InsertProjectFile,
+  ProjectUpdate,
+  InsertProjectUpdate,
 } from "@shared/schema";
 
 export function useCustomers() {
@@ -1031,6 +1033,46 @@ export function useDeleteProjectFile() {
     },
     onSuccess: (_, { projectId }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+    },
+  });
+}
+
+// ============================================
+// PROJECT UPDATES HOOKS
+// ============================================
+
+export function useProjectUpdates(projectId: number) {
+  return useQuery<ProjectUpdate[]>({
+    queryKey: ["/api/projects", projectId, "updates"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/updates`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateProjectUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectUpdate> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/updates`, data);
+      return res.json() as Promise<ProjectUpdate>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "updates"] });
+    },
+  });
+}
+
+export function useDeleteProjectUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/updates/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "updates"] });
     },
   });
 }

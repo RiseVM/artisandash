@@ -67,6 +67,7 @@ import { ProjectChangeOrders } from "@/components/ProjectChangeOrders";
 import { ProjectTimeTracking } from "@/components/ProjectTimeTracking";
 import { ProjectPricing } from "@/components/ProjectPricing";
 import { ProjectFiles } from "@/components/ProjectFiles";
+import ProjectActivityFeed from "@/components/ProjectActivityFeed";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -532,6 +533,9 @@ export function ProjectDetail() {
         phases={project.phases}
         canManage={canManageProjects}
       />
+
+      {/* Activity Feed */}
+      <ProjectActivityFeed projectId={projectId} />
 
       {/* Edit Project Dialog */}
       <Dialog open={isEditingProject} onOpenChange={setIsEditingProject}>

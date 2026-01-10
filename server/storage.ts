@@ -78,6 +78,9 @@ import {
   type ProjectLineItemWithRelations,
   type ProjectPayment,
   type InsertProjectPayment,
+  projectUpdates,
+  type ProjectUpdate,
+  type InsertProjectUpdate,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
@@ -257,6 +260,12 @@ export interface IStorage {
   updateProjectPayment(id: number, payment: Partial<InsertProjectPayment>): Promise<ProjectPayment | undefined>;
   deleteProjectPayment(id: number): Promise<boolean>;
   getProjectPaymentSummary(projectId: number): Promise<{ total_due: number; total_paid: number; balance: number }>;
+
+  // Project Updates / Activity Feed
+  getProjectUpdates(projectId: number, includeInternal?: boolean): Promise<ProjectUpdate[]>;
+  getProjectUpdate(id: number): Promise<ProjectUpdate | undefined>;
+  createProjectUpdate(update: InsertProjectUpdate): Promise<ProjectUpdate>;
+  deleteProjectUpdate(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1640,6 +1649,46 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return { total_due, total_paid, balance: total_due - total_paid };
+  }
+
+  // ============================================
+  // PROJECT UPDATES / ACTIVITY FEED
+  // ============================================
+
+  async getProjectUpdates(projectId: number, includeInternal: boolean = true): Promise<ProjectUpdate[]> {
+    if (includeInternal) {
+      return db
+        .select()
+        .from(projectUpdates)
+        .where(eq(projectUpdates.project_id, projectId))
+        .orderBy(desc(projectUpdates.created_at));
+    } else {
+      return db
+        .select()
+        .from(projectUpdates)
+        .where(
+          and(
+            eq(projectUpdates.project_id, projectId),
+            eq(projectUpdates.is_internal, "no")
+          )
+        )
+        .orderBy(desc(projectUpdates.created_at));
+    }
+  }
+
+  async getProjectUpdate(id: number): Promise<ProjectUpdate | undefined> {
+    const [update] = await db.select().from(projectUpdates).where(eq(projectUpdates.id, id));
+    return update;
+  }
+
+  async createProjectUpdate(update: InsertProjectUpdate): Promise<ProjectUpdate> {
+    const [created] = await db.insert(projectUpdates).values(update).returning();
+    return created;
+  }
+
+  async deleteProjectUpdate(id: number): Promise<boolean> {
+    const result = await db.delete(projectUpdates).where(eq(projectUpdates.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

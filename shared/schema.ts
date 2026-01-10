@@ -831,3 +831,43 @@ export const insertProjectPaymentSchema = createInsertSchema(projectPayments).om
 
 export type InsertProjectPayment = z.infer<typeof insertProjectPaymentSchema>;
 export type ProjectPayment = typeof projectPayments.$inferSelect;
+
+// ============================================
+// PROJECT UPDATES / ACTIVITY FEED
+// ============================================
+
+export const projectUpdates = pgTable("project_updates", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  linked_phase_id: integer("linked_phase_id").references(() => projectPhases.id),
+
+  // Author - either admin user or client
+  user_id: text("user_id").references(() => users.id),
+  user_name: text("user_name"),
+  client_portal_user_id: integer("client_portal_user_id"),
+  client_name: text("client_name"),
+
+  // Content
+  update_type: text("update_type").notNull(), // note, status_change, photo, document, message, milestone, system, task_completed, phase_completed
+  title: text("title"),
+  content: text("content"),
+
+  // Visibility
+  is_internal: text("is_internal").default("no").notNull(), // yes | no - if yes, not visible to client
+
+  // Metadata for system-generated updates
+  metadata: text("metadata"), // JSON string for extra data
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_updates_project_id").on(table.project_id),
+  index("IDX_project_updates_created_at").on(table.created_at),
+]);
+
+export const insertProjectUpdateSchema = createInsertSchema(projectUpdates).omit({
+  id: true,
+  created_at: true,
+});
+
+export type InsertProjectUpdate = z.infer<typeof insertProjectUpdateSchema>;
+export type ProjectUpdate = typeof projectUpdates.$inferSelect;
