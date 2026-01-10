@@ -38,7 +38,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, User, Loader2, Trash2, Download, CreditCard, Mail, Key, Globe } from "lucide-react";
+import { Search, Plus, User, Loader2, Trash2, Download, CreditCard, Mail, Key, Globe, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -59,6 +59,7 @@ export function Customers() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [showCreatePortal, setShowCreatePortal] = useState(false);
   const [newPortalPassword, setNewPortalPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
 
   // Fetch portal access when editing a customer
@@ -458,13 +459,24 @@ export function Customers() {
                       Resend Invite
                     </Button>
                     <div className="flex gap-1">
-                      <Input
-                        className="w-32 h-8"
-                        type="password"
-                        placeholder="New password"
-                        value={newPortalPassword}
-                        onChange={(e) => setNewPortalPassword(e.target.value)}
-                      />
+                      <div className="relative">
+                        <Input
+                          className="w-36 h-8 pr-8"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="New password"
+                          value={newPortalPassword}
+                          onChange={(e) => setNewPortalPassword(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-8 w-8 p-0"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
                       <Button
                         variant="outline"
                         size="sm"
@@ -483,13 +495,24 @@ export function Customers() {
               ) : showCreatePortal ? (
                 <div className="space-y-3">
                   <div className="flex gap-2">
-                    <Input
-                      className="flex-1"
-                      type="password"
-                      placeholder="Set initial password"
-                      value={newPortalPassword}
-                      onChange={(e) => setNewPortalPassword(e.target.value)}
-                    />
+                    <div className="relative flex-1">
+                      <Input
+                        className="pr-10"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Set initial password"
+                        value={newPortalPassword}
+                        onChange={(e) => setNewPortalPassword(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                     <Button
                       size="sm"
                       onClick={handleCreatePortalAccess}
