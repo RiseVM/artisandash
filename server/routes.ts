@@ -2871,6 +2871,54 @@ export async function registerRoutes(
     }
   });
 
+  // Portal: Get client-visible deliveries for a project
+  app.get("/api/portal/projects/:id/deliveries", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify client has access to this project
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      const deliveries = await storage.getProjectDeliveries(projectId);
+      // Filter to only client-visible deliveries
+      const clientVisible = deliveries.filter(d => d.client_visible === "yes");
+      res.json(clientVisible);
+    } catch (error) {
+      console.error("Error fetching portal deliveries:", error);
+      res.status(500).json({ error: "Failed to fetch deliveries" });
+    }
+  });
+
+  // Portal: Get client-visible files for a project
+  app.get("/api/portal/projects/:id/files", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify client has access to this project
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      const files = await storage.getProjectFiles(projectId);
+      // Filter to only client-visible files
+      const clientVisible = files.filter(f => f.client_visible === "yes");
+      res.json(clientVisible);
+    } catch (error) {
+      console.error("Error fetching portal files:", error);
+      res.status(500).json({ error: "Failed to fetch files" });
+    }
+  });
+
   // ============================================
   // ADMIN ROUTES FOR MANAGING PORTAL ACCESS
   // ============================================
