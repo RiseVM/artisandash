@@ -16,7 +16,15 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(cat:*)",
-      "Bash(npm run check:*)"
+      "Bash(npm run check:*)",
+      "Bash(find:*)",
+      "Bash(npm run db:push:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run dev:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npx tsx:*)",
+      "Bash(grep:*)",
+      "Bash(wc:*)"
     ]
   }
 }
