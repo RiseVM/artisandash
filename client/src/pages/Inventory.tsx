@@ -111,7 +111,8 @@ export function Inventory() {
     }
   };
 
-  const handleDeleteItem = async () => {
+  const handleDeleteItem = async (e: React.MouseEvent) => {
+    e.preventDefault();
     if (!editingItem) return;
     try {
       await deleteInventoryMutation.mutateAsync(editingItem.id);

@@ -111,7 +111,8 @@ export function Customers() {
     setEditingCustomer(null);
   };
 
-  const handleDeleteCustomer = async () => {
+  const handleDeleteCustomer = async (e: React.MouseEvent) => {
+    e.preventDefault();
     if (!editingCustomer) return;
     try {
       await deleteCustomerMutation.mutateAsync(editingCustomer.id);

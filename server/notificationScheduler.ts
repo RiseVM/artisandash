@@ -104,9 +104,13 @@ export function startScheduler(intervalMinutes: number = 60) {
 
   console.log(`Starting notification scheduler (checking every ${intervalMinutes} minutes)`);
   
-  checkAndSendNotifications().then(results => {
-    console.log(`Initial notification check: ${results.sent} sent, ${results.errors} errors`);
-  });
+  checkAndSendNotifications()
+    .then(results => {
+      console.log(`Initial notification check: ${results.sent} sent, ${results.errors} errors`);
+    })
+    .catch(err => {
+      console.error('Initial notification check failed:', err);
+    });
 
   schedulerInterval = setInterval(async () => {
     console.log('Running scheduled notification check...');

@@ -80,10 +80,11 @@ export function NewSample() {
         title: "Checkout Created",
         description: `${itemIds.length} sample${itemIds.length > 1 ? 's' : ''} checked out successfully.`,
       });
-    } catch (err) {
+    } catch (err: any) {
+      const errorMsg = err?.message || "Failed to create checkout. Please try again.";
       toast({
         title: "Error",
-        description: "Failed to create checkout. Please try again.",
+        description: errorMsg,
         variant: "destructive",
       });
     }

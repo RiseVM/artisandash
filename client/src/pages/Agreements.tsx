@@ -43,13 +43,15 @@ export function Agreements() {
     );
   });
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
     if (!deleteAgreement) return;
     try {
       await deleteAgreementMutation.mutateAsync(deleteAgreement.id);
       toast({ title: "Checkout deleted" });
       setDeleteAgreement(null);
     } catch (err) {
+      setDeleteAgreement(null);
       toast({ title: "Error deleting checkout", variant: "destructive" });
     }
   };
@@ -117,10 +119,10 @@ export function Agreements() {
                         : '-'}
                     </TableCell>
                     <TableCell>
-                      {(agreement as any).google_drive_link ? (
-                        <a 
-                          href={(agreement as any).google_drive_link} 
-                          target="_blank" 
+                      {agreement.google_drive_link ? (
+                        <a
+                          href={agreement.google_drive_link}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:underline flex items-center gap-1"
                           data-testid={`link-drive-${agreement.id}`}
@@ -183,13 +185,13 @@ export function Agreements() {
               </div>
             </div>
             
-            {(selectedAgreement as any)?.google_drive_link && (
+            {selectedAgreement?.google_drive_link && (
               <div>
                 <span className="text-sm text-muted-foreground">Google Drive:</span>
                 <p>
-                  <a 
-                    href={(selectedAgreement as any).google_drive_link} 
-                    target="_blank" 
+                  <a
+                    href={selectedAgreement.google_drive_link}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline flex items-center gap-1"
                     data-testid="link-drive-detail"
@@ -201,12 +203,12 @@ export function Agreements() {
               </div>
             )}
 
-            {(selectedAgreement as any)?.agreement_text && (
+            {selectedAgreement?.agreement_text && (
               <div>
                 <p className="text-sm text-muted-foreground mb-2">Agreement Terms:</p>
                 <div className="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
                   <pre className="whitespace-pre-wrap text-sm font-sans" data-testid="text-agreement-terms">
-                    {(selectedAgreement as any).agreement_text}
+                    {selectedAgreement.agreement_text}
                   </pre>
                 </div>
               </div>

@@ -239,48 +239,73 @@ export function Dashboard() {
   const handleBulkReturn = async () => {
     if (selectedIds.size === 0) return;
     setIsBulkReturning(true);
-    try {
-      const ids = Array.from(selectedIds);
-      for (const id of ids) {
+    const ids = Array.from(selectedIds);
+    const successfulIds: number[] = [];
+    const failedIds: number[] = [];
+
+    for (const id of ids) {
+      try {
         await updateCheckoutMutation.mutateAsync({
           id,
           data: { status: 'returned' }
         });
+        successfulIds.push(id);
+      } catch (err) {
+        failedIds.push(id);
       }
-      toast({
-        title: "Samples Returned",
-        description: `${ids.length} sample${ids.length > 1 ? 's' : ''} marked as returned.`,
+    }
+
+    // Remove successful items from selection
+    if (successfulIds.length > 0) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        successfulIds.forEach(id => next.delete(id));
+        return next;
       });
-      setSelectedIds(new Set());
-    } catch (err) {
+    }
+
+    if (failedIds.length > 0) {
       toast({
-        title: "Error",
-        description: "Failed to mark samples as returned. Please try again.",
+        title: "Partial Error",
+        description: `${successfulIds.length} returned, ${failedIds.length} failed.`,
         variant: "destructive",
       });
-    } finally {
-      setIsBulkReturning(false);
+    } else {
+      toast({
+        title: "Samples Returned",
+        description: `${successfulIds.length} sample${successfulIds.length > 1 ? 's' : ''} marked as returned.`,
+      });
     }
+
+    setIsBulkReturning(false);
   };
 
   const hasCheckedOverdue = useRef(false);
-  
+
   useEffect(() => {
-    if (checkouts.length > 0 && !hasCheckedOverdue.current) {
-      hasCheckedOverdue.current = true;
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const overdueCheckouts = checkouts.filter(
-        c => c.status !== 'returned' && c.due_date < today && c.status !== 'overdue'
-      );
-      
-      overdueCheckouts.forEach(checkout => {
-        updateCheckoutMutation.mutate({
-          id: checkout.id,
-          data: { status: 'overdue' }
-        });
-      });
-    }
-  }, [checkouts]);
+    const markOverdueCheckouts = async () => {
+      if (checkouts.length > 0 && !hasCheckedOverdue.current) {
+        hasCheckedOverdue.current = true;
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const overdueCheckouts = checkouts.filter(
+          c => c.status !== 'returned' && c.due_date < today && c.status !== 'overdue'
+        );
+
+        for (const checkout of overdueCheckouts) {
+          try {
+            await updateCheckoutMutation.mutateAsync({
+              id: checkout.id,
+              data: { status: 'overdue' }
+            });
+          } catch (err) {
+            console.error(`Failed to mark checkout ${checkout.id} as overdue`);
+          }
+        }
+      }
+    };
+
+    markOverdueCheckouts();
+  }, [checkouts, updateCheckoutMutation]);
 
   const handleStatusChange = async (id: number, newStatus: 'checked_out' | 'overdue' | 'returned') => {
     try {
