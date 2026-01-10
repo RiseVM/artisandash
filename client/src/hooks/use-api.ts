@@ -1243,8 +1243,8 @@ export function useDeleteClientFeedback() {
 
 export function useSendPortalInvite() {
   return useMutation({
-    mutationFn: async ({ id, projectName }: { id: number; projectName?: string }) => {
-      const res = await apiRequest("POST", `/api/client-portal-access/${id}/send-invite`, { project_name: projectName });
+    mutationFn: async ({ id, projectName, password }: { id: number; projectName?: string; password: string }) => {
+      const res = await apiRequest("POST", `/api/client-portal-access/${id}/send-invite`, { project_name: projectName, password });
       return res.json();
     },
   });

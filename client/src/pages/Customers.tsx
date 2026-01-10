@@ -168,9 +168,10 @@ export function Customers() {
   };
 
   const handleSendInvite = async () => {
-    if (!portalAccess) return;
+    if (!portalAccess || !newPortalPassword) return;
     try {
-      await sendInviteMutation.mutateAsync({ id: portalAccess.id });
+      await sendInviteMutation.mutateAsync({ id: portalAccess.id, password: newPortalPassword });
+      setNewPortalPassword("");
       toast({ title: "Invite Sent", description: "Portal invite email sent to client." });
     } catch (err: any) {
       toast({ title: "Error", description: err?.message || "Failed to send invite.", variant: "destructive" });
@@ -449,7 +450,8 @@ export function Customers() {
                       variant="outline"
                       size="sm"
                       onClick={handleSendInvite}
-                      disabled={sendInviteMutation.isPending}
+                      disabled={!newPortalPassword || sendInviteMutation.isPending}
+                      title={!newPortalPassword ? "Enter a password first" : "Send invite with new password"}
                     >
                       {sendInviteMutation.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin mr-1" />
