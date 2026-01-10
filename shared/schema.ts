@@ -871,3 +871,43 @@ export const insertProjectUpdateSchema = createInsertSchema(projectUpdates).omit
 
 export type InsertProjectUpdate = z.infer<typeof insertProjectUpdateSchema>;
 export type ProjectUpdate = typeof projectUpdates.$inferSelect;
+
+// Project Messages - Two-way messaging between admin and client
+export const projectMessages = pgTable("project_messages", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+
+  // Sender - either admin user or client portal user
+  sender_type: text("sender_type").notNull(), // "admin" | "client"
+  sender_user_id: text("sender_user_id").references(() => users.id), // For admin
+  sender_portal_user_id: integer("sender_portal_user_id"), // For client
+  sender_name: text("sender_name").notNull(),
+
+  // Message content
+  subject: text("subject"),
+  content: text("content").notNull(),
+
+  // Read status
+  read_by_admin: text("read_by_admin").default("no").notNull(), // "yes" | "no"
+  read_by_admin_at: timestamp("read_by_admin_at"),
+  read_by_client: text("read_by_client").default("no").notNull(), // "yes" | "no"
+  read_by_client_at: timestamp("read_by_client_at"),
+
+  // Threading (optional)
+  reply_to_id: integer("reply_to_id"),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_messages_project_id").on(table.project_id),
+  index("IDX_project_messages_created_at").on(table.created_at),
+]);
+
+export const insertProjectMessageSchema = createInsertSchema(projectMessages).omit({
+  id: true,
+  created_at: true,
+  read_by_admin_at: true,
+  read_by_client_at: true,
+});
+
+export type InsertProjectMessage = z.infer<typeof insertProjectMessageSchema>;
+export type ProjectMessage = typeof projectMessages.$inferSelect;

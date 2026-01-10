@@ -39,6 +39,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PortalMessages } from "@/components/PortalMessages";
 import type { ProjectWithDetails, ChangeOrder, ProjectDelivery, ProjectFile } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
@@ -592,6 +593,9 @@ export function PortalProject() {
           </div>
         )}
       </div>
+
+      {/* Messages */}
+      <PortalMessages projectId={projectId} />
 
       {/* Change Order Approval Dialog */}
       <Dialog open={!!approveChangeOrder} onOpenChange={(open) => !open && setApproveChangeOrder(null)}>

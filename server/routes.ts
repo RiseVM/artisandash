@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, type User, type ClientPortalUser } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
@@ -2547,6 +2547,137 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // PROJECT MESSAGES
+  // ============================================
+
+  // Get messages for a project (admin)
+  app.get("/api/projects/:projectId/messages", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const messages = await storage.getProjectMessages(projectId);
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching project messages:", error);
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  // Get unread message count for admin
+  app.get("/api/projects/:projectId/messages/unread-count", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const count = await storage.getUnreadMessageCountForAdmin(projectId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ error: "Failed to fetch unread count" });
+    }
+  });
+
+  // Send a message (admin)
+  app.post("/api/projects/:projectId/messages", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const userId = req.user?.id;
+      const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : "Admin";
+
+      const data = insertProjectMessageSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        sender_type: "admin",
+        sender_user_id: userId,
+        sender_name: userName,
+        read_by_admin: "yes", // Admin's own message is read
+      });
+
+      const message = await storage.createProjectMessage(data);
+
+      await storage.createActivityLog({
+        userId,
+        userEmail: req.user?.email,
+        action: "send_message",
+        entityType: "project_message",
+        entityId: message.id.toString(),
+        details: `Sent message to client for project "${project.name}"`,
+        ipAddress: req.ip,
+      });
+
+      res.status(201).json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error sending message:", error);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // Mark all messages as read by admin
+  app.post("/api/projects/:projectId/messages/mark-read", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      await storage.markAllMessagesReadByAdmin(projectId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+      res.status(500).json({ error: "Failed to mark messages as read" });
+    }
+  });
+
+  // Delete a message (admin only)
+  app.delete("/api/messages/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid message ID" });
+      }
+
+      const message = await storage.getProjectMessage(id);
+      if (!message) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+
+      const deleted = await storage.deleteProjectMessage(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "delete_message",
+        entityType: "project_message",
+        entityId: id.toString(),
+        details: "Deleted project message",
+        ipAddress: req.ip,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      res.status(500).json({ error: "Failed to delete message" });
+    }
+  });
+
+  // ============================================
   // PROJECT TEMPLATES
   // ============================================
 
@@ -3183,6 +3314,107 @@ export async function registerRoutes(
       }
       console.error("Error creating portal update:", error);
       res.status(500).json({ error: "Failed to create update" });
+    }
+  });
+
+  // Portal: Get messages for a project
+  app.get("/api/portal/projects/:id/messages", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify client has access to this project
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      const messages = await storage.getProjectMessages(projectId);
+      res.json(messages);
+    } catch (error) {
+      console.error("Error fetching portal messages:", error);
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  // Portal: Get unread message count
+  app.get("/api/portal/projects/:id/messages/unread-count", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      const count = await storage.getUnreadMessageCountForClient(projectId);
+      res.json({ count });
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+      res.status(500).json({ error: "Failed to fetch unread count" });
+    }
+  });
+
+  // Portal: Send a message
+  app.post("/api/portal/projects/:id/messages", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify client has access to this project
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      const portalUserId = req.portalUser.id;
+      const clientName = req.portalUser.customer?.name || req.portalUser.email;
+
+      const data = insertProjectMessageSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        sender_type: "client",
+        sender_portal_user_id: portalUserId,
+        sender_name: clientName,
+        read_by_client: "yes", // Client's own message is read
+      });
+
+      const message = await storage.createProjectMessage(data);
+      res.status(201).json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error sending portal message:", error);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  // Portal: Mark all messages as read
+  app.post("/api/portal/projects/:id/messages/mark-read", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      await storage.markAllMessagesReadByClient(projectId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+      res.status(500).json({ error: "Failed to mark messages as read" });
     }
   });
 

@@ -81,6 +81,9 @@ import {
   projectUpdates,
   type ProjectUpdate,
   type InsertProjectUpdate,
+  projectMessages,
+  type ProjectMessage,
+  type InsertProjectMessage,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
@@ -266,6 +269,18 @@ export interface IStorage {
   getProjectUpdate(id: number): Promise<ProjectUpdate | undefined>;
   createProjectUpdate(update: InsertProjectUpdate): Promise<ProjectUpdate>;
   deleteProjectUpdate(id: number): Promise<boolean>;
+
+  // Project Messages
+  getProjectMessages(projectId: number): Promise<ProjectMessage[]>;
+  getProjectMessage(id: number): Promise<ProjectMessage | undefined>;
+  createProjectMessage(message: InsertProjectMessage): Promise<ProjectMessage>;
+  markMessageReadByAdmin(id: number): Promise<ProjectMessage | undefined>;
+  markMessageReadByClient(id: number): Promise<ProjectMessage | undefined>;
+  markAllMessagesReadByAdmin(projectId: number): Promise<void>;
+  markAllMessagesReadByClient(projectId: number): Promise<void>;
+  getUnreadMessageCountForAdmin(projectId: number): Promise<number>;
+  getUnreadMessageCountForClient(projectId: number): Promise<number>;
+  deleteProjectMessage(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1688,6 +1703,100 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProjectUpdate(id: number): Promise<boolean> {
     const result = await db.delete(projectUpdates).where(eq(projectUpdates.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // Project Messages
+  async getProjectMessages(projectId: number): Promise<ProjectMessage[]> {
+    return db
+      .select()
+      .from(projectMessages)
+      .where(eq(projectMessages.project_id, projectId))
+      .orderBy(asc(projectMessages.created_at));
+  }
+
+  async getProjectMessage(id: number): Promise<ProjectMessage | undefined> {
+    const [message] = await db.select().from(projectMessages).where(eq(projectMessages.id, id));
+    return message;
+  }
+
+  async createProjectMessage(message: InsertProjectMessage): Promise<ProjectMessage> {
+    const [created] = await db.insert(projectMessages).values(message).returning();
+    return created;
+  }
+
+  async markMessageReadByAdmin(id: number): Promise<ProjectMessage | undefined> {
+    const [updated] = await db
+      .update(projectMessages)
+      .set({ read_by_admin: "yes", read_by_admin_at: new Date() })
+      .where(eq(projectMessages.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markMessageReadByClient(id: number): Promise<ProjectMessage | undefined> {
+    const [updated] = await db
+      .update(projectMessages)
+      .set({ read_by_client: "yes", read_by_client_at: new Date() })
+      .where(eq(projectMessages.id, id))
+      .returning();
+    return updated;
+  }
+
+  async markAllMessagesReadByAdmin(projectId: number): Promise<void> {
+    await db
+      .update(projectMessages)
+      .set({ read_by_admin: "yes", read_by_admin_at: new Date() })
+      .where(
+        and(
+          eq(projectMessages.project_id, projectId),
+          eq(projectMessages.read_by_admin, "no")
+        )
+      );
+  }
+
+  async markAllMessagesReadByClient(projectId: number): Promise<void> {
+    await db
+      .update(projectMessages)
+      .set({ read_by_client: "yes", read_by_client_at: new Date() })
+      .where(
+        and(
+          eq(projectMessages.project_id, projectId),
+          eq(projectMessages.read_by_client, "no")
+        )
+      );
+  }
+
+  async getUnreadMessageCountForAdmin(projectId: number): Promise<number> {
+    const messages = await db
+      .select()
+      .from(projectMessages)
+      .where(
+        and(
+          eq(projectMessages.project_id, projectId),
+          eq(projectMessages.read_by_admin, "no"),
+          eq(projectMessages.sender_type, "client")
+        )
+      );
+    return messages.length;
+  }
+
+  async getUnreadMessageCountForClient(projectId: number): Promise<number> {
+    const messages = await db
+      .select()
+      .from(projectMessages)
+      .where(
+        and(
+          eq(projectMessages.project_id, projectId),
+          eq(projectMessages.read_by_client, "no"),
+          eq(projectMessages.sender_type, "admin")
+        )
+      );
+    return messages.length;
+  }
+
+  async deleteProjectMessage(id: number): Promise<boolean> {
+    const result = await db.delete(projectMessages).where(eq(projectMessages.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 }

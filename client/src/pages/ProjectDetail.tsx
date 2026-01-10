@@ -68,6 +68,7 @@ import { ProjectTimeTracking } from "@/components/ProjectTimeTracking";
 import { ProjectPricing } from "@/components/ProjectPricing";
 import { ProjectFiles } from "@/components/ProjectFiles";
 import ProjectActivityFeed from "@/components/ProjectActivityFeed";
+import { ProjectMessages } from "@/components/ProjectMessages";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -536,6 +537,9 @@ export function ProjectDetail() {
 
       {/* Activity Feed */}
       <ProjectActivityFeed projectId={projectId} />
+
+      {/* Client Messages */}
+      <ProjectMessages projectId={projectId} />
 
       {/* Edit Project Dialog */}
       <Dialog open={isEditingProject} onOpenChange={setIsEditingProject}>

@@ -45,6 +45,8 @@ import type {
   InsertProjectFile,
   ProjectUpdate,
   InsertProjectUpdate,
+  ProjectMessage,
+  InsertProjectMessage,
 } from "@shared/schema";
 
 export function useCustomers() {
@@ -1073,6 +1075,71 @@ export function useDeleteProjectUpdate() {
     },
     onSuccess: (_, { projectId }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "updates"] });
+    },
+  });
+}
+
+// ============================================
+// PROJECT MESSAGES HOOKS
+// ============================================
+
+export function useProjectMessages(projectId: number) {
+  return useQuery<ProjectMessage[]>({
+    queryKey: ["/api/projects", projectId, "messages"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/messages`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useUnreadMessageCount(projectId: number) {
+  return useQuery<{ count: number }>({
+    queryKey: ["/api/projects", projectId, "messages", "unread-count"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/messages/unread-count`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useSendProjectMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectMessage> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/messages`, data);
+      return res.json() as Promise<ProjectMessage>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "messages", "unread-count"] });
+    },
+  });
+}
+
+export function useMarkMessagesRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId }: { projectId: number }) => {
+      await apiRequest("POST", `/api/projects/${projectId}/messages/mark-read`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "messages", "unread-count"] });
+    },
+  });
+}
+
+export function useDeleteProjectMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/messages/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "messages"] });
     },
   });
 }
