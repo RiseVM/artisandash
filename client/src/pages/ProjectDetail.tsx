@@ -10,6 +10,7 @@ import {
   useCreateTask,
   useUpdateTask,
   useDeleteTask,
+  useChangeOrders,
 } from "@/hooks/use-api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -63,6 +64,9 @@ import {
 import type { ProjectPhase, ProjectTask, ProjectPhaseWithTasks } from "@shared/schema";
 import { ProjectDeliveries } from "@/components/ProjectDeliveries";
 import { ProjectChangeOrders } from "@/components/ProjectChangeOrders";
+import { ProjectTimeTracking } from "@/components/ProjectTimeTracking";
+import { ProjectPricing } from "@/components/ProjectPricing";
+import { ProjectFiles } from "@/components/ProjectFiles";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -94,6 +98,7 @@ export function ProjectDetail() {
   const { toast } = useToast();
 
   const { data: project, isLoading } = useProject(projectId);
+  const { data: changeOrders = [] } = useChangeOrders(projectId);
   const updateProjectMutation = useUpdateProject();
   const deleteProjectMutation = useDeleteProject();
   const createPhaseMutation = useCreatePhase();
@@ -501,6 +506,28 @@ export function ProjectDetail() {
 
       {/* Change Orders */}
       <ProjectChangeOrders
+        projectId={projectId}
+        phases={project.phases}
+        canManage={canManageProjects}
+      />
+
+      {/* Time Tracking */}
+      <ProjectTimeTracking
+        projectId={projectId}
+        phases={project.phases}
+        canManage={canManageProjects}
+      />
+
+      {/* Pricing & Payments */}
+      <ProjectPricing
+        projectId={projectId}
+        phases={project.phases}
+        changeOrders={changeOrders}
+        canManage={canManageProjects}
+      />
+
+      {/* Files & Photos */}
+      <ProjectFiles
         projectId={projectId}
         phases={project.phases}
         canManage={canManageProjects}
