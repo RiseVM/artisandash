@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, type User } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, type User } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
@@ -1518,6 +1518,353 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting task:", error);
       res.status(500).json({ error: "Failed to delete task" });
+    }
+  });
+
+  // ============================================
+  // PROJECT TEMPLATES
+  // ============================================
+
+  // Get all project templates
+  app.get("/api/project-templates", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const templates = await storage.getProjectTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching project templates:", error);
+      res.status(500).json({ error: "Failed to fetch project templates" });
+    }
+  });
+
+  // Get project template with details
+  app.get("/api/project-templates/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid template ID" });
+      }
+      const template = await storage.getProjectTemplateWithDetails(id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching project template:", error);
+      res.status(500).json({ error: "Failed to fetch project template" });
+    }
+  });
+
+  // Create project template
+  app.post("/api/project-templates", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const userName = req.user?.email || "Unknown";
+      const data = insertProjectTemplateSchema.parse(req.body);
+      const template = await storage.createProjectTemplate({
+        ...data,
+        created_by_user_id: userId,
+        created_by_user_name: userName,
+      });
+
+      await storage.createActivityLog({
+        userId,
+        userEmail: userName,
+        action: "create_project_template",
+        entityType: "project_template",
+        entityId: template.id.toString(),
+        details: `Created project template: ${template.name}`,
+      });
+
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating project template:", error);
+      res.status(500).json({ error: "Failed to create project template" });
+    }
+  });
+
+  // Update project template
+  app.patch("/api/project-templates/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid template ID" });
+      }
+      const data = insertProjectTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateProjectTemplate(id, data);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "update_project_template",
+        entityType: "project_template",
+        entityId: id.toString(),
+        details: `Updated project template: ${template.name}`,
+      });
+
+      res.json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating project template:", error);
+      res.status(500).json({ error: "Failed to update project template" });
+    }
+  });
+
+  // Delete project template
+  app.delete("/api/project-templates/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid template ID" });
+      }
+
+      const template = await storage.getProjectTemplate(id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      const deleted = await storage.deleteProjectTemplate(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "delete_project_template",
+        entityType: "project_template",
+        entityId: id.toString(),
+        details: `Deleted project template: ${template.name}`,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting project template:", error);
+      res.status(500).json({ error: "Failed to delete project template" });
+    }
+  });
+
+  // ============================================
+  // PHASE TEMPLATES
+  // ============================================
+
+  // Add phase to template
+  app.post("/api/project-templates/:templateId/phases", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.templateId);
+      if (isNaN(templateId)) {
+        return res.status(400).json({ error: "Invalid template ID" });
+      }
+
+      const template = await storage.getProjectTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      // Get current phases to determine display order
+      const existingPhases = await storage.getPhaseTemplates(templateId);
+      const displayOrder = existingPhases.length + 1;
+
+      const data = insertPhaseTemplateSchema.partial().parse(req.body);
+      const phase = await storage.createPhaseTemplate({
+        project_template_id: templateId,
+        name: data.name || "New Phase",
+        description: data.description,
+        display_order: displayOrder,
+        client_visible: data.client_visible || "yes",
+        requires_approval: data.requires_approval || "no",
+      });
+
+      res.status(201).json(phase);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating phase template:", error);
+      res.status(500).json({ error: "Failed to create phase template" });
+    }
+  });
+
+  // Update phase template
+  app.patch("/api/phase-templates/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid phase template ID" });
+      }
+      const data = insertPhaseTemplateSchema.partial().parse(req.body);
+      const phase = await storage.updatePhaseTemplate(id, data);
+      if (!phase) {
+        return res.status(404).json({ error: "Phase template not found" });
+      }
+      res.json(phase);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating phase template:", error);
+      res.status(500).json({ error: "Failed to update phase template" });
+    }
+  });
+
+  // Delete phase template
+  app.delete("/api/phase-templates/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid phase template ID" });
+      }
+      const deleted = await storage.deletePhaseTemplate(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Phase template not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting phase template:", error);
+      res.status(500).json({ error: "Failed to delete phase template" });
+    }
+  });
+
+  // Reorder phase templates
+  app.post("/api/project-templates/:templateId/phases/reorder", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.templateId);
+      if (isNaN(templateId)) {
+        return res.status(400).json({ error: "Invalid template ID" });
+      }
+      const { phaseIds } = req.body;
+      if (!Array.isArray(phaseIds)) {
+        return res.status(400).json({ error: "phaseIds must be an array" });
+      }
+      await storage.reorderPhaseTemplates(templateId, phaseIds);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error reordering phase templates:", error);
+      res.status(500).json({ error: "Failed to reorder phase templates" });
+    }
+  });
+
+  // ============================================
+  // TASK TEMPLATES
+  // ============================================
+
+  // Add task to phase template
+  app.post("/api/phase-templates/:phaseId/tasks", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const phaseId = parseInt(req.params.phaseId);
+      if (isNaN(phaseId)) {
+        return res.status(400).json({ error: "Invalid phase template ID" });
+      }
+
+      // Get current tasks to determine display order
+      const existingTasks = await storage.getTaskTemplates(phaseId);
+      const displayOrder = existingTasks.length + 1;
+
+      const data = insertTaskTemplateSchema.partial().parse(req.body);
+      const task = await storage.createTaskTemplate({
+        phase_template_id: phaseId,
+        name: data.name || "New Task",
+        description: data.description,
+        display_order: displayOrder,
+        client_visible: data.client_visible || "yes",
+        requires_approval: data.requires_approval || "no",
+      });
+
+      res.status(201).json(task);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating task template:", error);
+      res.status(500).json({ error: "Failed to create task template" });
+    }
+  });
+
+  // Update task template
+  app.patch("/api/task-templates/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid task template ID" });
+      }
+      const data = insertTaskTemplateSchema.partial().parse(req.body);
+      const task = await storage.updateTaskTemplate(id, data);
+      if (!task) {
+        return res.status(404).json({ error: "Task template not found" });
+      }
+      res.json(task);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating task template:", error);
+      res.status(500).json({ error: "Failed to update task template" });
+    }
+  });
+
+  // Delete task template
+  app.delete("/api/task-templates/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid task template ID" });
+      }
+      const deleted = await storage.deleteTaskTemplate(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Task template not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting task template:", error);
+      res.status(500).json({ error: "Failed to delete task template" });
+    }
+  });
+
+  // ============================================
+  // CREATE PROJECT FROM TEMPLATE
+  // ============================================
+
+  // Create project from template
+  app.post("/api/projects/from-template/:templateId", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const templateId = parseInt(req.params.templateId);
+      if (isNaN(templateId)) {
+        return res.status(400).json({ error: "Invalid template ID" });
+      }
+
+      const userId = req.user?.id;
+      const userName = req.user?.email || "Unknown";
+      const data = insertProjectSchema.parse(req.body);
+
+      const project = await storage.createProjectFromTemplate(templateId, {
+        ...data,
+        created_by_user_id: userId,
+        created_by_user_name: userName,
+      });
+
+      await storage.createActivityLog({
+        userId,
+        userEmail: userName,
+        action: "create_project_from_template",
+        entityType: "project",
+        entityId: project.id.toString(),
+        details: `Created project from template: ${project.name}`,
+      });
+
+      res.status(201).json(project);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating project from template:", error);
+      res.status(500).json({ error: "Failed to create project from template" });
     }
   });
 

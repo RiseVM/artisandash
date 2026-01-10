@@ -369,6 +369,95 @@ export type ProjectWithDetails = Project & {
   createdByUser?: User | null;
 };
 
+// ============================================
+// PROJECT TEMPLATES
+// ============================================
+
+// Project Templates - Reusable project structures
+export const projectTemplates = pgTable("project_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  is_active: text("is_active").default("yes").notNull(), // yes | no
+
+  // Metadata
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Phase Templates - Phases within a project template
+export const phaseTemplates = pgTable("phase_templates", {
+  id: serial("id").primaryKey(),
+  project_template_id: integer("project_template_id").references(() => projectTemplates.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  display_order: integer("display_order").notNull(),
+
+  // Client visibility and approval defaults
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+  requires_approval: text("requires_approval").default("no").notNull(), // yes | no
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_phase_templates_project_template_id").on(table.project_template_id),
+]);
+
+// Task Templates - Tasks within a phase template
+export const taskTemplates = pgTable("task_templates", {
+  id: serial("id").primaryKey(),
+  phase_template_id: integer("phase_template_id").references(() => phaseTemplates.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  display_order: integer("display_order").notNull(),
+
+  // Client visibility and approval defaults
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+  requires_approval: text("requires_approval").default("no").notNull(), // yes | no
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_task_templates_phase_template_id").on(table.phase_template_id),
+]);
+
+// Insert schemas for templates
+export const insertProjectTemplateSchema = createInsertSchema(projectTemplates).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertPhaseTemplateSchema = createInsertSchema(phaseTemplates).omit({
+  id: true,
+  created_at: true,
+});
+
+export const insertTaskTemplateSchema = createInsertSchema(taskTemplates).omit({
+  id: true,
+  created_at: true,
+});
+
+// Types for templates
+export type InsertProjectTemplate = z.infer<typeof insertProjectTemplateSchema>;
+export type ProjectTemplate = typeof projectTemplates.$inferSelect;
+
+export type InsertPhaseTemplate = z.infer<typeof insertPhaseTemplateSchema>;
+export type PhaseTemplate = typeof phaseTemplates.$inferSelect;
+
+export type InsertTaskTemplate = z.infer<typeof insertTaskTemplateSchema>;
+export type TaskTemplate = typeof taskTemplates.$inferSelect;
+
+// View types for templates
+export type PhaseTemplateWithTasks = PhaseTemplate & {
+  tasks: TaskTemplate[];
+};
+
+export type ProjectTemplateWithDetails = ProjectTemplate & {
+  phases: PhaseTemplateWithTasks[];
+  createdByUser?: User | null;
+};
+
 // Role permissions for access control
 export const rolePermissions = pgTable("role_permissions", {
   id: serial("id").primaryKey(),

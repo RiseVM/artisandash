@@ -20,6 +20,13 @@ import type {
   InsertProject,
   InsertProjectPhase,
   InsertProjectTask,
+  ProjectTemplate,
+  ProjectTemplateWithDetails,
+  PhaseTemplate,
+  TaskTemplate,
+  InsertProjectTemplate,
+  InsertPhaseTemplate,
+  InsertTaskTemplate,
 } from "@shared/schema";
 
 export function useCustomers() {
@@ -382,6 +389,177 @@ export function useDeleteTask() {
     },
     onSuccess: (_, { projectId }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+// ============================================
+// PROJECT TEMPLATE HOOKS
+// ============================================
+
+export function useProjectTemplates() {
+  return useQuery<ProjectTemplate[]>({
+    queryKey: ["/api/project-templates"],
+  });
+}
+
+export function useProjectTemplate(id: number) {
+  return useQuery<ProjectTemplateWithDetails>({
+    queryKey: ["/api/project-templates", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/project-templates/${id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch template");
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+export function useCreateProjectTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (data: Partial<InsertProjectTemplate>) => {
+      const res = await apiRequest("POST", "/api/project-templates", data);
+      return res.json() as Promise<ProjectTemplate>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+    },
+  });
+}
+
+export function useUpdateProjectTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<InsertProjectTemplate> }) => {
+      const res = await apiRequest("PATCH", `/api/project-templates/${id}`, data);
+      return res.json() as Promise<ProjectTemplate>;
+    },
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", id] });
+    },
+  });
+}
+
+export function useDeleteProjectTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/project-templates/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+    },
+  });
+}
+
+// Phase Templates
+export function useCreatePhaseTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ templateId, data }: { templateId: number; data: Partial<InsertPhaseTemplate> }) => {
+      const res = await apiRequest("POST", `/api/project-templates/${templateId}/phases`, data);
+      return res.json() as Promise<PhaseTemplate>;
+    },
+    onSuccess: (_, { templateId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+    },
+  });
+}
+
+export function useUpdatePhaseTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data, templateId }: { id: number; data: Partial<InsertPhaseTemplate>; templateId: number }) => {
+      const res = await apiRequest("PATCH", `/api/phase-templates/${id}`, data);
+      return res.json() as Promise<PhaseTemplate>;
+    },
+    onSuccess: (_, { templateId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+    },
+  });
+}
+
+export function useDeletePhaseTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, templateId }: { id: number; templateId: number }) => {
+      await apiRequest("DELETE", `/api/phase-templates/${id}`);
+    },
+    onSuccess: (_, { templateId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+    },
+  });
+}
+
+export function useReorderPhaseTemplates() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ templateId, phaseIds }: { templateId: number; phaseIds: number[] }) => {
+      await apiRequest("POST", `/api/project-templates/${templateId}/phases/reorder`, { phaseIds });
+    },
+    onSuccess: (_, { templateId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId] });
+    },
+  });
+}
+
+// Task Templates
+export function useCreateTaskTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ phaseId, data, templateId }: { phaseId: number; data: Partial<InsertTaskTemplate>; templateId: number }) => {
+      const res = await apiRequest("POST", `/api/phase-templates/${phaseId}/tasks`, data);
+      return res.json() as Promise<TaskTemplate>;
+    },
+    onSuccess: (_, { templateId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+    },
+  });
+}
+
+export function useUpdateTaskTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, data, templateId }: { id: number; data: Partial<InsertTaskTemplate>; templateId: number }) => {
+      const res = await apiRequest("PATCH", `/api/task-templates/${id}`, data);
+      return res.json() as Promise<TaskTemplate>;
+    },
+    onSuccess: (_, { templateId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+    },
+  });
+}
+
+export function useDeleteTaskTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, templateId }: { id: number; templateId: number }) => {
+      await apiRequest("DELETE", `/api/task-templates/${id}`);
+    },
+    onSuccess: (_, { templateId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates", templateId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
+    },
+  });
+}
+
+// Create project from template
+export function useCreateProjectFromTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ templateId, data }: { templateId: number; data: Partial<InsertProject> }) => {
+      const res = await apiRequest("POST", `/api/projects/from-template/${templateId}`, data);
+      return res.json() as Promise<Project>;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
     },
   });

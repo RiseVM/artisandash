@@ -19,6 +19,7 @@ import { UserManagement } from "@/pages/UserManagement";
 import { ActivityReports } from "@/pages/ActivityReports";
 import { Projects } from "@/pages/Projects";
 import { ProjectDetail } from "@/pages/ProjectDetail";
+import { ProjectTemplates } from "@/pages/ProjectTemplates";
 import { Landing } from "@/pages/Landing";
 import { LoginFailed } from "@/pages/LoginFailed";
 import { useAuth } from "@/hooks/useAuth";
@@ -55,6 +56,7 @@ function Router() {
             <Route path="/contracts/home-improvement" component={HomeImprovementContractForm} />
             <Route path="/projects" component={Projects} />
             <Route path="/projects/:id" component={ProjectDetail} />
+            <Route path="/project-templates" component={ProjectTemplates} />
             <Route path="/admin/users" component={UserManagement} />
             <Route path="/admin/activity" component={ActivityReports} />
             <Route component={NotFound} />

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useProjects, useCustomers, useCreateProject, useDeleteProject } from "@/hooks/use-api";
+import { useProjects, useCustomers, useCreateProject, useDeleteProject, useProjectTemplates, useCreateProjectFromTemplate } from "@/hooks/use-api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ import {
   ChevronRight,
   Calendar,
   User,
+  Layers,
 } from "lucide-react";
 import type { ProjectWithCustomer } from "@shared/schema";
 
@@ -73,19 +74,24 @@ export function Projects() {
   const { toast } = useToast();
   const { data: projects = [], isLoading } = useProjects();
   const { data: customers = [] } = useCustomers();
+  const { data: templates = [] } = useProjectTemplates();
   const createProjectMutation = useCreateProject();
+  const createFromTemplateMutation = useCreateProjectFromTemplate();
   const deleteProjectMutation = useDeleteProject();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [deleteProject, setDeleteProject] = useState<ProjectWithCustomer | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [newProject, setNewProject] = useState({
     name: "",
     customer_id: 0,
     description: "",
     status: "active",
   });
+
+  const activeTemplates = templates.filter(t => t.is_active === "yes");
 
   const canManageProjects = hasPermission("manage_projects");
 
@@ -108,14 +114,30 @@ export function Projects() {
     }
 
     try {
-      const project = await createProjectMutation.mutateAsync({
-        name: newProject.name,
-        customer_id: newProject.customer_id,
-        description: newProject.description || null,
-        status: newProject.status,
-      });
+      let project;
+      if (selectedTemplateId) {
+        // Create from template
+        project = await createFromTemplateMutation.mutateAsync({
+          templateId: selectedTemplateId,
+          data: {
+            name: newProject.name,
+            customer_id: newProject.customer_id,
+            description: newProject.description || null,
+            status: newProject.status,
+          },
+        });
+      } else {
+        // Create blank project
+        project = await createProjectMutation.mutateAsync({
+          name: newProject.name,
+          customer_id: newProject.customer_id,
+          description: newProject.description || null,
+          status: newProject.status,
+        });
+      }
       setIsAddOpen(false);
       setNewProject({ name: "", customer_id: 0, description: "", status: "active" });
+      setSelectedTemplateId(null);
       toast({ title: "Project Created", description: `${project.name} has been created.` });
       // Navigate to the new project
       setLocation(`/projects/${project.id}`);
@@ -278,12 +300,52 @@ export function Projects() {
       </Card>
 
       {/* Add Project Dialog */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog open={isAddOpen} onOpenChange={(open) => {
+        setIsAddOpen(open);
+        if (!open) {
+          setSelectedTemplateId(null);
+          setNewProject({ name: "", customer_id: 0, description: "", status: "active" });
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create New Project</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {activeTemplates.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="template">Start from Template</Label>
+                <Select
+                  value={selectedTemplateId?.toString() || "blank"}
+                  onValueChange={(value) => setSelectedTemplateId(value === "blank" ? null : parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="blank">
+                      <div className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Blank Project
+                      </div>
+                    </SelectItem>
+                    {activeTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id.toString()}>
+                        <div className="flex items-center gap-2">
+                          <Layers className="h-4 w-4" />
+                          {template.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedTemplateId && (
+                  <p className="text-xs text-muted-foreground">
+                    Project will be created with phases and tasks from the template.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="name">Project Name *</Label>
               <Input
@@ -340,8 +402,8 @@ export function Projects() {
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateProject} disabled={createProjectMutation.isPending}>
-              {createProjectMutation.isPending ? (
+            <Button onClick={handleCreateProject} disabled={createProjectMutation.isPending || createFromTemplateMutation.isPending}>
+              {(createProjectMutation.isPending || createFromTemplateMutation.isPending) ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Creating...

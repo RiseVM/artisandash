@@ -12,6 +12,9 @@ import {
   projects,
   projectPhases,
   projectTasks,
+  projectTemplates,
+  phaseTemplates,
+  taskTemplates,
   type Customer,
   type Inventory,
   type Checkout,
@@ -41,6 +44,14 @@ import {
   type ProjectWithCustomer,
   type ProjectWithDetails,
   type ProjectPhaseWithTasks,
+  type ProjectTemplate,
+  type InsertProjectTemplate,
+  type PhaseTemplate,
+  type InsertPhaseTemplate,
+  type TaskTemplate,
+  type InsertTaskTemplate,
+  type PhaseTemplateWithTasks,
+  type ProjectTemplateWithDetails,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
@@ -134,6 +145,30 @@ export interface IStorage {
   createProjectTask(task: InsertProjectTask): Promise<ProjectTask>;
   updateProjectTask(id: number, task: Partial<InsertProjectTask>): Promise<ProjectTask | undefined>;
   deleteProjectTask(id: number): Promise<boolean>;
+
+  // Project Templates
+  getProjectTemplates(): Promise<ProjectTemplate[]>;
+  getProjectTemplate(id: number): Promise<ProjectTemplate | undefined>;
+  getProjectTemplateWithDetails(id: number): Promise<ProjectTemplateWithDetails | undefined>;
+  createProjectTemplate(template: InsertProjectTemplate): Promise<ProjectTemplate>;
+  updateProjectTemplate(id: number, template: Partial<InsertProjectTemplate>): Promise<ProjectTemplate | undefined>;
+  deleteProjectTemplate(id: number): Promise<boolean>;
+
+  // Phase Templates
+  getPhaseTemplates(templateId: number): Promise<PhaseTemplate[]>;
+  createPhaseTemplate(phase: InsertPhaseTemplate): Promise<PhaseTemplate>;
+  updatePhaseTemplate(id: number, phase: Partial<InsertPhaseTemplate>): Promise<PhaseTemplate | undefined>;
+  deletePhaseTemplate(id: number): Promise<boolean>;
+  reorderPhaseTemplates(templateId: number, phaseIds: number[]): Promise<void>;
+
+  // Task Templates
+  getTaskTemplates(phaseId: number): Promise<TaskTemplate[]>;
+  createTaskTemplate(task: InsertTaskTemplate): Promise<TaskTemplate>;
+  updateTaskTemplate(id: number, task: Partial<InsertTaskTemplate>): Promise<TaskTemplate | undefined>;
+  deleteTaskTemplate(id: number): Promise<boolean>;
+
+  // Create project from template
+  createProjectFromTemplate(templateId: number, projectData: InsertProject): Promise<Project>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -822,6 +857,200 @@ export class DatabaseStorage implements IStorage {
     await this.updatePhaseProgress(existing.phase_id);
 
     return result.length > 0;
+  }
+
+  // ============================================
+  // PROJECT TEMPLATES
+  // ============================================
+
+  async getProjectTemplates(): Promise<ProjectTemplate[]> {
+    return db
+      .select()
+      .from(projectTemplates)
+      .orderBy(desc(projectTemplates.created_at));
+  }
+
+  async getProjectTemplate(id: number): Promise<ProjectTemplate | undefined> {
+    const [template] = await db.select().from(projectTemplates).where(eq(projectTemplates.id, id));
+    return template;
+  }
+
+  async getProjectTemplateWithDetails(id: number): Promise<ProjectTemplateWithDetails | undefined> {
+    // Get template with user
+    const templateResult = await db
+      .select({
+        template: projectTemplates,
+        user: users,
+      })
+      .from(projectTemplates)
+      .leftJoin(users, eq(projectTemplates.created_by_user_id, users.id))
+      .where(eq(projectTemplates.id, id));
+
+    if (!templateResult[0]) return undefined;
+
+    // Get phases for this template
+    const phases = await db
+      .select()
+      .from(phaseTemplates)
+      .where(eq(phaseTemplates.project_template_id, id))
+      .orderBy(asc(phaseTemplates.display_order));
+
+    // Get tasks for each phase
+    const phasesWithTasks: PhaseTemplateWithTasks[] = await Promise.all(
+      phases.map(async (phase) => {
+        const tasks = await db
+          .select()
+          .from(taskTemplates)
+          .where(eq(taskTemplates.phase_template_id, phase.id))
+          .orderBy(asc(taskTemplates.display_order));
+        return { ...phase, tasks };
+      })
+    );
+
+    return {
+      ...templateResult[0].template,
+      phases: phasesWithTasks,
+      createdByUser: templateResult[0].user || null,
+    };
+  }
+
+  async createProjectTemplate(template: InsertProjectTemplate): Promise<ProjectTemplate> {
+    const [result] = await db.insert(projectTemplates).values(template).returning();
+    return result;
+  }
+
+  async updateProjectTemplate(id: number, template: Partial<InsertProjectTemplate>): Promise<ProjectTemplate | undefined> {
+    const [result] = await db
+      .update(projectTemplates)
+      .set({ ...template, updated_at: new Date() })
+      .where(eq(projectTemplates.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProjectTemplate(id: number): Promise<boolean> {
+    // Phases and tasks will cascade delete due to foreign key constraints
+    const result = await db.delete(projectTemplates).where(eq(projectTemplates.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ============================================
+  // PHASE TEMPLATES
+  // ============================================
+
+  async getPhaseTemplates(templateId: number): Promise<PhaseTemplate[]> {
+    return db
+      .select()
+      .from(phaseTemplates)
+      .where(eq(phaseTemplates.project_template_id, templateId))
+      .orderBy(asc(phaseTemplates.display_order));
+  }
+
+  async createPhaseTemplate(phase: InsertPhaseTemplate): Promise<PhaseTemplate> {
+    const [result] = await db.insert(phaseTemplates).values(phase).returning();
+    return result;
+  }
+
+  async updatePhaseTemplate(id: number, phase: Partial<InsertPhaseTemplate>): Promise<PhaseTemplate | undefined> {
+    const [result] = await db
+      .update(phaseTemplates)
+      .set(phase)
+      .where(eq(phaseTemplates.id, id))
+      .returning();
+    return result;
+  }
+
+  async deletePhaseTemplate(id: number): Promise<boolean> {
+    // Tasks will cascade delete due to foreign key constraints
+    const result = await db.delete(phaseTemplates).where(eq(phaseTemplates.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async reorderPhaseTemplates(templateId: number, phaseIds: number[]): Promise<void> {
+    for (let i = 0; i < phaseIds.length; i++) {
+      await db
+        .update(phaseTemplates)
+        .set({ display_order: i + 1 })
+        .where(and(eq(phaseTemplates.id, phaseIds[i]), eq(phaseTemplates.project_template_id, templateId)));
+    }
+  }
+
+  // ============================================
+  // TASK TEMPLATES
+  // ============================================
+
+  async getTaskTemplates(phaseId: number): Promise<TaskTemplate[]> {
+    return db
+      .select()
+      .from(taskTemplates)
+      .where(eq(taskTemplates.phase_template_id, phaseId))
+      .orderBy(asc(taskTemplates.display_order));
+  }
+
+  async createTaskTemplate(task: InsertTaskTemplate): Promise<TaskTemplate> {
+    const [result] = await db.insert(taskTemplates).values(task).returning();
+    return result;
+  }
+
+  async updateTaskTemplate(id: number, task: Partial<InsertTaskTemplate>): Promise<TaskTemplate | undefined> {
+    const [result] = await db
+      .update(taskTemplates)
+      .set(task)
+      .where(eq(taskTemplates.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteTaskTemplate(id: number): Promise<boolean> {
+    const result = await db.delete(taskTemplates).where(eq(taskTemplates.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ============================================
+  // CREATE PROJECT FROM TEMPLATE
+  // ============================================
+
+  async createProjectFromTemplate(templateId: number, projectData: InsertProject): Promise<Project> {
+    // Get the template with all details
+    const template = await this.getProjectTemplateWithDetails(templateId);
+    if (!template) {
+      throw new Error("Template not found");
+    }
+
+    // Create the project
+    const [project] = await db.insert(projects).values(projectData).returning();
+
+    // Create phases from template
+    for (const phaseTemplate of template.phases) {
+      const [phase] = await db
+        .insert(projectPhases)
+        .values({
+          project_id: project.id,
+          name: phaseTemplate.name,
+          description: phaseTemplate.description,
+          display_order: phaseTemplate.display_order,
+          client_visible: phaseTemplate.client_visible,
+          requires_approval: phaseTemplate.requires_approval,
+          status: "not_started",
+          progress: 0,
+        })
+        .returning();
+
+      // Create tasks for this phase from template
+      for (const taskTemplate of phaseTemplate.tasks) {
+        await db.insert(projectTasks).values({
+          phase_id: phase.id,
+          name: taskTemplate.name,
+          description: taskTemplate.description,
+          display_order: taskTemplate.display_order,
+          client_visible: taskTemplate.client_visible,
+          requires_approval: taskTemplate.requires_approval,
+          status: "pending",
+        });
+      }
+    }
+
+    return project;
   }
 }
 
