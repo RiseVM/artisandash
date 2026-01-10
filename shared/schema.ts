@@ -652,3 +652,182 @@ export type ProjectDeliveryWithPhase = ProjectDelivery & {
 export type ChangeOrderWithPhase = ChangeOrder & {
   phase?: ProjectPhase | null;
 };
+
+// ============================================
+// PROJECT FILES
+// ============================================
+
+// Project Files - Attachments for projects, phases, tasks, etc.
+export const projectFiles = pgTable("project_files", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+
+  // Link to specific entity
+  entity_type: text("entity_type").notNull(), // project | phase | task | delivery | change_order
+  entity_id: integer("entity_id"),
+
+  // File info
+  name: text("name").notNull(),
+  file_url: text("file_url").notNull(),
+  file_size: integer("file_size"),
+  mime_type: text("mime_type"),
+
+  // Categorization
+  category: text("category"), // document | photo | receipt | contract | other
+  description: text("description"),
+
+  // Photo-specific fields
+  is_photo: text("is_photo").default("no").notNull(), // yes | no
+  thumbnail_url: text("thumbnail_url"),
+  photo_type: text("photo_type"), // before | during | after | issue | other
+
+  // Client visibility
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+
+  // Metadata
+  uploaded_by_user_id: varchar("uploaded_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  uploaded_by_user_name: varchar("uploaded_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_files_project_id").on(table.project_id),
+  index("IDX_project_files_entity").on(table.entity_type, table.entity_id),
+]);
+
+export const insertProjectFileSchema = createInsertSchema(projectFiles).omit({
+  id: true,
+  created_at: true,
+});
+
+export type InsertProjectFile = z.infer<typeof insertProjectFileSchema>;
+export type ProjectFile = typeof projectFiles.$inferSelect;
+
+// ============================================
+// TIME TRACKING
+// ============================================
+
+// Time Entries - Track hours worked on projects
+export const timeEntries = pgTable("time_entries", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  linked_phase_id: integer("linked_phase_id").references(() => projectPhases.id, { onDelete: 'set null' }),
+
+  // Who and when
+  user_id: varchar("user_id").references(() => users.id, { onDelete: 'set null' }),
+  user_name: varchar("user_name"),
+  entry_date: text("entry_date").notNull(),
+
+  // Time
+  hours: numeric("hours", { precision: 5, scale: 2 }).notNull(),
+
+  // Categorization
+  category: text("category"), // labor | design | consultation | travel | admin | other
+  description: text("description"),
+
+  // Billing
+  is_billable: text("is_billable").default("yes").notNull(), // yes | no
+  hourly_rate: numeric("hourly_rate", { precision: 10, scale: 2 }),
+
+  // Client visibility
+  client_visible: text("client_visible").default("no").notNull(), // yes | no
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_time_entries_project_id").on(table.project_id),
+  index("IDX_time_entries_user_id").on(table.user_id),
+  index("IDX_time_entries_date").on(table.entry_date),
+]);
+
+export const insertTimeEntrySchema = createInsertSchema(timeEntries).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertTimeEntry = z.infer<typeof insertTimeEntrySchema>;
+export type TimeEntry = typeof timeEntries.$inferSelect;
+
+export type TimeEntryWithPhase = TimeEntry & {
+  phase?: ProjectPhase | null;
+};
+
+// ============================================
+// PROJECT PRICING
+// ============================================
+
+// Project Line Items - Cost breakdown
+export const projectLineItems = pgTable("project_line_items", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  linked_phase_id: integer("linked_phase_id").references(() => projectPhases.id, { onDelete: 'set null' }),
+  linked_change_order_id: integer("linked_change_order_id").references(() => changeOrders.id, { onDelete: 'set null' }),
+
+  // Item details
+  category: text("category"), // materials | labor | equipment | subcontractor | permit | other
+  description: text("description").notNull(),
+
+  // Pricing
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).default("1").notNull(),
+  unit: text("unit"), // each | sqft | linear ft | hour | lot | etc
+  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+
+  // Client visibility
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_line_items_project_id").on(table.project_id),
+]);
+
+export const insertProjectLineItemSchema = createInsertSchema(projectLineItems).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertProjectLineItem = z.infer<typeof insertProjectLineItemSchema>;
+export type ProjectLineItem = typeof projectLineItems.$inferSelect;
+
+export type ProjectLineItemWithRelations = ProjectLineItem & {
+  phase?: ProjectPhase | null;
+  changeOrder?: ChangeOrder | null;
+};
+
+// Project Payments - Payment tracking
+export const projectPayments = pgTable("project_payments", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+
+  // Payment details
+  description: text("description").notNull(),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+
+  // Dates
+  due_date: text("due_date"),
+  paid_date: text("paid_date"),
+
+  // Status
+  status: text("status").default("pending").notNull(), // pending | paid | overdue | cancelled
+
+  // Payment info
+  payment_method: text("payment_method"), // cash | check | card | transfer | other
+  reference_number: text("reference_number"),
+  notes: text("notes"),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_payments_project_id").on(table.project_id),
+  index("IDX_project_payments_status").on(table.status),
+]);
+
+export const insertProjectPaymentSchema = createInsertSchema(projectPayments).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertProjectPayment = z.infer<typeof insertProjectPaymentSchema>;
+export type ProjectPayment = typeof projectPayments.$inferSelect;

@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, type User, type ClientPortalUser } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
@@ -1929,6 +1929,413 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting change order:", error);
       res.status(500).json({ error: "Failed to delete change order" });
+    }
+  });
+
+  // ============================================
+  // TIME ENTRIES
+  // ============================================
+
+  // Get time entries for a project
+  app.get("/api/projects/:projectId/time-entries", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const entries = await storage.getTimeEntries(projectId);
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching time entries:", error);
+      res.status(500).json({ error: "Failed to fetch time entries" });
+    }
+  });
+
+  // Get time totals for a project
+  app.get("/api/projects/:projectId/time-totals", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const totals = await storage.getProjectTimeTotal(projectId);
+      res.json(totals);
+    } catch (error) {
+      console.error("Error fetching time totals:", error);
+      res.status(500).json({ error: "Failed to fetch time totals" });
+    }
+  });
+
+  // Create a time entry
+  app.post("/api/projects/:projectId/time-entries", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const userId = req.user?.id;
+      const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null;
+
+      const data = insertTimeEntrySchema.parse({
+        ...req.body,
+        project_id: projectId,
+        user_id: userId,
+        user_name: userName,
+      });
+
+      const entry = await storage.createTimeEntry(data);
+      res.status(201).json(entry);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating time entry:", error);
+      res.status(500).json({ error: "Failed to create time entry" });
+    }
+  });
+
+  // Update a time entry
+  app.patch("/api/time-entries/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid time entry ID" });
+      }
+      const data = insertTimeEntrySchema.partial().parse(req.body);
+      const entry = await storage.updateTimeEntry(id, data);
+      if (!entry) {
+        return res.status(404).json({ error: "Time entry not found" });
+      }
+      res.json(entry);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating time entry:", error);
+      res.status(500).json({ error: "Failed to update time entry" });
+    }
+  });
+
+  // Delete a time entry
+  app.delete("/api/time-entries/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid time entry ID" });
+      }
+      const deleted = await storage.deleteTimeEntry(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Time entry not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting time entry:", error);
+      res.status(500).json({ error: "Failed to delete time entry" });
+    }
+  });
+
+  // ============================================
+  // PROJECT LINE ITEMS
+  // ============================================
+
+  // Get line items for a project
+  app.get("/api/projects/:projectId/line-items", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const items = await storage.getProjectLineItems(projectId);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching line items:", error);
+      res.status(500).json({ error: "Failed to fetch line items" });
+    }
+  });
+
+  // Get project total
+  app.get("/api/projects/:projectId/total", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const total = await storage.getProjectTotal(projectId);
+      res.json(total);
+    } catch (error) {
+      console.error("Error fetching project total:", error);
+      res.status(500).json({ error: "Failed to fetch project total" });
+    }
+  });
+
+  // Create a line item
+  app.post("/api/projects/:projectId/line-items", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const data = insertProjectLineItemSchema.parse({
+        ...req.body,
+        project_id: projectId,
+      });
+
+      const item = await storage.createProjectLineItem(data);
+      res.status(201).json(item);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating line item:", error);
+      res.status(500).json({ error: "Failed to create line item" });
+    }
+  });
+
+  // Update a line item
+  app.patch("/api/line-items/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid line item ID" });
+      }
+      const data = insertProjectLineItemSchema.partial().parse(req.body);
+      const item = await storage.updateProjectLineItem(id, data);
+      if (!item) {
+        return res.status(404).json({ error: "Line item not found" });
+      }
+      res.json(item);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating line item:", error);
+      res.status(500).json({ error: "Failed to update line item" });
+    }
+  });
+
+  // Delete a line item
+  app.delete("/api/line-items/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid line item ID" });
+      }
+      const deleted = await storage.deleteProjectLineItem(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Line item not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting line item:", error);
+      res.status(500).json({ error: "Failed to delete line item" });
+    }
+  });
+
+  // ============================================
+  // PROJECT PAYMENTS
+  // ============================================
+
+  // Get payments for a project
+  app.get("/api/projects/:projectId/payments", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const payments = await storage.getProjectPayments(projectId);
+      res.json(payments);
+    } catch (error) {
+      console.error("Error fetching payments:", error);
+      res.status(500).json({ error: "Failed to fetch payments" });
+    }
+  });
+
+  // Get payment summary for a project
+  app.get("/api/projects/:projectId/payment-summary", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const summary = await storage.getProjectPaymentSummary(projectId);
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching payment summary:", error);
+      res.status(500).json({ error: "Failed to fetch payment summary" });
+    }
+  });
+
+  // Create a payment
+  app.post("/api/projects/:projectId/payments", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const data = insertProjectPaymentSchema.parse({
+        ...req.body,
+        project_id: projectId,
+      });
+
+      const payment = await storage.createProjectPayment(data);
+      res.status(201).json(payment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating payment:", error);
+      res.status(500).json({ error: "Failed to create payment" });
+    }
+  });
+
+  // Update a payment
+  app.patch("/api/payments/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid payment ID" });
+      }
+      const data = insertProjectPaymentSchema.partial().parse(req.body);
+      const payment = await storage.updateProjectPayment(id, data);
+      if (!payment) {
+        return res.status(404).json({ error: "Payment not found" });
+      }
+      res.json(payment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating payment:", error);
+      res.status(500).json({ error: "Failed to update payment" });
+    }
+  });
+
+  // Delete a payment
+  app.delete("/api/payments/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid payment ID" });
+      }
+      const deleted = await storage.deleteProjectPayment(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Payment not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting payment:", error);
+      res.status(500).json({ error: "Failed to delete payment" });
+    }
+  });
+
+  // ============================================
+  // PROJECT FILES
+  // ============================================
+
+  // Get files for a project
+  app.get("/api/projects/:projectId/files", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const files = await storage.getProjectFiles(projectId);
+      res.json(files);
+    } catch (error) {
+      console.error("Error fetching files:", error);
+      res.status(500).json({ error: "Failed to fetch files" });
+    }
+  });
+
+  // Create a file record
+  app.post("/api/projects/:projectId/files", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const userId = req.user?.id;
+      const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null;
+
+      const data = insertProjectFileSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        uploaded_by_user_id: userId,
+        uploaded_by_user_name: userName,
+      });
+
+      const file = await storage.createProjectFile(data);
+      res.status(201).json(file);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating file record:", error);
+      res.status(500).json({ error: "Failed to create file record" });
+    }
+  });
+
+  // Update a file record
+  app.patch("/api/files/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid file ID" });
+      }
+      const data = insertProjectFileSchema.partial().parse(req.body);
+      const file = await storage.updateProjectFile(id, data);
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      res.json(file);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating file:", error);
+      res.status(500).json({ error: "Failed to update file" });
+    }
+  });
+
+  // Delete a file record
+  app.delete("/api/files/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid file ID" });
+      }
+      const deleted = await storage.deleteProjectFile(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      res.status(500).json({ error: "Failed to delete file" });
     }
   });
 

@@ -33,6 +33,16 @@ import type {
   ChangeOrder,
   ChangeOrderWithPhase,
   InsertChangeOrder,
+  TimeEntry,
+  TimeEntryWithPhase,
+  InsertTimeEntry,
+  ProjectLineItem,
+  ProjectLineItemWithRelations,
+  InsertProjectLineItem,
+  ProjectPayment,
+  InsertProjectPayment,
+  ProjectFile,
+  InsertProjectFile,
 } from "@shared/schema";
 
 export function useCustomers() {
@@ -718,6 +728,260 @@ export function useDeleteChangeOrder() {
     onSuccess: (_, { projectId }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "change-orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    },
+  });
+}
+
+// ============================================
+// TIME ENTRIES HOOKS
+// ============================================
+
+export function useTimeEntries(projectId: number) {
+  return useQuery<TimeEntryWithPhase[]>({
+    queryKey: ["/api/projects", projectId, "time-entries"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/time-entries`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useTimeTotals(projectId: number) {
+  return useQuery<{ total_hours: number; billable_hours: number }>({
+    queryKey: ["/api/projects", projectId, "time-totals"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/time-totals`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateTimeEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertTimeEntry> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/time-entries`, data);
+      return res.json() as Promise<TimeEntry>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "time-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "time-totals"] });
+    },
+  });
+}
+
+export function useUpdateTimeEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: Partial<InsertTimeEntry> }) => {
+      const res = await apiRequest("PATCH", `/api/time-entries/${id}`, data);
+      return res.json() as Promise<TimeEntry>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "time-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "time-totals"] });
+    },
+  });
+}
+
+export function useDeleteTimeEntry() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/time-entries/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "time-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "time-totals"] });
+    },
+  });
+}
+
+// ============================================
+// LINE ITEMS HOOKS
+// ============================================
+
+export function useLineItems(projectId: number) {
+  return useQuery<ProjectLineItemWithRelations[]>({
+    queryKey: ["/api/projects", projectId, "line-items"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/line-items`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useProjectTotal(projectId: number) {
+  return useQuery<{ total: number }>({
+    queryKey: ["/api/projects", projectId, "total"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/total`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateLineItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectLineItem> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/line-items`, data);
+      return res.json() as Promise<ProjectLineItem>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "line-items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "total"] });
+    },
+  });
+}
+
+export function useUpdateLineItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: Partial<InsertProjectLineItem> }) => {
+      const res = await apiRequest("PATCH", `/api/line-items/${id}`, data);
+      return res.json() as Promise<ProjectLineItem>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "line-items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "total"] });
+    },
+  });
+}
+
+export function useDeleteLineItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/line-items/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "line-items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "total"] });
+    },
+  });
+}
+
+// ============================================
+// PAYMENTS HOOKS
+// ============================================
+
+export function usePayments(projectId: number) {
+  return useQuery<ProjectPayment[]>({
+    queryKey: ["/api/projects", projectId, "payments"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/payments`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function usePaymentSummary(projectId: number) {
+  return useQuery<{ total_due: number; total_paid: number; balance: number }>({
+    queryKey: ["/api/projects", projectId, "payment-summary"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/payment-summary`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useCreatePayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectPayment> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/payments`, data);
+      return res.json() as Promise<ProjectPayment>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "payments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "payment-summary"] });
+    },
+  });
+}
+
+export function useUpdatePayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: Partial<InsertProjectPayment> }) => {
+      const res = await apiRequest("PATCH", `/api/payments/${id}`, data);
+      return res.json() as Promise<ProjectPayment>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "payments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "payment-summary"] });
+    },
+  });
+}
+
+export function useDeletePayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/payments/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "payments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "payment-summary"] });
+    },
+  });
+}
+
+// ============================================
+// PROJECT FILES HOOKS
+// ============================================
+
+export function useProjectFiles(projectId: number) {
+  return useQuery<ProjectFile[]>({
+    queryKey: ["/api/projects", projectId, "files"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/files`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateProjectFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectFile> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/files`, data);
+      return res.json() as Promise<ProjectFile>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+    },
+  });
+}
+
+export function useUpdateProjectFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: Partial<InsertProjectFile> }) => {
+      const res = await apiRequest("PATCH", `/api/files/${id}`, data);
+      return res.json() as Promise<ProjectFile>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
+    },
+  });
+}
+
+export function useDeleteProjectFile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/files/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "files"] });
     },
   });
 }

@@ -64,6 +64,20 @@ import {
   type ChangeOrder,
   type InsertChangeOrder,
   type ChangeOrderWithPhase,
+  projectFiles,
+  timeEntries,
+  projectLineItems,
+  projectPayments,
+  type ProjectFile,
+  type InsertProjectFile,
+  type TimeEntry,
+  type InsertTimeEntry,
+  type TimeEntryWithPhase,
+  type ProjectLineItem,
+  type InsertProjectLineItem,
+  type ProjectLineItemWithRelations,
+  type ProjectPayment,
+  type InsertProjectPayment,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
@@ -211,6 +225,38 @@ export interface IStorage {
   deleteChangeOrder(id: number): Promise<boolean>;
   approveChangeOrder(id: number, approvedBy: string, signature: string): Promise<ChangeOrder | undefined>;
   rejectChangeOrder(id: number, rejectionReason: string): Promise<ChangeOrder | undefined>;
+
+  // Project Files
+  getProjectFiles(projectId: number): Promise<ProjectFile[]>;
+  getEntityFiles(entityType: string, entityId: number): Promise<ProjectFile[]>;
+  getProjectFile(id: number): Promise<ProjectFile | undefined>;
+  createProjectFile(file: InsertProjectFile): Promise<ProjectFile>;
+  updateProjectFile(id: number, file: Partial<InsertProjectFile>): Promise<ProjectFile | undefined>;
+  deleteProjectFile(id: number): Promise<boolean>;
+
+  // Time Entries
+  getTimeEntries(projectId: number): Promise<TimeEntryWithPhase[]>;
+  getTimeEntry(id: number): Promise<TimeEntry | undefined>;
+  createTimeEntry(entry: InsertTimeEntry): Promise<TimeEntry>;
+  updateTimeEntry(id: number, entry: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined>;
+  deleteTimeEntry(id: number): Promise<boolean>;
+  getProjectTimeTotal(projectId: number): Promise<{ total_hours: number; billable_hours: number }>;
+
+  // Project Line Items
+  getProjectLineItems(projectId: number): Promise<ProjectLineItemWithRelations[]>;
+  getProjectLineItem(id: number): Promise<ProjectLineItem | undefined>;
+  createProjectLineItem(item: InsertProjectLineItem): Promise<ProjectLineItem>;
+  updateProjectLineItem(id: number, item: Partial<InsertProjectLineItem>): Promise<ProjectLineItem | undefined>;
+  deleteProjectLineItem(id: number): Promise<boolean>;
+  getProjectTotal(projectId: number): Promise<{ total: number }>;
+
+  // Project Payments
+  getProjectPayments(projectId: number): Promise<ProjectPayment[]>;
+  getProjectPayment(id: number): Promise<ProjectPayment | undefined>;
+  createProjectPayment(payment: InsertProjectPayment): Promise<ProjectPayment>;
+  updateProjectPayment(id: number, payment: Partial<InsertProjectPayment>): Promise<ProjectPayment | undefined>;
+  deleteProjectPayment(id: number): Promise<boolean>;
+  getProjectPaymentSummary(projectId: number): Promise<{ total_due: number; total_paid: number; balance: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1372,6 +1418,228 @@ export class DatabaseStorage implements IStorage {
       .where(eq(changeOrders.id, id))
       .returning();
     return result;
+  }
+
+  // ============================================
+  // PROJECT FILES
+  // ============================================
+
+  async getProjectFiles(projectId: number): Promise<ProjectFile[]> {
+    return db
+      .select()
+      .from(projectFiles)
+      .where(eq(projectFiles.project_id, projectId))
+      .orderBy(desc(projectFiles.created_at));
+  }
+
+  async getEntityFiles(entityType: string, entityId: number): Promise<ProjectFile[]> {
+    return db
+      .select()
+      .from(projectFiles)
+      .where(and(eq(projectFiles.entity_type, entityType), eq(projectFiles.entity_id, entityId)))
+      .orderBy(desc(projectFiles.created_at));
+  }
+
+  async getProjectFile(id: number): Promise<ProjectFile | undefined> {
+    const [file] = await db.select().from(projectFiles).where(eq(projectFiles.id, id));
+    return file;
+  }
+
+  async createProjectFile(file: InsertProjectFile): Promise<ProjectFile> {
+    const [result] = await db.insert(projectFiles).values(file).returning();
+    return result;
+  }
+
+  async updateProjectFile(id: number, file: Partial<InsertProjectFile>): Promise<ProjectFile | undefined> {
+    const [result] = await db
+      .update(projectFiles)
+      .set(file)
+      .where(eq(projectFiles.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProjectFile(id: number): Promise<boolean> {
+    const result = await db.delete(projectFiles).where(eq(projectFiles.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ============================================
+  // TIME ENTRIES
+  // ============================================
+
+  async getTimeEntries(projectId: number): Promise<TimeEntryWithPhase[]> {
+    const result = await db
+      .select({
+        entry: timeEntries,
+        phase: projectPhases,
+      })
+      .from(timeEntries)
+      .leftJoin(projectPhases, eq(timeEntries.linked_phase_id, projectPhases.id))
+      .where(eq(timeEntries.project_id, projectId))
+      .orderBy(desc(timeEntries.entry_date));
+
+    return result.map((row) => ({
+      ...row.entry,
+      phase: row.phase || null,
+    }));
+  }
+
+  async getTimeEntry(id: number): Promise<TimeEntry | undefined> {
+    const [entry] = await db.select().from(timeEntries).where(eq(timeEntries.id, id));
+    return entry;
+  }
+
+  async createTimeEntry(entry: InsertTimeEntry): Promise<TimeEntry> {
+    const [result] = await db.insert(timeEntries).values(entry).returning();
+    return result;
+  }
+
+  async updateTimeEntry(id: number, entry: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined> {
+    const [result] = await db
+      .update(timeEntries)
+      .set({ ...entry, updated_at: new Date() })
+      .where(eq(timeEntries.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteTimeEntry(id: number): Promise<boolean> {
+    const result = await db.delete(timeEntries).where(eq(timeEntries.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getProjectTimeTotal(projectId: number): Promise<{ total_hours: number; billable_hours: number }> {
+    const entries = await db
+      .select()
+      .from(timeEntries)
+      .where(eq(timeEntries.project_id, projectId));
+
+    let total_hours = 0;
+    let billable_hours = 0;
+    for (const entry of entries) {
+      const hours = parseFloat(entry.hours);
+      total_hours += hours;
+      if (entry.is_billable === "yes") {
+        billable_hours += hours;
+      }
+    }
+    return { total_hours, billable_hours };
+  }
+
+  // ============================================
+  // PROJECT LINE ITEMS
+  // ============================================
+
+  async getProjectLineItems(projectId: number): Promise<ProjectLineItemWithRelations[]> {
+    const result = await db
+      .select({
+        item: projectLineItems,
+        phase: projectPhases,
+        changeOrder: changeOrders,
+      })
+      .from(projectLineItems)
+      .leftJoin(projectPhases, eq(projectLineItems.linked_phase_id, projectPhases.id))
+      .leftJoin(changeOrders, eq(projectLineItems.linked_change_order_id, changeOrders.id))
+      .where(eq(projectLineItems.project_id, projectId))
+      .orderBy(asc(projectLineItems.id));
+
+    return result.map((row) => ({
+      ...row.item,
+      phase: row.phase || null,
+      changeOrder: row.changeOrder || null,
+    }));
+  }
+
+  async getProjectLineItem(id: number): Promise<ProjectLineItem | undefined> {
+    const [item] = await db.select().from(projectLineItems).where(eq(projectLineItems.id, id));
+    return item;
+  }
+
+  async createProjectLineItem(item: InsertProjectLineItem): Promise<ProjectLineItem> {
+    const [result] = await db.insert(projectLineItems).values(item).returning();
+    return result;
+  }
+
+  async updateProjectLineItem(id: number, item: Partial<InsertProjectLineItem>): Promise<ProjectLineItem | undefined> {
+    const [result] = await db
+      .update(projectLineItems)
+      .set({ ...item, updated_at: new Date() })
+      .where(eq(projectLineItems.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProjectLineItem(id: number): Promise<boolean> {
+    const result = await db.delete(projectLineItems).where(eq(projectLineItems.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getProjectTotal(projectId: number): Promise<{ total: number }> {
+    const items = await db
+      .select()
+      .from(projectLineItems)
+      .where(eq(projectLineItems.project_id, projectId));
+
+    let total = 0;
+    for (const item of items) {
+      total += parseFloat(item.total);
+    }
+    return { total };
+  }
+
+  // ============================================
+  // PROJECT PAYMENTS
+  // ============================================
+
+  async getProjectPayments(projectId: number): Promise<ProjectPayment[]> {
+    return db
+      .select()
+      .from(projectPayments)
+      .where(eq(projectPayments.project_id, projectId))
+      .orderBy(asc(projectPayments.due_date));
+  }
+
+  async getProjectPayment(id: number): Promise<ProjectPayment | undefined> {
+    const [payment] = await db.select().from(projectPayments).where(eq(projectPayments.id, id));
+    return payment;
+  }
+
+  async createProjectPayment(payment: InsertProjectPayment): Promise<ProjectPayment> {
+    const [result] = await db.insert(projectPayments).values(payment).returning();
+    return result;
+  }
+
+  async updateProjectPayment(id: number, payment: Partial<InsertProjectPayment>): Promise<ProjectPayment | undefined> {
+    const [result] = await db
+      .update(projectPayments)
+      .set({ ...payment, updated_at: new Date() })
+      .where(eq(projectPayments.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProjectPayment(id: number): Promise<boolean> {
+    const result = await db.delete(projectPayments).where(eq(projectPayments.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getProjectPaymentSummary(projectId: number): Promise<{ total_due: number; total_paid: number; balance: number }> {
+    const payments = await db
+      .select()
+      .from(projectPayments)
+      .where(eq(projectPayments.project_id, projectId));
+
+    let total_due = 0;
+    let total_paid = 0;
+    for (const payment of payments) {
+      const amount = parseFloat(payment.amount);
+      total_due += amount;
+      if (payment.status === "paid") {
+        total_paid += amount;
+      }
+    }
+    return { total_due, total_paid, balance: total_due - total_paid };
   }
 }
 
