@@ -37,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, User, Loader2, Trash2, Download } from "lucide-react";
+import { Search, Plus, User, Loader2, Trash2, Download, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -121,7 +121,7 @@ export function Customers() {
     } catch (err: any) {
       setShowDeleteConfirm(false);
       const errorMsg = err?.message || "Failed to delete customer.";
-      toast({ title: "Failed to Delete Customer", description: `${errorMsg} Settle all Checkouts for Customer First.`, variant: "destructive" });
+      toast({ title: "Failed to Delete Customer", description: errorMsg, variant: "destructive" });
     }
   };
 
@@ -268,6 +268,7 @@ export function Customers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Card on File</TableHead>
                   <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
@@ -287,6 +288,16 @@ export function Customers() {
                     </TableCell>
                     <TableCell>{customer.email}</TableCell>
                     <TableCell>{customer.phone || "—"}</TableCell>
+                    <TableCell>
+                      {customer.card_last4 ? (
+                        <div className="flex items-center gap-1.5 text-sm">
+                          <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span>{customer.card_brand || "Card"} •••• {customer.card_last4}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <span className="text-muted-foreground text-sm">{customer.notes || "—"}</span>
                     </TableCell>
