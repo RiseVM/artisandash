@@ -84,6 +84,18 @@ import {
   projectMessages,
   type ProjectMessage,
   type InsertProjectMessage,
+  customFieldDefinitions,
+  customFieldValues,
+  outOfScopeItems,
+  clientFeedback,
+  type CustomFieldDefinition,
+  type InsertCustomFieldDefinition,
+  type CustomFieldValue,
+  type InsertCustomFieldValue,
+  type OutOfScopeItem,
+  type InsertOutOfScopeItem,
+  type ClientFeedback,
+  type InsertClientFeedback,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
@@ -1808,6 +1820,167 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProjectMessage(id: number): Promise<boolean> {
     const result = await db.delete(projectMessages).where(eq(projectMessages.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ============================================
+  // CUSTOM FIELDS
+  // ============================================
+
+  async getCustomFieldDefinitions(entityType?: string, templateId?: number): Promise<CustomFieldDefinition[]> {
+    let conditions = [];
+    if (entityType) {
+      conditions.push(eq(customFieldDefinitions.entity_type, entityType));
+    }
+    if (templateId !== undefined) {
+      conditions.push(eq(customFieldDefinitions.project_template_id, templateId));
+    }
+
+    if (conditions.length === 0) {
+      return db.select().from(customFieldDefinitions).orderBy(asc(customFieldDefinitions.display_order));
+    }
+
+    return db
+      .select()
+      .from(customFieldDefinitions)
+      .where(and(...conditions))
+      .orderBy(asc(customFieldDefinitions.display_order));
+  }
+
+  async getCustomFieldDefinition(id: number): Promise<CustomFieldDefinition | undefined> {
+    const [def] = await db.select().from(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
+    return def;
+  }
+
+  async createCustomFieldDefinition(def: InsertCustomFieldDefinition): Promise<CustomFieldDefinition> {
+    const [created] = await db.insert(customFieldDefinitions).values(def).returning();
+    return created;
+  }
+
+  async updateCustomFieldDefinition(id: number, def: Partial<InsertCustomFieldDefinition>): Promise<CustomFieldDefinition | undefined> {
+    const [updated] = await db
+      .update(customFieldDefinitions)
+      .set({ ...def, updated_at: new Date() })
+      .where(eq(customFieldDefinitions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCustomFieldDefinition(id: number): Promise<boolean> {
+    const result = await db.delete(customFieldDefinitions).where(eq(customFieldDefinitions.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getCustomFieldValues(entityType: string, entityId: number): Promise<CustomFieldValue[]> {
+    return db
+      .select()
+      .from(customFieldValues)
+      .where(and(eq(customFieldValues.entity_type, entityType), eq(customFieldValues.entity_id, entityId)));
+  }
+
+  async setCustomFieldValue(fieldDefId: number, entityType: string, entityId: number, value: string | null): Promise<CustomFieldValue> {
+    // Upsert - update if exists, insert if not
+    const existing = await db
+      .select()
+      .from(customFieldValues)
+      .where(
+        and(
+          eq(customFieldValues.field_definition_id, fieldDefId),
+          eq(customFieldValues.entity_type, entityType),
+          eq(customFieldValues.entity_id, entityId)
+        )
+      );
+
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(customFieldValues)
+        .set({ value, updated_at: new Date() })
+        .where(eq(customFieldValues.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(customFieldValues)
+        .values({ field_definition_id: fieldDefId, entity_type: entityType, entity_id: entityId, value })
+        .returning();
+      return created;
+    }
+  }
+
+  async deleteCustomFieldValue(id: number): Promise<boolean> {
+    const result = await db.delete(customFieldValues).where(eq(customFieldValues.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ============================================
+  // OUT OF SCOPE ITEMS
+  // ============================================
+
+  async getOutOfScopeItems(projectId: number): Promise<OutOfScopeItem[]> {
+    return db
+      .select()
+      .from(outOfScopeItems)
+      .where(eq(outOfScopeItems.project_id, projectId))
+      .orderBy(desc(outOfScopeItems.created_at));
+  }
+
+  async getOutOfScopeItem(id: number): Promise<OutOfScopeItem | undefined> {
+    const [item] = await db.select().from(outOfScopeItems).where(eq(outOfScopeItems.id, id));
+    return item;
+  }
+
+  async createOutOfScopeItem(item: InsertOutOfScopeItem): Promise<OutOfScopeItem> {
+    const [created] = await db.insert(outOfScopeItems).values(item).returning();
+    return created;
+  }
+
+  async updateOutOfScopeItem(id: number, item: Partial<InsertOutOfScopeItem>): Promise<OutOfScopeItem | undefined> {
+    const [updated] = await db
+      .update(outOfScopeItems)
+      .set({ ...item, updated_at: new Date() })
+      .where(eq(outOfScopeItems.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteOutOfScopeItem(id: number): Promise<boolean> {
+    const result = await db.delete(outOfScopeItems).where(eq(outOfScopeItems.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ============================================
+  // CLIENT FEEDBACK
+  // ============================================
+
+  async getClientFeedback(projectId: number): Promise<ClientFeedback[]> {
+    return db
+      .select()
+      .from(clientFeedback)
+      .where(eq(clientFeedback.project_id, projectId))
+      .orderBy(desc(clientFeedback.created_at));
+  }
+
+  async getClientFeedbackItem(id: number): Promise<ClientFeedback | undefined> {
+    const [item] = await db.select().from(clientFeedback).where(eq(clientFeedback.id, id));
+    return item;
+  }
+
+  async createClientFeedback(feedback: InsertClientFeedback): Promise<ClientFeedback> {
+    const [created] = await db.insert(clientFeedback).values(feedback).returning();
+    return created;
+  }
+
+  async updateClientFeedback(id: number, feedback: Partial<InsertClientFeedback>): Promise<ClientFeedback | undefined> {
+    const [updated] = await db
+      .update(clientFeedback)
+      .set({ ...feedback, updated_at: new Date() })
+      .where(eq(clientFeedback.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteClientFeedback(id: number): Promise<boolean> {
+    const result = await db.delete(clientFeedback).where(eq(clientFeedback.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 }

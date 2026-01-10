@@ -913,3 +913,177 @@ export const insertProjectMessageSchema = createInsertSchema(projectMessages).om
 
 export type InsertProjectMessage = z.infer<typeof insertProjectMessageSchema>;
 export type ProjectMessage = typeof projectMessages.$inferSelect;
+
+// ============================================
+// CUSTOM FIELDS - Flexible data capture
+// ============================================
+
+// Custom Field Definitions - Define what custom fields are available
+export const customFieldDefinitions = pgTable("custom_field_definitions", {
+  id: serial("id").primaryKey(),
+
+  // Where this field applies
+  entity_type: text("entity_type").notNull(), // project | phase | task
+
+  // Field configuration
+  field_name: text("field_name").notNull(),
+  field_label: text("field_label").notNull(),
+  field_type: text("field_type").notNull(), // text | number | date | select | checkbox | textarea
+
+  // For select fields - JSON array of options
+  options: text("options"), // JSON string: ["Option 1", "Option 2"]
+
+  // Validation
+  is_required: text("is_required").default("no").notNull(), // yes | no
+  default_value: text("default_value"),
+
+  // Display
+  display_order: integer("display_order").default(0).notNull(),
+  placeholder: text("placeholder"),
+  help_text: text("help_text"),
+
+  // Client visibility
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+
+  // Status
+  is_active: text("is_active").default("yes").notNull(), // yes | no
+
+  // Template association (optional - for template-specific fields)
+  project_template_id: integer("project_template_id").references(() => projectTemplates.id, { onDelete: 'cascade' }),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_custom_field_defs_entity_type").on(table.entity_type),
+  index("IDX_custom_field_defs_template_id").on(table.project_template_id),
+]);
+
+// Custom Field Values - Store actual values for custom fields
+export const customFieldValues = pgTable("custom_field_values", {
+  id: serial("id").primaryKey(),
+  field_definition_id: integer("field_definition_id").references(() => customFieldDefinitions.id, { onDelete: 'cascade' }).notNull(),
+
+  // Which entity this value belongs to
+  entity_type: text("entity_type").notNull(), // project | phase | task
+  entity_id: integer("entity_id").notNull(),
+
+  // The value (stored as text, parsed based on field_type)
+  value: text("value"),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_custom_field_values_field_def").on(table.field_definition_id),
+  index("IDX_custom_field_values_entity").on(table.entity_type, table.entity_id),
+  unique("unique_field_value_per_entity").on(table.field_definition_id, table.entity_type, table.entity_id),
+]);
+
+export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertCustomFieldValueSchema = createInsertSchema(customFieldValues).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertCustomFieldDefinition = z.infer<typeof insertCustomFieldDefinitionSchema>;
+export type CustomFieldDefinition = typeof customFieldDefinitions.$inferSelect;
+
+export type InsertCustomFieldValue = z.infer<typeof insertCustomFieldValueSchema>;
+export type CustomFieldValue = typeof customFieldValues.$inferSelect;
+
+// View type with definition
+export type CustomFieldValueWithDefinition = CustomFieldValue & {
+  definition: CustomFieldDefinition;
+};
+
+// ============================================
+// OUT OF SCOPE TRACKING
+// ============================================
+
+// Out of Scope Items - Track items explicitly excluded from project scope
+export const outOfScopeItems = pgTable("out_of_scope_items", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+
+  // Item details
+  item: text("item").notNull(),
+  reason: text("reason"),
+
+  // Client acknowledgment
+  client_acknowledged: text("client_acknowledged").default("no").notNull(), // yes | no
+  acknowledged_at: timestamp("acknowledged_at"),
+  acknowledged_by: text("acknowledged_by"),
+
+  // Client visibility
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+
+  // Metadata
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_out_of_scope_project_id").on(table.project_id),
+]);
+
+export const insertOutOfScopeItemSchema = createInsertSchema(outOfScopeItems).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertOutOfScopeItem = z.infer<typeof insertOutOfScopeItemSchema>;
+export type OutOfScopeItem = typeof outOfScopeItems.$inferSelect;
+
+// ============================================
+// CLIENT FEEDBACK
+// ============================================
+
+// Client Feedback - Collect feedback from clients on projects/phases
+export const clientFeedback = pgTable("client_feedback", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  linked_phase_id: integer("linked_phase_id").references(() => projectPhases.id, { onDelete: 'set null' }),
+
+  // Who submitted
+  client_portal_user_id: integer("client_portal_user_id").references(() => clientPortalAccess.id, { onDelete: 'set null' }),
+  client_name: text("client_name"),
+
+  // Feedback content
+  feedback_type: text("feedback_type").notNull(), // rating | comment | issue | suggestion | compliment
+  rating: integer("rating"), // 1-5 stars (optional)
+  title: text("title"),
+  content: text("content").notNull(),
+
+  // Status
+  status: text("status").default("new").notNull(), // new | reviewed | responded | resolved
+
+  // Admin response
+  admin_response: text("admin_response"),
+  responded_by_user_id: varchar("responded_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  responded_by_user_name: varchar("responded_by_user_name"),
+  responded_at: timestamp("responded_at"),
+
+  // Internal notes
+  internal_notes: text("internal_notes"),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_client_feedback_project_id").on(table.project_id),
+  index("IDX_client_feedback_status").on(table.status),
+]);
+
+export const insertClientFeedbackSchema = createInsertSchema(clientFeedback).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertClientFeedback = z.infer<typeof insertClientFeedbackSchema>;
+export type ClientFeedback = typeof clientFeedback.$inferSelect;

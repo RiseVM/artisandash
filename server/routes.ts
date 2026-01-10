@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, type User, type ClientPortalUser } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, insertCustomFieldDefinitionSchema, insertOutOfScopeItemSchema, insertClientFeedbackSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification } from "./emailService";
@@ -3809,6 +3809,288 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting portal access:", error);
       res.status(500).json({ error: "Failed to delete portal access" });
+    }
+  });
+
+  // ============================================
+  // CUSTOM FIELD DEFINITIONS
+  // ============================================
+
+  // Get all custom field definitions (optionally filter by entity type or template)
+  app.get("/api/custom-field-definitions", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const entityType = req.query.entity_type as string | undefined;
+      const templateId = req.query.template_id ? parseInt(req.query.template_id as string) : undefined;
+      const definitions = await storage.getCustomFieldDefinitions(entityType, templateId);
+      res.json(definitions);
+    } catch (error) {
+      console.error("Error fetching custom field definitions:", error);
+      res.status(500).json({ error: "Failed to fetch custom field definitions" });
+    }
+  });
+
+  // Get single custom field definition
+  app.get("/api/custom-field-definitions/:id", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid definition ID" });
+      }
+      const definition = await storage.getCustomFieldDefinition(id);
+      if (!definition) {
+        return res.status(404).json({ error: "Definition not found" });
+      }
+      res.json(definition);
+    } catch (error) {
+      console.error("Error fetching custom field definition:", error);
+      res.status(500).json({ error: "Failed to fetch definition" });
+    }
+  });
+
+  // Create custom field definition
+  app.post("/api/custom-field-definitions", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const data = insertCustomFieldDefinitionSchema.parse(req.body);
+      const definition = await storage.createCustomFieldDefinition(data);
+      res.status(201).json(definition);
+    } catch (error) {
+      console.error("Error creating custom field definition:", error);
+      res.status(500).json({ error: "Failed to create definition" });
+    }
+  });
+
+  // Update custom field definition
+  app.patch("/api/custom-field-definitions/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid definition ID" });
+      }
+      const definition = await storage.updateCustomFieldDefinition(id, req.body);
+      if (!definition) {
+        return res.status(404).json({ error: "Definition not found" });
+      }
+      res.json(definition);
+    } catch (error) {
+      console.error("Error updating custom field definition:", error);
+      res.status(500).json({ error: "Failed to update definition" });
+    }
+  });
+
+  // Delete custom field definition
+  app.delete("/api/custom-field-definitions/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid definition ID" });
+      }
+      const deleted = await storage.deleteCustomFieldDefinition(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Definition not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting custom field definition:", error);
+      res.status(500).json({ error: "Failed to delete definition" });
+    }
+  });
+
+  // Get custom field values for an entity
+  app.get("/api/custom-field-values/:entityType/:entityId", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      const id = parseInt(entityId);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid entity ID" });
+      }
+      const values = await storage.getCustomFieldValues(entityType, id);
+      res.json(values);
+    } catch (error) {
+      console.error("Error fetching custom field values:", error);
+      res.status(500).json({ error: "Failed to fetch values" });
+    }
+  });
+
+  // Set custom field value
+  app.post("/api/custom-field-values", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const { field_definition_id, entity_type, entity_id, value } = req.body;
+      if (!field_definition_id || !entity_type || !entity_id) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      const fieldValue = await storage.setCustomFieldValue(field_definition_id, entity_type, entity_id, value);
+      res.json(fieldValue);
+    } catch (error) {
+      console.error("Error setting custom field value:", error);
+      res.status(500).json({ error: "Failed to set value" });
+    }
+  });
+
+  // ============================================
+  // OUT OF SCOPE ITEMS
+  // ============================================
+
+  // Get out of scope items for a project
+  app.get("/api/projects/:projectId/out-of-scope", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const items = await storage.getOutOfScopeItems(projectId);
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching out of scope items:", error);
+      res.status(500).json({ error: "Failed to fetch out of scope items" });
+    }
+  });
+
+  // Create out of scope item
+  app.post("/api/projects/:projectId/out-of-scope", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const data = insertOutOfScopeItemSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        created_by_user_id: req.user?.id,
+        created_by_user_name: req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null,
+      });
+      const item = await storage.createOutOfScopeItem(data);
+      res.status(201).json(item);
+    } catch (error) {
+      console.error("Error creating out of scope item:", error);
+      res.status(500).json({ error: "Failed to create out of scope item" });
+    }
+  });
+
+  // Update out of scope item
+  app.patch("/api/out-of-scope/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid item ID" });
+      }
+      const item = await storage.updateOutOfScopeItem(id, req.body);
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      res.json(item);
+    } catch (error) {
+      console.error("Error updating out of scope item:", error);
+      res.status(500).json({ error: "Failed to update item" });
+    }
+  });
+
+  // Delete out of scope item
+  app.delete("/api/out-of-scope/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid item ID" });
+      }
+      const deleted = await storage.deleteOutOfScopeItem(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting out of scope item:", error);
+      res.status(500).json({ error: "Failed to delete item" });
+    }
+  });
+
+  // ============================================
+  // CLIENT FEEDBACK
+  // ============================================
+
+  // Get feedback for a project (admin)
+  app.get("/api/projects/:projectId/feedback", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const feedback = await storage.getClientFeedback(projectId);
+      res.json(feedback);
+    } catch (error) {
+      console.error("Error fetching feedback:", error);
+      res.status(500).json({ error: "Failed to fetch feedback" });
+    }
+  });
+
+  // Update feedback (admin - for responding)
+  app.patch("/api/feedback/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid feedback ID" });
+      }
+
+      const updateData: any = { ...req.body };
+      if (req.body.admin_response && !req.body.responded_at) {
+        updateData.responded_at = new Date();
+        updateData.responded_by_user_id = req.user?.id;
+        updateData.responded_by_user_name = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null;
+      }
+
+      const feedback = await storage.updateClientFeedback(id, updateData);
+      if (!feedback) {
+        return res.status(404).json({ error: "Feedback not found" });
+      }
+      res.json(feedback);
+    } catch (error) {
+      console.error("Error updating feedback:", error);
+      res.status(500).json({ error: "Failed to update feedback" });
+    }
+  });
+
+  // Delete feedback (admin)
+  app.delete("/api/feedback/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid feedback ID" });
+      }
+      const deleted = await storage.deleteClientFeedback(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Feedback not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting feedback:", error);
+      res.status(500).json({ error: "Failed to delete feedback" });
+    }
+  });
+
+  // Portal: Submit feedback
+  app.post("/api/portal/projects/:id/feedback", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const hasAccess = req.portalUser.projects.some((p: any) => p.id === projectId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied to this project" });
+      }
+
+      const customer = req.portalUser.customer;
+      const data = insertClientFeedbackSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        client_portal_user_id: req.portalUser.id,
+        client_name: customer?.name || "Client",
+      });
+
+      const feedback = await storage.createClientFeedback(data);
+      res.status(201).json(feedback);
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
+      res.status(500).json({ error: "Failed to submit feedback" });
     }
   });
 

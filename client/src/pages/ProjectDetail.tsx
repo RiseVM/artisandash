@@ -69,6 +69,7 @@ import { ProjectPricing } from "@/components/ProjectPricing";
 import { ProjectFiles } from "@/components/ProjectFiles";
 import ProjectActivityFeed from "@/components/ProjectActivityFeed";
 import { ProjectMessages } from "@/components/ProjectMessages";
+import { ProjectOutOfScope } from "@/components/ProjectOutOfScope";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -123,6 +124,15 @@ export function ProjectDetail() {
     name: "",
     description: "",
     status: "active",
+  });
+
+  const [editedPhase, setEditedPhase] = useState({
+    name: "",
+    description: "",
+    client_visible: "yes",
+    requires_approval: "no",
+    estimated_start: "",
+    estimated_end: "",
   });
 
   const canManageProjects = hasPermission("manage_projects");
@@ -217,6 +227,44 @@ export function ProjectDetail() {
       toast({
         title: "Error",
         description: err?.message || "Failed to delete phase.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenPhaseSettings = (phase: ProjectPhase) => {
+    setEditedPhase({
+      name: phase.name,
+      description: phase.description || "",
+      client_visible: phase.client_visible,
+      requires_approval: phase.requires_approval,
+      estimated_start: phase.estimated_start || "",
+      estimated_end: phase.estimated_end || "",
+    });
+    setEditingPhase(phase);
+  };
+
+  const handleSavePhaseSettings = async () => {
+    if (!editingPhase) return;
+    try {
+      await updatePhaseMutation.mutateAsync({
+        id: editingPhase.id,
+        projectId,
+        data: {
+          name: editedPhase.name,
+          description: editedPhase.description || null,
+          client_visible: editedPhase.client_visible,
+          requires_approval: editedPhase.requires_approval,
+          estimated_start: editedPhase.estimated_start || null,
+          estimated_end: editedPhase.estimated_end || null,
+        },
+      });
+      setEditingPhase(null);
+      toast({ title: "Phase Updated" });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to update phase.",
         variant: "destructive",
       });
     }
@@ -435,6 +483,20 @@ export function ProjectDetail() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8 shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenPhaseSettings(phase);
+                          }}
+                        >
+                          <Settings className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {canManageProjects && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -536,6 +598,9 @@ export function ProjectDetail() {
         changeOrders={changeOrders}
         canManage={canManageProjects}
       />
+
+      {/* Out of Scope Items */}
+      <ProjectOutOfScope projectId={projectId} />
 
       {/* Files & Photos */}
       <ProjectFiles
@@ -677,6 +742,99 @@ export function ProjectDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Phase Settings Dialog */}
+      <Dialog open={!!editingPhase} onOpenChange={(open) => !open && setEditingPhase(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Phase Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="phase-name">Phase Name</Label>
+              <Input
+                id="phase-name"
+                value={editedPhase.name}
+                onChange={(e) => setEditedPhase({ ...editedPhase, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phase-description">Description</Label>
+              <Textarea
+                id="phase-description"
+                value={editedPhase.description}
+                onChange={(e) => setEditedPhase({ ...editedPhase, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="phase-start">Estimated Start</Label>
+                <Input
+                  id="phase-start"
+                  type="date"
+                  value={editedPhase.estimated_start}
+                  onChange={(e) => setEditedPhase({ ...editedPhase, estimated_start: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phase-end">Estimated End</Label>
+                <Input
+                  id="phase-end"
+                  type="date"
+                  value={editedPhase.estimated_end}
+                  onChange={(e) => setEditedPhase({ ...editedPhase, estimated_end: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="client-visible"
+                  checked={editedPhase.client_visible === "yes"}
+                  onCheckedChange={(checked) =>
+                    setEditedPhase({ ...editedPhase, client_visible: checked ? "yes" : "no" })
+                  }
+                />
+                <Label htmlFor="client-visible" className="cursor-pointer">
+                  Visible to client in portal
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="requires-approval"
+                  checked={editedPhase.requires_approval === "yes"}
+                  onCheckedChange={(checked) =>
+                    setEditedPhase({ ...editedPhase, requires_approval: checked ? "yes" : "no" })
+                  }
+                />
+                <Label htmlFor="requires-approval" className="cursor-pointer">
+                  Requires client approval to complete
+                </Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="destructive"
+              className="sm:mr-auto"
+              onClick={() => {
+                setEditingPhase(null);
+                setDeletePhase(editingPhase);
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Phase
+            </Button>
+            <Button variant="outline" onClick={() => setEditingPhase(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePhaseSettings} disabled={updatePhaseMutation.isPending}>
+              {updatePhaseMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

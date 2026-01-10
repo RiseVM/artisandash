@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer } from "@/hooks/use-api";
+import { useState, useEffect } from "react";
+import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer, useSendPortalInvite, useResetPortalPassword } from "@/hooks/use-api";
+import { apiRequest } from "@/lib/queryClient";
 import type { Customer } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, User, Loader2, Trash2, Download, CreditCard } from "lucide-react";
+import { Search, Plus, User, Loader2, Trash2, Download, CreditCard, Mail, Key, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -47,12 +48,32 @@ export function Customers() {
   const createCustomerMutation = useCreateCustomer();
   const updateCustomerMutation = useUpdateCustomer();
   const deleteCustomerMutation = useDeleteCustomer();
-  
+  const sendInviteMutation = useSendPortalInvite();
+  const resetPasswordMutation = useResetPortalPassword();
+
   const [search, setSearch] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [portalAccess, setPortalAccess] = useState<any | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [showCreatePortal, setShowCreatePortal] = useState(false);
+  const [newPortalPassword, setNewPortalPassword] = useState("");
   const { toast } = useToast();
+
+  // Fetch portal access when editing a customer
+  useEffect(() => {
+    if (editingCustomer?.id) {
+      setPortalLoading(true);
+      apiRequest("GET", `/api/client-portal-access/customer/${editingCustomer.id}`)
+        .then(res => res.json())
+        .then(data => setPortalAccess(data))
+        .catch(() => setPortalAccess(null))
+        .finally(() => setPortalLoading(false));
+    } else {
+      setPortalAccess(null);
+    }
+  }, [editingCustomer?.id]);
 
   const [newCustomer, setNewCustomer] = useState({
     name: "",
@@ -123,6 +144,46 @@ export function Customers() {
       setShowDeleteConfirm(false);
       const errorMsg = err?.message || "Failed to delete customer.";
       toast({ title: "Failed to Delete Customer", description: errorMsg, variant: "destructive" });
+    }
+  };
+
+  const handleCreatePortalAccess = async () => {
+    if (!editingCustomer || !newPortalPassword) return;
+    try {
+      const res = await apiRequest("POST", "/api/client-portal-access", {
+        customer_id: editingCustomer.id,
+        email: editingCustomer.email,
+        password: newPortalPassword,
+        send_invite: true,
+      });
+      const access = await res.json();
+      setPortalAccess(access);
+      setShowCreatePortal(false);
+      setNewPortalPassword("");
+      toast({ title: "Portal Access Created", description: "Invite email sent to client." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to create portal access.", variant: "destructive" });
+    }
+  };
+
+  const handleSendInvite = async () => {
+    if (!portalAccess) return;
+    try {
+      await sendInviteMutation.mutateAsync({ id: portalAccess.id });
+      toast({ title: "Invite Sent", description: "Portal invite email sent to client." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to send invite.", variant: "destructive" });
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!portalAccess || !newPortalPassword) return;
+    try {
+      await resetPasswordMutation.mutateAsync({ id: portalAccess.id, newPassword: newPortalPassword, sendEmail: true });
+      setNewPortalPassword("");
+      toast({ title: "Password Reset", description: "New password email sent to client." });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to reset password.", variant: "destructive" });
     }
   };
 
@@ -355,13 +416,106 @@ export function Customers() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Notes</Label>
-              <Input 
-                className="col-span-3" 
+              <Input
+                className="col-span-3"
                 placeholder="Optional notes about this customer"
-                value={editingCustomer?.notes || ""} 
+                value={editingCustomer?.notes || ""}
                 onChange={(e) => setEditingCustomer(editingCustomer ? {...editingCustomer, notes: e.target.value} : null)}
                 data-testid="input-edit-customer-notes"
               />
+            </div>
+
+            {/* Portal Access Section */}
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Globe className="h-4 w-4" />
+                <Label className="text-sm font-medium">Client Portal Access</Label>
+              </div>
+
+              {portalLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading...
+                </div>
+              ) : portalAccess ? (
+                <div className="space-y-3">
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Portal email:</span>{" "}
+                    <span className="font-medium">{portalAccess.email}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSendInvite}
+                      disabled={sendInviteMutation.isPending}
+                    >
+                      {sendInviteMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <Mail className="h-4 w-4 mr-1" />
+                      )}
+                      Resend Invite
+                    </Button>
+                    <div className="flex gap-1">
+                      <Input
+                        className="w-32 h-8"
+                        type="password"
+                        placeholder="New password"
+                        value={newPortalPassword}
+                        onChange={(e) => setNewPortalPassword(e.target.value)}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResetPassword}
+                        disabled={!newPortalPassword || resetPasswordMutation.isPending}
+                      >
+                        {resetPasswordMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Key className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : showCreatePortal ? (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Input
+                      className="flex-1"
+                      type="password"
+                      placeholder="Set initial password"
+                      value={newPortalPassword}
+                      onChange={(e) => setNewPortalPassword(e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleCreatePortalAccess}
+                      disabled={!newPortalPassword}
+                    >
+                      Create & Send Invite
+                    </Button>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCreatePortal(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCreatePortal(true)}
+                >
+                  <Globe className="h-4 w-4 mr-2" />
+                  Enable Portal Access
+                </Button>
+              )}
             </div>
 
           </div>

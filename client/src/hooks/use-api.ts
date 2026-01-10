@@ -1143,3 +1143,121 @@ export function useDeleteProjectMessage() {
     },
   });
 }
+
+// ============================================
+// OUT OF SCOPE ITEMS HOOKS
+// ============================================
+
+export function useOutOfScopeItems(projectId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/projects", projectId, "out-of-scope"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/out-of-scope`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateOutOfScopeItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: any }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/out-of-scope`, data);
+      return res.json();
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "out-of-scope"] });
+    },
+  });
+}
+
+export function useUpdateOutOfScopeItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: any }) => {
+      const res = await apiRequest("PATCH", `/api/out-of-scope/${id}`, data);
+      return res.json();
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "out-of-scope"] });
+    },
+  });
+}
+
+export function useDeleteOutOfScopeItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/out-of-scope/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "out-of-scope"] });
+    },
+  });
+}
+
+// ============================================
+// CLIENT FEEDBACK HOOKS
+// ============================================
+
+export function useClientFeedback(projectId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/projects", projectId, "feedback"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/feedback`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useUpdateClientFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: any }) => {
+      const res = await apiRequest("PATCH", `/api/feedback/${id}`, data);
+      return res.json();
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "feedback"] });
+    },
+  });
+}
+
+export function useDeleteClientFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/feedback/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "feedback"] });
+    },
+  });
+}
+
+// ============================================
+// PORTAL ACCESS MANAGEMENT HOOKS
+// ============================================
+
+export function useSendPortalInvite() {
+  return useMutation({
+    mutationFn: async ({ id, projectName }: { id: number; projectName?: string }) => {
+      const res = await apiRequest("POST", `/api/client-portal-access/${id}/send-invite`, { project_name: projectName });
+      return res.json();
+    },
+  });
+}
+
+export function useResetPortalPassword() {
+  return useMutation({
+    mutationFn: async ({ id, newPassword, sendEmail }: { id: number; newPassword: string; sendEmail: boolean }) => {
+      const res = await apiRequest("POST", `/api/client-portal-access/${id}/reset-password`, {
+        new_password: newPassword,
+        send_email: sendEmail
+      });
+      return res.json();
+    },
+  });
+}
