@@ -537,3 +537,118 @@ export type ClientPortalAccess = typeof clientPortalAccess.$inferSelect;
 export type ClientPortalUser = Omit<ClientPortalAccess, 'password_hash'> & {
   customer: Customer;
 };
+
+// ============================================
+// DELIVERIES & CHANGE ORDERS
+// ============================================
+
+// Project Deliveries - Track material deliveries for projects
+export const projectDeliveries = pgTable("project_deliveries", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  linked_phase_id: integer("linked_phase_id").references(() => projectPhases.id, { onDelete: 'set null' }),
+
+  // Delivery details
+  description: text("description").notNull(),
+  vendor: text("vendor"),
+  status: text("status").default("pending").notNull(), // pending | ordered | shipped | delivered | delayed | cancelled
+
+  // Dates
+  expected_date: text("expected_date"),
+  actual_date: text("actual_date"),
+
+  // Tracking
+  tracking_number: text("tracking_number"),
+  carrier: text("carrier"),
+
+  // Cost
+  cost: numeric("cost", { precision: 12, scale: 2 }),
+
+  // Notes
+  notes: text("notes"),
+  delay_reason: text("delay_reason"),
+
+  // Client visibility
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+
+  // Metadata
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_deliveries_project_id").on(table.project_id),
+  index("IDX_project_deliveries_status").on(table.status),
+]);
+
+// Change Orders - Track scope changes and their approval
+export const changeOrders = pgTable("change_orders", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  linked_phase_id: integer("linked_phase_id").references(() => projectPhases.id, { onDelete: 'set null' }),
+
+  // Change order number (auto-increment per project handled in code)
+  co_number: integer("co_number").notNull(),
+
+  // Details
+  title: text("title").notNull(),
+  description: text("description"),
+  reason: text("reason"),
+
+  // Impact
+  cost_impact: numeric("cost_impact", { precision: 12, scale: 2 }),
+  time_impact_days: integer("time_impact_days"),
+
+  // Status workflow
+  status: text("status").default("draft").notNull(), // draft | pending_approval | approved | rejected | void
+
+  // Dates
+  submitted_at: timestamp("submitted_at"),
+  decided_at: timestamp("decided_at"),
+
+  // Approval fields
+  approved_by: text("approved_by"),
+  approval_signature: text("approval_signature"),
+  rejection_reason: text("rejection_reason"),
+
+  // Client visibility
+  client_visible: text("client_visible").default("yes").notNull(), // yes | no
+
+  // Metadata
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_change_orders_project_id").on(table.project_id),
+  index("IDX_change_orders_status").on(table.status),
+]);
+
+// Insert schemas for deliveries and change orders
+export const insertProjectDeliverySchema = createInsertSchema(projectDeliveries).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertChangeOrderSchema = createInsertSchema(changeOrders).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Types for deliveries and change orders
+export type InsertProjectDelivery = z.infer<typeof insertProjectDeliverySchema>;
+export type ProjectDelivery = typeof projectDeliveries.$inferSelect;
+
+export type InsertChangeOrder = z.infer<typeof insertChangeOrderSchema>;
+export type ChangeOrder = typeof changeOrders.$inferSelect;
+
+// View types with relations
+export type ProjectDeliveryWithPhase = ProjectDelivery & {
+  phase?: ProjectPhase | null;
+};
+
+export type ChangeOrderWithPhase = ChangeOrder & {
+  phase?: ProjectPhase | null;
+};

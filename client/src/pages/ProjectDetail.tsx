@@ -61,6 +61,8 @@ import {
   FolderKanban,
 } from "lucide-react";
 import type { ProjectPhase, ProjectTask, ProjectPhaseWithTasks } from "@shared/schema";
+import { ProjectDeliveries } from "@/components/ProjectDeliveries";
+import { ProjectChangeOrders } from "@/components/ProjectChangeOrders";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -489,6 +491,20 @@ export function ProjectDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* Deliveries */}
+      <ProjectDeliveries
+        projectId={projectId}
+        phases={project.phases}
+        canManage={canManageProjects}
+      />
+
+      {/* Change Orders */}
+      <ProjectChangeOrders
+        projectId={projectId}
+        phases={project.phases}
+        canManage={canManageProjects}
+      />
 
       {/* Edit Project Dialog */}
       <Dialog open={isEditingProject} onOpenChange={setIsEditingProject}>

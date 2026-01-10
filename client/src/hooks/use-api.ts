@@ -27,6 +27,12 @@ import type {
   InsertProjectTemplate,
   InsertPhaseTemplate,
   InsertTaskTemplate,
+  ProjectDelivery,
+  ProjectDeliveryWithPhase,
+  InsertProjectDelivery,
+  ChangeOrder,
+  ChangeOrderWithPhase,
+  InsertChangeOrder,
 } from "@shared/schema";
 
 export function useCustomers() {
@@ -561,6 +567,157 @@ export function useCreateProjectFromTemplate() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    },
+  });
+}
+
+// ============================================
+// PROJECT DELIVERIES HOOKS
+// ============================================
+
+export function useProjectDeliveries(projectId: number) {
+  return useQuery<ProjectDeliveryWithPhase[]>({
+    queryKey: ["/api/projects", projectId, "deliveries"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/deliveries`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateDelivery() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertProjectDelivery> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/deliveries`, data);
+      return res.json() as Promise<ProjectDelivery>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    },
+  });
+}
+
+export function useUpdateDelivery() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: Partial<InsertProjectDelivery> }) => {
+      const res = await apiRequest("PATCH", `/api/deliveries/${id}`, data);
+      return res.json() as Promise<ProjectDelivery>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    },
+  });
+}
+
+export function useDeleteDelivery() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/deliveries/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "deliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    },
+  });
+}
+
+// ============================================
+// CHANGE ORDERS HOOKS
+// ============================================
+
+export function useChangeOrders(projectId: number) {
+  return useQuery<ChangeOrderWithPhase[]>({
+    queryKey: ["/api/projects", projectId, "change-orders"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/change-orders`);
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateChangeOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, data }: { projectId: number; data: Partial<InsertChangeOrder> }) => {
+      const res = await apiRequest("POST", `/api/projects/${projectId}/change-orders`, data);
+      return res.json() as Promise<ChangeOrder>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "change-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    },
+  });
+}
+
+export function useUpdateChangeOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, data }: { id: number; projectId: number; data: Partial<InsertChangeOrder> }) => {
+      const res = await apiRequest("PATCH", `/api/change-orders/${id}`, data);
+      return res.json() as Promise<ChangeOrder>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "change-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+    },
+  });
+}
+
+export function useSubmitChangeOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      const res = await apiRequest("POST", `/api/change-orders/${id}/submit`);
+      return res.json() as Promise<ChangeOrder>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "change-orders"] });
+    },
+  });
+}
+
+export function useApproveChangeOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, approvedBy, signature }: { id: number; projectId: number; approvedBy: string; signature: string }) => {
+      const res = await apiRequest("POST", `/api/change-orders/${id}/approve`, { approvedBy, signature });
+      return res.json() as Promise<ChangeOrder>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "change-orders"] });
+    },
+  });
+}
+
+export function useRejectChangeOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId, rejectionReason }: { id: number; projectId: number; rejectionReason: string }) => {
+      const res = await apiRequest("POST", `/api/change-orders/${id}/reject`, { rejectionReason });
+      return res.json() as Promise<ChangeOrder>;
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "change-orders"] });
+    },
+  });
+}
+
+export function useDeleteChangeOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, projectId }: { id: number; projectId: number }) => {
+      await apiRequest("DELETE", `/api/change-orders/${id}`);
+    },
+    onSuccess: (_, { projectId }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "change-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
     },
   });
 }

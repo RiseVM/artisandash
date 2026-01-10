@@ -1,7 +1,7 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, type User, type ClientPortalUser } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
 import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp } from "./emailService";
@@ -1526,6 +1526,413 @@ export async function registerRoutes(
   });
 
   // ============================================
+  // PROJECT DELIVERIES
+  // ============================================
+
+  // Get all deliveries for a project
+  app.get("/api/projects/:projectId/deliveries", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const deliveries = await storage.getProjectDeliveries(projectId);
+      res.json(deliveries);
+    } catch (error) {
+      console.error("Error fetching deliveries:", error);
+      res.status(500).json({ error: "Failed to fetch deliveries" });
+    }
+  });
+
+  // Create a delivery
+  app.post("/api/projects/:projectId/deliveries", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify project exists
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const userId = req.user?.id;
+      const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null;
+
+      const data = insertProjectDeliverySchema.parse({
+        ...req.body,
+        project_id: projectId,
+        created_by_user_id: userId,
+        created_by_user_name: userName,
+      });
+
+      const delivery = await storage.createProjectDelivery(data);
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "create_delivery",
+        entityType: "project_delivery",
+        entityId: delivery.id.toString(),
+        details: `Created delivery: ${delivery.description}`,
+        ipAddress: req.ip,
+      });
+
+      res.status(201).json(delivery);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating delivery:", error);
+      res.status(500).json({ error: "Failed to create delivery" });
+    }
+  });
+
+  // Update a delivery
+  app.patch("/api/deliveries/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid delivery ID" });
+      }
+      const data = insertProjectDeliverySchema.partial().parse(req.body);
+      const delivery = await storage.updateProjectDelivery(id, data);
+      if (!delivery) {
+        return res.status(404).json({ error: "Delivery not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "update_delivery",
+        entityType: "project_delivery",
+        entityId: id.toString(),
+        details: `Updated delivery: ${delivery.description}`,
+        ipAddress: req.ip,
+      });
+
+      res.json(delivery);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating delivery:", error);
+      res.status(500).json({ error: "Failed to update delivery" });
+    }
+  });
+
+  // Delete a delivery
+  app.delete("/api/deliveries/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid delivery ID" });
+      }
+      const delivery = await storage.getProjectDelivery(id);
+      if (!delivery) {
+        return res.status(404).json({ error: "Delivery not found" });
+      }
+
+      const deleted = await storage.deleteProjectDelivery(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Delivery not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "delete_delivery",
+        entityType: "project_delivery",
+        entityId: id.toString(),
+        details: `Deleted delivery: ${delivery.description}`,
+        ipAddress: req.ip,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting delivery:", error);
+      res.status(500).json({ error: "Failed to delete delivery" });
+    }
+  });
+
+  // ============================================
+  // CHANGE ORDERS
+  // ============================================
+
+  // Get all change orders for a project
+  app.get("/api/projects/:projectId/change-orders", requirePermission("manage_projects"), async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const changeOrders = await storage.getChangeOrders(projectId);
+      res.json(changeOrders);
+    } catch (error) {
+      console.error("Error fetching change orders:", error);
+      res.status(500).json({ error: "Failed to fetch change orders" });
+    }
+  });
+
+  // Create a change order
+  app.post("/api/projects/:projectId/change-orders", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify project exists
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      const userId = req.user?.id;
+      const userName = req.user ? `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email : null;
+
+      // Get next CO number for this project
+      const coNumber = await storage.getNextChangeOrderNumber(projectId);
+
+      const data = insertChangeOrderSchema.parse({
+        ...req.body,
+        project_id: projectId,
+        co_number: coNumber,
+        created_by_user_id: userId,
+        created_by_user_name: userName,
+      });
+
+      const changeOrder = await storage.createChangeOrder(data);
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "create_change_order",
+        entityType: "change_order",
+        entityId: changeOrder.id.toString(),
+        details: `Created change order CO-${coNumber}: ${changeOrder.title}`,
+        ipAddress: req.ip,
+      });
+
+      res.status(201).json(changeOrder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating change order:", error);
+      res.status(500).json({ error: "Failed to create change order" });
+    }
+  });
+
+  // Update a change order
+  app.patch("/api/change-orders/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid change order ID" });
+      }
+
+      const existing = await storage.getChangeOrder(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      // Don't allow editing approved/rejected change orders (except voiding)
+      if (existing.status === "approved" || existing.status === "rejected") {
+        if (req.body.status !== "void") {
+          return res.status(400).json({ error: "Cannot edit approved or rejected change orders" });
+        }
+      }
+
+      const data = insertChangeOrderSchema.partial().parse(req.body);
+      const changeOrder = await storage.updateChangeOrder(id, data);
+      if (!changeOrder) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "update_change_order",
+        entityType: "change_order",
+        entityId: id.toString(),
+        details: `Updated change order CO-${changeOrder.co_number}: ${changeOrder.title}`,
+        ipAddress: req.ip,
+      });
+
+      res.json(changeOrder);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating change order:", error);
+      res.status(500).json({ error: "Failed to update change order" });
+    }
+  });
+
+  // Submit change order for approval
+  app.post("/api/change-orders/:id/submit", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid change order ID" });
+      }
+
+      const existing = await storage.getChangeOrder(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      if (existing.status !== "draft") {
+        return res.status(400).json({ error: "Only draft change orders can be submitted" });
+      }
+
+      const changeOrder = await storage.updateChangeOrder(id, {
+        status: "pending_approval",
+        submitted_at: new Date(),
+      });
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "submit_change_order",
+        entityType: "change_order",
+        entityId: id.toString(),
+        details: `Submitted change order CO-${existing.co_number} for approval`,
+        ipAddress: req.ip,
+      });
+
+      res.json(changeOrder);
+    } catch (error) {
+      console.error("Error submitting change order:", error);
+      res.status(500).json({ error: "Failed to submit change order" });
+    }
+  });
+
+  // Approve change order (admin action)
+  app.post("/api/change-orders/:id/approve", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid change order ID" });
+      }
+
+      const { approvedBy, signature } = req.body;
+      if (!approvedBy || !signature) {
+        return res.status(400).json({ error: "Approved by name and signature are required" });
+      }
+
+      const existing = await storage.getChangeOrder(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      if (existing.status !== "pending_approval") {
+        return res.status(400).json({ error: "Only pending change orders can be approved" });
+      }
+
+      const changeOrder = await storage.approveChangeOrder(id, approvedBy, signature);
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "approve_change_order",
+        entityType: "change_order",
+        entityId: id.toString(),
+        details: `Approved change order CO-${existing.co_number}`,
+        ipAddress: req.ip,
+      });
+
+      res.json(changeOrder);
+    } catch (error) {
+      console.error("Error approving change order:", error);
+      res.status(500).json({ error: "Failed to approve change order" });
+    }
+  });
+
+  // Reject change order (admin action)
+  app.post("/api/change-orders/:id/reject", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid change order ID" });
+      }
+
+      const { rejectionReason } = req.body;
+      if (!rejectionReason) {
+        return res.status(400).json({ error: "Rejection reason is required" });
+      }
+
+      const existing = await storage.getChangeOrder(id);
+      if (!existing) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      if (existing.status !== "pending_approval") {
+        return res.status(400).json({ error: "Only pending change orders can be rejected" });
+      }
+
+      const changeOrder = await storage.rejectChangeOrder(id, rejectionReason);
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "reject_change_order",
+        entityType: "change_order",
+        entityId: id.toString(),
+        details: `Rejected change order CO-${existing.co_number}: ${rejectionReason}`,
+        ipAddress: req.ip,
+      });
+
+      res.json(changeOrder);
+    } catch (error) {
+      console.error("Error rejecting change order:", error);
+      res.status(500).json({ error: "Failed to reject change order" });
+    }
+  });
+
+  // Delete a change order (only drafts)
+  app.delete("/api/change-orders/:id", requirePermission("manage_projects"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid change order ID" });
+      }
+
+      const changeOrder = await storage.getChangeOrder(id);
+      if (!changeOrder) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      if (changeOrder.status !== "draft") {
+        return res.status(400).json({ error: "Only draft change orders can be deleted" });
+      }
+
+      const deleted = await storage.deleteChangeOrder(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      await storage.createActivityLog({
+        userId: req.user?.id,
+        userEmail: req.user?.email,
+        action: "delete_change_order",
+        entityType: "change_order",
+        entityId: id.toString(),
+        details: `Deleted change order CO-${changeOrder.co_number}: ${changeOrder.title}`,
+        ipAddress: req.ip,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting change order:", error);
+      res.status(500).json({ error: "Failed to delete change order" });
+    }
+  });
+
+  // ============================================
   // PROJECT TEMPLATES
   // ============================================
 
@@ -1976,6 +2383,84 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching portal project:", error);
       res.status(500).json({ error: "Failed to fetch project" });
+    }
+  });
+
+  // Get change orders for a project (client-visible only)
+  app.get("/api/portal/projects/:id/change-orders", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      // Verify project belongs to this customer
+      const project = await storage.getClientProjectWithDetails(projectId, req.portalUser.customer.id);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Get change orders and filter to client-visible ones
+      const allChangeOrders = await storage.getChangeOrders(projectId);
+      const visibleChangeOrders = allChangeOrders.filter(co => co.client_visible === "yes");
+
+      res.json(visibleChangeOrders);
+    } catch (error) {
+      console.error("Error fetching portal change orders:", error);
+      res.status(500).json({ error: "Failed to fetch change orders" });
+    }
+  });
+
+  // Approve a change order (portal client action)
+  app.post("/api/portal/change-orders/:id/approve", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid change order ID" });
+      }
+
+      const { signature } = req.body;
+      if (!signature) {
+        return res.status(400).json({ error: "Signature is required" });
+      }
+
+      const changeOrder = await storage.getChangeOrder(id);
+      if (!changeOrder) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      // Verify change order belongs to customer's project
+      const project = await storage.getClientProjectWithDetails(changeOrder.project_id, req.portalUser.customer.id);
+      if (!project) {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      // Only pending change orders can be approved
+      if (changeOrder.status !== "pending_approval") {
+        return res.status(400).json({ error: "Only pending change orders can be approved" });
+      }
+
+      // Only client-visible change orders can be approved by client
+      if (changeOrder.client_visible !== "yes") {
+        return res.status(404).json({ error: "Change order not found" });
+      }
+
+      const approvedBy = req.portalUser.customer.name;
+      const approved = await storage.approveChangeOrder(id, approvedBy, signature);
+
+      await storage.createActivityLog({
+        userId: null,
+        userEmail: req.portalUser.email,
+        action: "portal_approve_change_order",
+        entityType: "change_order",
+        entityId: id.toString(),
+        details: `Client approved change order CO-${changeOrder.co_number} via portal`,
+      });
+
+      res.json(approved);
+    } catch (error) {
+      console.error("Error approving change order via portal:", error);
+      res.status(500).json({ error: "Failed to approve change order" });
     }
   });
 

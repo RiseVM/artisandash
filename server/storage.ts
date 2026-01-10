@@ -16,6 +16,8 @@ import {
   phaseTemplates,
   taskTemplates,
   clientPortalAccess,
+  projectDeliveries,
+  changeOrders,
   type Customer,
   type Inventory,
   type Checkout,
@@ -56,6 +58,12 @@ import {
   type ClientPortalAccess,
   type InsertClientPortalAccess,
   type ClientPortalUser,
+  type ProjectDelivery,
+  type InsertProjectDelivery,
+  type ProjectDeliveryWithPhase,
+  type ChangeOrder,
+  type InsertChangeOrder,
+  type ChangeOrderWithPhase,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
@@ -186,6 +194,23 @@ export interface IStorage {
   deleteClientPortalAccess(id: number): Promise<boolean>;
   getClientProjects(customerId: number): Promise<ProjectWithCustomer[]>;
   getClientProjectWithDetails(projectId: number, customerId: number): Promise<ProjectWithDetails | undefined>;
+
+  // Project Deliveries
+  getProjectDeliveries(projectId: number): Promise<ProjectDeliveryWithPhase[]>;
+  getProjectDelivery(id: number): Promise<ProjectDelivery | undefined>;
+  createProjectDelivery(delivery: InsertProjectDelivery): Promise<ProjectDelivery>;
+  updateProjectDelivery(id: number, delivery: Partial<InsertProjectDelivery>): Promise<ProjectDelivery | undefined>;
+  deleteProjectDelivery(id: number): Promise<boolean>;
+
+  // Change Orders
+  getChangeOrders(projectId: number): Promise<ChangeOrderWithPhase[]>;
+  getChangeOrder(id: number): Promise<ChangeOrder | undefined>;
+  getNextChangeOrderNumber(projectId: number): Promise<number>;
+  createChangeOrder(changeOrder: InsertChangeOrder): Promise<ChangeOrder>;
+  updateChangeOrder(id: number, changeOrder: Partial<InsertChangeOrder>): Promise<ChangeOrder | undefined>;
+  deleteChangeOrder(id: number): Promise<boolean>;
+  approveChangeOrder(id: number, approvedBy: string, signature: string): Promise<ChangeOrder | undefined>;
+  rejectChangeOrder(id: number, rejectionReason: string): Promise<ChangeOrder | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1217,6 +1242,136 @@ export class DatabaseStorage implements IStorage {
       customer: projectResult[0].customer,
       phases: phasesWithTasks,
     };
+  }
+
+  // ============================================
+  // PROJECT DELIVERIES
+  // ============================================
+
+  async getProjectDeliveries(projectId: number): Promise<ProjectDeliveryWithPhase[]> {
+    const result = await db
+      .select({
+        delivery: projectDeliveries,
+        phase: projectPhases,
+      })
+      .from(projectDeliveries)
+      .leftJoin(projectPhases, eq(projectDeliveries.linked_phase_id, projectPhases.id))
+      .where(eq(projectDeliveries.project_id, projectId))
+      .orderBy(desc(projectDeliveries.created_at));
+
+    return result.map((row) => ({
+      ...row.delivery,
+      phase: row.phase || null,
+    }));
+  }
+
+  async getProjectDelivery(id: number): Promise<ProjectDelivery | undefined> {
+    const [delivery] = await db.select().from(projectDeliveries).where(eq(projectDeliveries.id, id));
+    return delivery;
+  }
+
+  async createProjectDelivery(delivery: InsertProjectDelivery): Promise<ProjectDelivery> {
+    const [result] = await db.insert(projectDeliveries).values(delivery).returning();
+    return result;
+  }
+
+  async updateProjectDelivery(id: number, delivery: Partial<InsertProjectDelivery>): Promise<ProjectDelivery | undefined> {
+    const [result] = await db
+      .update(projectDeliveries)
+      .set({ ...delivery, updated_at: new Date() })
+      .where(eq(projectDeliveries.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteProjectDelivery(id: number): Promise<boolean> {
+    const result = await db.delete(projectDeliveries).where(eq(projectDeliveries.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // ============================================
+  // CHANGE ORDERS
+  // ============================================
+
+  async getChangeOrders(projectId: number): Promise<ChangeOrderWithPhase[]> {
+    const result = await db
+      .select({
+        changeOrder: changeOrders,
+        phase: projectPhases,
+      })
+      .from(changeOrders)
+      .leftJoin(projectPhases, eq(changeOrders.linked_phase_id, projectPhases.id))
+      .where(eq(changeOrders.project_id, projectId))
+      .orderBy(asc(changeOrders.co_number));
+
+    return result.map((row) => ({
+      ...row.changeOrder,
+      phase: row.phase || null,
+    }));
+  }
+
+  async getChangeOrder(id: number): Promise<ChangeOrder | undefined> {
+    const [changeOrder] = await db.select().from(changeOrders).where(eq(changeOrders.id, id));
+    return changeOrder;
+  }
+
+  async getNextChangeOrderNumber(projectId: number): Promise<number> {
+    const result = await db
+      .select({ co_number: changeOrders.co_number })
+      .from(changeOrders)
+      .where(eq(changeOrders.project_id, projectId))
+      .orderBy(desc(changeOrders.co_number))
+      .limit(1);
+
+    return (result[0]?.co_number || 0) + 1;
+  }
+
+  async createChangeOrder(changeOrder: InsertChangeOrder): Promise<ChangeOrder> {
+    const [result] = await db.insert(changeOrders).values(changeOrder).returning();
+    return result;
+  }
+
+  async updateChangeOrder(id: number, changeOrder: Partial<InsertChangeOrder>): Promise<ChangeOrder | undefined> {
+    const [result] = await db
+      .update(changeOrders)
+      .set({ ...changeOrder, updated_at: new Date() })
+      .where(eq(changeOrders.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteChangeOrder(id: number): Promise<boolean> {
+    const result = await db.delete(changeOrders).where(eq(changeOrders.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async approveChangeOrder(id: number, approvedBy: string, signature: string): Promise<ChangeOrder | undefined> {
+    const [result] = await db
+      .update(changeOrders)
+      .set({
+        status: "approved",
+        approved_by: approvedBy,
+        approval_signature: signature,
+        decided_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where(eq(changeOrders.id, id))
+      .returning();
+    return result;
+  }
+
+  async rejectChangeOrder(id: number, rejectionReason: string): Promise<ChangeOrder | undefined> {
+    const [result] = await db
+      .update(changeOrders)
+      .set({
+        status: "rejected",
+        rejection_reason: rejectionReason,
+        decided_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where(eq(changeOrders.id, id))
+      .returning();
+    return result;
   }
 }
 
