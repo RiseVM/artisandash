@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "wouter";
-import { useCheckouts, useCustomers, useInventory, useUpdateCheckout, useDeleteCheckout, useContracts, useSignedAgreements } from "@/hooks/use-api";
+import { useCheckouts, useCustomers, useInventory, useUpdateCheckout, useDeleteCheckout, useContracts, useSignedAgreements, useProjects } from "@/hooks/use-api";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CheckoutView, Customer, Inventory } from "@shared/schema";
 import { startOfMonth } from "date-fns";
@@ -68,10 +68,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn, formatShortDateEST, formatReminderDateEST } from "@/lib/utils";
-import { 
-  Search, 
-  Plus, 
-  CheckCircle2, 
+import {
+  Search,
+  Plus,
+  CheckCircle2,
   Edit2,
   Calendar,
   Filter,
@@ -85,7 +85,8 @@ import {
   FileText,
   Package,
   UserPlus,
-  RotateCcw
+  RotateCcw,
+  FolderKanban,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -107,6 +108,7 @@ export function Dashboard() {
   const { data: inventory = [] } = useInventory();
   const { data: contracts = [] } = useContracts();
   const { data: signedAgreements = [] } = useSignedAgreements();
+  const { data: projects = [] } = useProjects();
   const updateCheckoutMutation = useUpdateCheckout();
   const deleteCheckoutMutation = useDeleteCheckout();
   const queryClient = useQueryClient();
@@ -130,8 +132,11 @@ export function Dashboard() {
       if (!c.signed_at) return false;
       return new Date(c.signed_at) >= monthStart;
     }).length;
-    return { activeCount, overdueCount, contractsThisMonth };
-  }, [checkouts, contracts]);
+    const activeProjects = projects.filter(p =>
+      p.status === 'planning' || p.status === 'in_progress'
+    ).length;
+    return { activeCount, overdueCount, contractsThisMonth, activeProjects };
+  }, [checkouts, contracts, projects]);
 
   const recentActivity = useMemo(() => {
     const activities: { id: string; type: string; description: string; date: Date; icon: any; color: string }[] = [];
@@ -540,7 +545,7 @@ export function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card data-testid="card-active-checkouts">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -567,6 +572,21 @@ export function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        <Link href="/projects">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors" data-testid="card-active-projects">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Active Projects</p>
+                  <p className="text-3xl font-bold text-primary">{stats.activeProjects}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-purple-100 flex items-center justify-center">
+                  <FolderKanban className="h-6 w-6 text-purple-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
         <Card data-testid="card-contracts-month">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
