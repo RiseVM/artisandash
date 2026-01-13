@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useProjects, useCustomers, useCreateProject, useDeleteProject, useProjectTemplates, useCreateProjectFromTemplate } from "@/hooks/use-api";
+import { useProjects, useCustomers, useCreateProject, useUpdateProject, useDeleteProject, useProjectTemplates, useCreateProjectFromTemplate } from "@/hooks/use-api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -57,7 +57,16 @@ import {
   Calendar,
   User,
   Layers,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ProjectTemplates } from "./ProjectTemplates";
 import type { ProjectWithCustomer } from "@shared/schema";
 
@@ -85,15 +94,23 @@ export function Projects() {
   const { data: customers = [] } = useCustomers();
   const { data: templates = [] } = useProjectTemplates();
   const createProjectMutation = useCreateProject();
+  const updateProjectMutation = useUpdateProject();
   const createFromTemplateMutation = useCreateProjectFromTemplate();
   const deleteProjectMutation = useDeleteProject();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editProject, setEditProject] = useState<ProjectWithCustomer | null>(null);
   const [deleteProject, setDeleteProject] = useState<ProjectWithCustomer | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [newProject, setNewProject] = useState({
+    name: "",
+    customer_id: 0,
+    description: "",
+    status: "planning",
+  });
+  const [editedProject, setEditedProject] = useState({
     name: "",
     customer_id: 0,
     description: "",
@@ -145,7 +162,7 @@ export function Projects() {
         });
       }
       setIsAddOpen(false);
-      setNewProject({ name: "", customer_id: 0, description: "", status: "active" });
+      setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
       setSelectedTemplateId(null);
       toast({ title: "Project Created", description: `${project.name} has been created.` });
       // Navigate to the new project
@@ -171,6 +188,48 @@ export function Projects() {
       toast({
         title: "Error",
         description: err?.message || "Failed to delete project.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleOpenEditProject = (project: ProjectWithCustomer) => {
+    setEditedProject({
+      name: project.name,
+      customer_id: project.customer_id,
+      description: project.description || "",
+      status: project.status,
+    });
+    setEditProject(project);
+  };
+
+  const handleUpdateProject = async () => {
+    if (!editProject) return;
+    if (!editedProject.name || !editedProject.customer_id) {
+      toast({
+        title: "Error",
+        description: "Please enter a project name and select a customer.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await updateProjectMutation.mutateAsync({
+        id: editProject.id,
+        data: {
+          name: editedProject.name,
+          customer_id: editedProject.customer_id,
+          description: editedProject.description || null,
+          status: editedProject.status,
+        },
+      });
+      setEditProject(null);
+      toast({ title: "Project Updated", description: `${editedProject.name} has been updated.` });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to update project.",
         variant: "destructive",
       });
     }
@@ -269,9 +328,41 @@ export function Projects() {
                         <FolderKanban className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span className="font-medium truncate">{project.name}</span>
                       </div>
-                      <Badge className={`${statusColors[project.status]} shrink-0`}>
-                        {statusLabels[project.status]}
-                      </Badge>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Badge className={`${statusColors[project.status]}`}>
+                          {statusLabels[project.status]}
+                        </Badge>
+                        {canManageProjects && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenEditProject(project);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteProject(project);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
                       <User className="h-3 w-3" />
@@ -347,7 +438,38 @@ export function Projects() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          {canManageProjects ? (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenEditProject(project);
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteProject(project);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -370,7 +492,7 @@ export function Projects() {
         setIsAddOpen(open);
         if (!open) {
           setSelectedTemplateId(null);
-          setNewProject({ name: "", customer_id: 0, description: "", status: "active" });
+          setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
         }
       }}>
         <DialogContent>
@@ -477,6 +599,86 @@ export function Projects() {
                 </>
               ) : (
                 "Create Project"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Project Dialog */}
+      <Dialog open={!!editProject} onOpenChange={(open) => !open && setEditProject(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Project</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Project Name *</Label>
+              <Input
+                id="edit-name"
+                placeholder="e.g., Kitchen Renovation"
+                value={editedProject.name}
+                onChange={(e) => setEditedProject({ ...editedProject, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-customer">Customer *</Label>
+              <Select
+                value={editedProject.customer_id ? editedProject.customer_id.toString() : ""}
+                onValueChange={(value) => setEditedProject({ ...editedProject, customer_id: parseInt(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a customer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.id} value={customer.id.toString()}>
+                      {customer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                placeholder="Brief project description..."
+                value={editedProject.description}
+                onChange={(e) => setEditedProject({ ...editedProject, description: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">Status</Label>
+              <Select
+                value={editedProject.status}
+                onValueChange={(value) => setEditedProject({ ...editedProject, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="planning">Planning</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="on_hold">On Hold</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditProject(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateProject} disabled={updateProjectMutation.isPending}>
+              {updateProjectMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
               )}
             </Button>
           </DialogFooter>

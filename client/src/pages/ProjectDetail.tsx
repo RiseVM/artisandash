@@ -117,6 +117,7 @@ export function ProjectDetail() {
 
   const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
   const [isEditingProject, setIsEditingProject] = useState(false);
+  const [isDeleteProjectOpen, setIsDeleteProjectOpen] = useState(false);
   const [isAddPhaseOpen, setIsAddPhaseOpen] = useState(false);
   const [editingPhase, setEditingPhase] = useState<ProjectPhase | null>(null);
   const [deletePhase, setDeletePhase] = useState<ProjectPhase | null>(null);
@@ -127,7 +128,7 @@ export function ProjectDetail() {
   const [editedProject, setEditedProject] = useState({
     name: "",
     description: "",
-    status: "active",
+    status: "planning",
   });
 
   const [editedPhase, setEditedPhase] = useState({
@@ -206,6 +207,21 @@ export function ProjectDetail() {
       toast({
         title: "Error",
         description: err?.message || "Failed to update project.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!project) return;
+    try {
+      await deleteProjectMutation.mutateAsync(projectId);
+      toast({ title: "Project Deleted", description: `${project.name} has been deleted.` });
+      setLocation("/projects");
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to delete project.",
         variant: "destructive",
       });
     }
@@ -397,21 +413,30 @@ export function ProjectDetail() {
           </div>
         </div>
         {canManageProjects && (
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto"
-            onClick={() => {
-              setEditedProject({
-                name: project.name,
-                description: project.description || "",
-                status: project.status,
-              });
-              setIsEditingProject(true);
-            }}
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Edit Project
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={() => {
+                setEditedProject({
+                  name: project.name,
+                  description: project.description || "",
+                  status: project.status,
+                });
+                setIsEditingProject(true);
+              }}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Edit Project
+            </Button>
+            <Button
+              variant="outline"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setIsDeleteProjectOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       </div>
 
@@ -908,6 +933,35 @@ export function ProjectDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Project Confirmation */}
+      <AlertDialog open={isDeleteProjectOpen} onOpenChange={setIsDeleteProjectOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{project.name}" and all its phases, tasks, files, and related data.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteProject}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteProjectMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
