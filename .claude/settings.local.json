@@ -26,7 +26,8 @@
       "Bash(grep:*)",
       "Bash(wc:*)",
       "Bash(psql:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(xargs cat:*)"
     ]
   }
 }
