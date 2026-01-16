@@ -87,6 +87,73 @@ export async function sendSampleReminder(
   }
 }
 
+export async function sendCheckoutConfirmation(
+  customerEmail: string,
+  customerName: string,
+  sampleName: string,
+  sampleColor: string | null,
+  sampleVendor: string | null,
+  checkoutDate: string,
+  dueDate: string
+): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+
+    const subject = `Sample Checkout Confirmation - ${sampleName}`;
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">Sample Checkout Confirmation</h2>
+        <p>Dear ${customerName},</p>
+        <p>Thank you for visiting Artisan Tile Kitchen & Bath! This email confirms that you have checked out the following sample:</p>
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold; width: 120px;">Sample:</td>
+              <td style="padding: 8px 0;">${sampleName}</td>
+            </tr>
+            ${sampleColor ? `<tr>
+              <td style="padding: 8px 0; font-weight: bold;">Color:</td>
+              <td style="padding: 8px 0;">${sampleColor}</td>
+            </tr>` : ''}
+            ${sampleVendor ? `<tr>
+              <td style="padding: 8px 0; font-weight: bold;">Vendor:</td>
+              <td style="padding: 8px 0;">${sampleVendor}</td>
+            </tr>` : ''}
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold;">Checkout Date:</td>
+              <td style="padding: 8px 0;">${checkoutDate}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0; font-weight: bold;">Due Date:</td>
+              <td style="padding: 8px 0;"><strong style="color: #e74c3c;">${dueDate}</strong></td>
+            </tr>
+          </table>
+        </div>
+        <p>Please return the sample by the due date to avoid any late fees. If you need more time with the sample, please contact us.</p>
+        <p>If you have any questions about your project or would like to discuss your design options, we're here to help!</p>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="margin: 0;">Thank you for choosing us,</p>
+          <p style="margin: 5px 0 0 0; font-weight: bold;">Artisan Tile Kitchen & Bath</p>
+          <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">1200 Boston Post Road, Guilford, CT 06437</p>
+        </div>
+      </div>
+    `;
+
+    const result = await client.emails.send({
+      from: fromEmail || 'noreply@artisantile.com',
+      to: customerEmail,
+      subject,
+      html: bodyHtml,
+    });
+
+    console.log(`Checkout confirmation email sent to ${customerEmail}:`, result);
+    return true;
+  } catch (error) {
+    console.error(`Failed to send checkout confirmation to ${customerEmail}:`, error);
+    return false;
+  }
+}
+
 export async function sendInstallerFollowUp(
   customerName: string,
   customerEmail: string,

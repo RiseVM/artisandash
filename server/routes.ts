@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, insertCustomFieldDefinitionSchema, insertOutOfScopeItemSchema, insertClientFeedbackSchema, insertBugReportSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification, sendBugReportNotification } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification, sendBugReportNotification, sendCheckoutConfirmation } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
@@ -754,10 +754,27 @@ export async function registerRoutes(
         created_by_user_id: userId,
       });
       
-      // Send follow-up emails based on customer needs
+      // Get customer and item info for emails
       const customer = await storage.getCustomer(data.customer_id);
       const item = await storage.getInventoryItem(data.inventory_item_id);
-      
+
+      // Send checkout confirmation email to customer
+      if (customer && item) {
+        try {
+          await sendCheckoutConfirmation(
+            customer.email,
+            customer.name,
+            item.name,
+            item.color,
+            item.vendor,
+            data.checkout_date,
+            data.due_date
+          );
+        } catch (emailError) {
+          console.error("Failed to send checkout confirmation email:", emailError);
+        }
+      }
+
       // Send installer follow-up email if customer needs an installer
       if (data.needs_installer === "yes" && customer && item) {
         try {
