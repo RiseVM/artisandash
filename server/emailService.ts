@@ -701,3 +701,90 @@ export async function sendClientMessageToAdminNotification(
     return false;
   }
 }
+
+// ============================================
+// BUG REPORT NOTIFICATION
+// ============================================
+
+export async function sendBugReportNotification(
+  reporterName: string | null,
+  reporterEmail: string | null,
+  title: string,
+  description: string,
+  pageUrl: string | null,
+  errorMessage: string | null,
+  errorStack: string | null,
+  browserInfo: string | null,
+  reportId: number
+): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+
+    const isAutoReport = !!errorMessage;
+    const subject = isAutoReport
+      ? `[Auto] Bug Report #${reportId}: ${title}`
+      : `Bug Report #${reportId}: ${title}`;
+
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #e74c3c;">${isAutoReport ? 'Automatic Error Report' : 'Bug Report'}</h2>
+        <p>A new bug report has been submitted.</p>
+        <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Report ID:</td>
+            <td style="padding: 10px;">#${reportId}</td>
+          </tr>
+          ${reporterName ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Reporter:</td>
+            <td style="padding: 10px;">${reporterName}</td>
+          </tr>` : ''}
+          ${reporterEmail ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Email:</td>
+            <td style="padding: 10px;">${reporterEmail}</td>
+          </tr>` : ''}
+          ${pageUrl ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Page URL:</td>
+            <td style="padding: 10px;">${pageUrl}</td>
+          </tr>` : ''}
+          ${browserInfo ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Browser:</td>
+            <td style="padding: 10px;">${browserInfo}</td>
+          </tr>` : ''}
+        </table>
+
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0 0 8px 0; font-weight: bold;">Title:</p>
+          <p style="margin: 0 0 16px 0;">${title}</p>
+          <p style="margin: 0 0 8px 0; font-weight: bold;">Description:</p>
+          <p style="margin: 0; white-space: pre-wrap;">${description}</p>
+        </div>
+
+        ${errorMessage ? `
+        <div style="background-color: #fee2e2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #e74c3c;">
+          <p style="margin: 0 0 8px 0; font-weight: bold; color: #991b1b;">Error Message:</p>
+          <p style="margin: 0 0 16px 0; font-family: monospace; font-size: 13px; color: #991b1b;">${errorMessage}</p>
+          ${errorStack ? `
+          <p style="margin: 16px 0 8px 0; font-weight: bold; color: #991b1b;">Stack Trace:</p>
+          <pre style="margin: 0; font-family: monospace; font-size: 11px; color: #991b1b; overflow-x: auto; white-space: pre-wrap;">${errorStack}</pre>
+          ` : ''}
+        </div>
+        ` : ''}
+
+        <p style="color: #666; font-size: 14px;">Please review this bug report in the admin dashboard.</p>
+      </div>
+    `;
+
+    const result = await client.emails.send({
+      from: fromEmail || 'noreply@artisantile.com',
+      to: 'ed@risevm.com',
+      subject,
+      html: bodyHtml,
+    });
+
+    console.log(`Bug report notification sent to ed@risevm.com:`, result);
+    return true;
+  } catch (error) {
+    console.error(`Failed to send bug report notification:`, error);
+    return false;
+  }
+}

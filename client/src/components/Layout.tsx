@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { PlusCircle, LayoutDashboard, Users, Package, LogOut, Calendar, ChevronDown, FileText, ClipboardList, Shield, Activity, FolderKanban } from "lucide-react";
+import { PlusCircle, LayoutDashboard, Users, Package, LogOut, Calendar, ChevronDown, FileText, ClipboardList, Shield, Activity, FolderKanban, Bug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { BugReportButton } from "@/components/BugReportButton";
 import { useAuth } from "@/hooks/useAuth";
 import logoUrl from "@assets/1_1765497247808.jpg";
 
@@ -30,6 +31,7 @@ export function Layout({ children }: LayoutProps) {
   const adminItems = [
     { href: "/admin/users", label: "User Management", icon: Shield, permission: "manage_users" },
     { href: "/admin/activity", label: "Activity Reports", icon: Activity, permission: "view_reports" },
+    { href: "/admin/bug-reports", label: "Bug Reports", icon: Bug, permission: "manage_users" },
   ];
 
   const visibleAdminItems = adminItems.filter(item => hasPermission(item.permission));
@@ -251,6 +253,9 @@ export function Layout({ children }: LayoutProps) {
               <PlusCircle className="h-6 w-6" />
             </button>
           )}
+
+          {/* Bug Report Button - visible on all pages */}
+          <BugReportButton variant="floating" />
         </div>
       </main>
     </div>

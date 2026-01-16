@@ -96,6 +96,9 @@ import {
   type InsertOutOfScopeItem,
   type ClientFeedback,
   type InsertClientFeedback,
+  bugReports,
+  type BugReport,
+  type InsertBugReport,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, or, asc } from "drizzle-orm";
 
@@ -294,6 +297,13 @@ export interface IStorage {
   getUnreadMessageCountForAdmin(projectId: number): Promise<number>;
   getUnreadMessageCountForClient(projectId: number): Promise<number>;
   deleteProjectMessage(id: number): Promise<boolean>;
+
+  // Bug Reports
+  getBugReports(): Promise<BugReport[]>;
+  getBugReport(id: number): Promise<BugReport | undefined>;
+  createBugReport(report: InsertBugReport): Promise<BugReport>;
+  updateBugReport(id: number, report: Partial<InsertBugReport>): Promise<BugReport | undefined>;
+  deleteBugReport(id: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1981,6 +1991,41 @@ export class DatabaseStorage implements IStorage {
 
   async deleteClientFeedback(id: number): Promise<boolean> {
     const result = await db.delete(clientFeedback).where(eq(clientFeedback.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ============================================
+  // BUG REPORTS
+  // ============================================
+
+  async getBugReports(): Promise<BugReport[]> {
+    return db
+      .select()
+      .from(bugReports)
+      .orderBy(desc(bugReports.created_at));
+  }
+
+  async getBugReport(id: number): Promise<BugReport | undefined> {
+    const [report] = await db.select().from(bugReports).where(eq(bugReports.id, id));
+    return report;
+  }
+
+  async createBugReport(report: InsertBugReport): Promise<BugReport> {
+    const [created] = await db.insert(bugReports).values(report).returning();
+    return created;
+  }
+
+  async updateBugReport(id: number, report: Partial<InsertBugReport>): Promise<BugReport | undefined> {
+    const [updated] = await db
+      .update(bugReports)
+      .set({ ...report, updated_at: new Date() })
+      .where(eq(bugReports.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteBugReport(id: number): Promise<boolean> {
+    const result = await db.delete(bugReports).where(eq(bugReports.id, id));
     return (result.rowCount ?? 0) > 0;
   }
 }

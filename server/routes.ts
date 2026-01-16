@@ -1,10 +1,10 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, insertCustomFieldDefinitionSchema, insertOutOfScopeItemSchema, insertClientFeedbackSchema, type User, type ClientPortalUser } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, insertCustomFieldDefinitionSchema, insertOutOfScopeItemSchema, insertClientFeedbackSchema, insertBugReportSchema, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification, sendBugReportNotification } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
@@ -4108,6 +4108,144 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error submitting feedback:", error);
       res.status(500).json({ error: "Failed to submit feedback" });
+    }
+  });
+
+  // ============================================
+  // BUG REPORTS
+  // ============================================
+
+  // Create bug report (public - anyone can submit)
+  app.post("/api/bug-reports", async (req: any, res) => {
+    try {
+      // Get user info if authenticated
+      let reporterUserId = null;
+      let reporterEmail = req.body.reporter_email || null;
+      let reporterName = req.body.reporter_name || null;
+
+      if (req.session?.userId) {
+        const user = await storage.getUser(req.session.userId);
+        if (user) {
+          reporterUserId = user.id;
+          reporterEmail = reporterEmail || user.email;
+          reporterName = reporterName || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+        }
+      } else if (req.session?.portalUserId) {
+        const portalAccess = await storage.getClientPortalAccessById(req.session.portalUserId);
+        if (portalAccess) {
+          reporterEmail = reporterEmail || portalAccess.email;
+          const customer = await storage.getCustomer(portalAccess.customer_id);
+          if (customer) {
+            reporterName = reporterName || customer.name;
+          }
+        }
+      }
+
+      const data = insertBugReportSchema.parse({
+        ...req.body,
+        reporter_user_id: reporterUserId,
+        reporter_email: reporterEmail,
+        reporter_name: reporterName,
+      });
+
+      const report = await storage.createBugReport(data);
+
+      // Send email notification
+      await sendBugReportNotification(
+        report.reporter_name,
+        report.reporter_email,
+        report.title,
+        report.description,
+        report.page_url,
+        report.error_message,
+        report.error_stack,
+        report.browser_info,
+        report.id
+      );
+
+      res.status(201).json(report);
+    } catch (error) {
+      console.error("Error creating bug report:", error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid bug report data", details: error.errors });
+      }
+      res.status(500).json({ error: "Failed to create bug report" });
+    }
+  });
+
+  // Get all bug reports (admin only)
+  app.get("/api/bug-reports", isAdmin, async (req, res) => {
+    try {
+      const reports = await storage.getBugReports();
+      res.json(reports);
+    } catch (error) {
+      console.error("Error fetching bug reports:", error);
+      res.status(500).json({ error: "Failed to fetch bug reports" });
+    }
+  });
+
+  // Get single bug report (admin only)
+  app.get("/api/bug-reports/:id", isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid bug report ID" });
+      }
+      const report = await storage.getBugReport(id);
+      if (!report) {
+        return res.status(404).json({ error: "Bug report not found" });
+      }
+      res.json(report);
+    } catch (error) {
+      console.error("Error fetching bug report:", error);
+      res.status(500).json({ error: "Failed to fetch bug report" });
+    }
+  });
+
+  // Update bug report (admin only)
+  app.patch("/api/bug-reports/:id", isAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid bug report ID" });
+      }
+
+      const updateData: any = { ...req.body };
+
+      // If marking as resolved, set resolved_at and resolved_by
+      if (req.body.status === "resolved" || req.body.status === "closed") {
+        const user = req.user as User;
+        updateData.resolved_at = new Date();
+        updateData.resolved_by_user_id = user.id;
+        updateData.resolved_by_user_name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+      }
+
+      const report = await storage.updateBugReport(id, updateData);
+      if (!report) {
+        return res.status(404).json({ error: "Bug report not found" });
+      }
+      res.json(report);
+    } catch (error) {
+      console.error("Error updating bug report:", error);
+      res.status(500).json({ error: "Failed to update bug report" });
+    }
+  });
+
+  // Delete bug report (admin only)
+  app.delete("/api/bug-reports/:id", isAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid bug report ID" });
+      }
+      const deleted = await storage.deleteBugReport(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Bug report not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting bug report:", error);
+      res.status(500).json({ error: "Failed to delete bug report" });
     }
   });
 

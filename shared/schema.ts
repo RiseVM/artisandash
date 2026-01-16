@@ -1087,3 +1087,54 @@ export const insertClientFeedbackSchema = createInsertSchema(clientFeedback).omi
 
 export type InsertClientFeedback = z.infer<typeof insertClientFeedbackSchema>;
 export type ClientFeedback = typeof clientFeedback.$inferSelect;
+
+// ============================================
+// BUG REPORTS
+// ============================================
+
+// Bug Reports - Track user-submitted bug reports and system errors
+export const bugReports = pgTable("bug_reports", {
+  id: serial("id").primaryKey(),
+
+  // Reporter info
+  reporter_email: text("reporter_email"),
+  reporter_name: text("reporter_name"),
+  reporter_user_id: varchar("reporter_user_id").references(() => users.id, { onDelete: 'set null' }),
+
+  // Bug details
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  page_url: text("page_url"),
+
+  // Error log info (for automatic error reports)
+  error_message: text("error_message"),
+  error_stack: text("error_stack"),
+  browser_info: text("browser_info"),
+
+  // Status tracking
+  status: text("status").default("new").notNull(), // new | in_progress | resolved | closed
+  priority: text("priority").default("normal"), // low | normal | high | critical
+
+  // Admin resolution
+  resolved_by_user_id: varchar("resolved_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  resolved_by_user_name: varchar("resolved_by_user_name"),
+  resolution_notes: text("resolution_notes"),
+  resolved_at: timestamp("resolved_at"),
+
+  // Metadata
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_bug_reports_status").on(table.status),
+  index("IDX_bug_reports_created_at").on(table.created_at),
+]);
+
+export const insertBugReportSchema = createInsertSchema(bugReports).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+  resolved_at: true,
+});
+
+export type InsertBugReport = z.infer<typeof insertBugReportSchema>;
+export type BugReport = typeof bugReports.$inferSelect;

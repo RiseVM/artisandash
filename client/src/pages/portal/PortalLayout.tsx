@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { useLocation } from "wouter";
 import { usePortalAuth } from "@/hooks/usePortalAuth";
 import { Button } from "@/components/ui/button";
+import { BugReportButton } from "@/components/BugReportButton";
 import { LogOut, FolderKanban, Loader2 } from "lucide-react";
 
 interface PortalLayoutProps {
@@ -63,6 +64,9 @@ export function PortalLayout({ children }: PortalLayoutProps) {
       <main className="container max-w-6xl mx-auto px-4 py-8">
         {children}
       </main>
+
+      {/* Bug Report Button */}
+      <BugReportButton variant="floating" />
     </div>
   );
 }

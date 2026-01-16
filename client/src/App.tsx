@@ -17,6 +17,7 @@ import { CabinetryContractForm } from "@/pages/CabinetryContractForm";
 import { HomeImprovementContractForm } from "@/pages/HomeImprovementContractForm";
 import { UserManagement } from "@/pages/UserManagement";
 import { ActivityReports } from "@/pages/ActivityReports";
+import { BugReports } from "@/pages/BugReports";
 import { Projects } from "@/pages/Projects";
 import { ProjectDetail } from "@/pages/ProjectDetail";
 import { Landing } from "@/pages/Landing";
@@ -72,6 +73,7 @@ function AdminRouter() {
         <Route path="/projects/:id" component={ProjectDetail} />
         <Route path="/admin/users" component={UserManagement} />
         <Route path="/admin/activity" component={ActivityReports} />
+        <Route path="/admin/bug-reports" component={BugReports} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
