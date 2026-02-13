@@ -27,7 +27,9 @@
       "Bash(wc:*)",
       "Bash(psql:*)",
       "Bash(ls:*)",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "Bash(replit deploy)",
+      "Bash(replit --help:*)"
     ]
   }
 }
