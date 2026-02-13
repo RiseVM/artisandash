@@ -31,10 +31,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { useCustomers, useInventory, useCreateCustomer, useCreateInventory, useCreateCheckout, useUpdateCustomer, useCheckouts } from "@/hooks/use-api";
+import { useCustomers, useInventory, useCreateCustomer, useCreateInventory, useCreateCheckout, useCheckouts } from "@/hooks/use-api";
 import type { Checkout } from "@shared/schema";
 import { useLocation } from "wouter";
-import { Calendar, Check, ChevronsUpDown, CreditCard, Lock, Loader2, Plus, PenLine, RotateCcw } from "lucide-react";
+import { Calendar, Check, ChevronsUpDown, Loader2, Plus, PenLine, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -49,7 +49,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import SignatureCanvas from "react-signature-canvas";
 
@@ -89,7 +89,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const availableInventory = inventory.filter(item => !checkedOutItemIds.includes(item.id));
   const createCustomerMutation = useCreateCustomer();
   const createInventoryMutation = useCreateInventory();
-  const updateCustomerMutation = useUpdateCustomer();
   const { toast } = useToast();
   
   const [customerOpen, setCustomerOpen] = useState(false);
@@ -100,10 +99,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const [newCustomerData, setNewCustomerData] = useState({ name: "", email: "", phone: "" });
   const [newItemData, setNewItemData] = useState({ name: "", color: "", vendor: "", size: "" });
 
-  const [isProcessingCard, setIsProcessingCard] = useState(false);
-  const [cardVerified, setCardVerified] = useState(!!initialData?.auth_notes);
-  const [cardInputs, setCardInputs] = useState({ number: "", exp: "", cvc: "", zip: "" });
-  const [savedCardDisplay, setSavedCardDisplay] = useState<{ brand: string; last4: string } | null>(null);
 
   const signatureRef = useRef<SignatureCanvas>(null);
   const [hasSignature, setHasSignature] = useState(false);
@@ -137,22 +132,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const selectedCustomerId = form.watch("customer_id");
   const hasSpecialRequest = form.watch("has_special_request");
 
-  useEffect(() => {
-    if (selectedCustomerId && !initialData) {
-      const customer = customers.find(c => c.id === selectedCustomerId);
-      if (customer?.card_last4) {
-        setCardVerified(true);
-        form.setValue("auth_notes", `Card on file (${customer.card_brand || 'Card'} ending in ${customer.card_last4})`);
-        setSavedCardDisplay({ brand: customer.card_brand || 'Card', last4: customer.card_last4 });
-        setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs when existing card found
-      } else {
-        setCardVerified(false);
-        form.setValue("auth_notes", "");
-        setSavedCardDisplay(null);
-        setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs for new customer
-      }
-    }
-  }, [selectedCustomerId, customers, initialData]);
 
   const addItemToList = (itemId: number) => {
     const current = form.getValues("inventory_item_ids");
@@ -169,106 +148,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
 
   const paymentAgreement = form.watch("payment_agreement");
 
-  const handleChargeCard = async () => {
-    if (!paymentAgreement) {
-      toast({
-        title: "Agreement Required",
-        description: "Please agree to the sample policy before processing payment.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!hasSignature) {
-      toast({
-        title: "Signature Required",
-        description: "Please sign the agreement before processing payment.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    const customerId = form.getValues("customer_id");
-    if (!customerId) {
-      toast({
-        title: "Customer Required",
-        description: "Please select a customer before processing payment.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Validate card inputs
-    const cleanedNumber = cardInputs.number.replace(/\s+/g, '');
-    if (cleanedNumber.length < 13) {
-      toast({
-        title: "Invalid Card Number",
-        description: "Please enter a valid card number.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!cardInputs.exp || !cardInputs.exp.includes('/')) {
-      toast({
-        title: "Invalid Expiration",
-        description: "Please enter expiration in MM/YY format.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!cardInputs.cvc || cardInputs.cvc.length < 3) {
-      toast({
-        title: "Invalid CVC",
-        description: "Please enter a valid CVC.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsProcessingCard(true);
-    
-    try {
-      // Parse the actual card data entered
-      const last4 = cleanedNumber.slice(-4);
-      let brand = 'Card';
-      if (cleanedNumber.startsWith('4')) brand = 'Visa';
-      else if (cleanedNumber.startsWith('5')) brand = 'Mastercard';
-      else if (cleanedNumber.startsWith('3')) brand = 'Amex';
-      else if (cleanedNumber.startsWith('6')) brand = 'Discover';
-      
-      // Parse expiration (MM / YY or MM/YY format)
-      const expParts = cardInputs.exp.replace(/\s+/g, '').split('/');
-      const expMonth = expParts[0] || '';
-      const expYear = expParts[1] ? (expParts[1].length === 2 ? '20' + expParts[1] : expParts[1]) : '';
-      
-      await updateCustomerMutation.mutateAsync({
-        id: customerId,
-        data: {
-          // Only store safe card display info (last 4 digits, brand, expiry)
-          card_last4: last4,
-          card_brand: brand,
-          card_exp_month: expMonth,
-          card_exp_year: expYear,
-        }
-      });
-      
-      setCardVerified(true);
-      setSavedCardDisplay({ brand, last4 }); // Update local display state immediately
-      form.setValue("auth_notes", `Card on file (${brand} ending in ${last4})`);
-      setCardInputs({ number: "", exp: "", cvc: "", zip: "" }); // Clear inputs after save
-      toast({
-        title: "Card Saved",
-        description: `${brand} ending in ${last4} saved to customer file.`,
-      });
-    } catch (err) {
-      toast({
-        title: "Payment Failed",
-        description: "Could not process payment. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsProcessingCard(false);
-    }
-  };
 
   const handleCreateCustomer = async () => {
     if (!newCustomerData.name || !newCustomerData.email) {
@@ -338,16 +217,8 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
   const handleSubmit = (data: FormValues) => {
     const hasSamples = data.inventory_item_ids.length > 0;
     
-    // Only require card and signature if samples are being checked out
+    // Only require signature if samples are being checked out
     if (hasSamples) {
-      if (!cardVerified && !initialData) {
-        toast({
-          title: "Payment Required",
-          description: "Please verify a card to proceed with checkout.",
-          variant: "destructive",
-        });
-        return;
-      }
       if (!hasSignature && !initialData) {
         toast({
           title: "Signature Required",
@@ -732,10 +603,10 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                         </FormControl>
                         <div className="space-y-1 leading-none">
                           <FormLabel>
-                            I agree to the sample policy and authorize storing my card on file
+                            I agree to the sample policy
                           </FormLabel>
                           <FormDescription>
-                            I authorize Artisan Tile to store my card on file and charge it for the full retail price of the sample if it is not returned by the due date or is returned damaged.
+                            I acknowledge that I am responsible for returning the sample by the due date in good condition, and may be charged for the full retail price if it is not returned or is returned damaged.
                           </FormDescription>
                           <FormMessage />
                         </div>
@@ -794,120 +665,6 @@ export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
                 </>
               )}
 
-              {/* Only show credit card section when samples are selected */}
-              {selectedItemIds.length > 0 && (
-                <div className="rounded-lg border bg-card p-6 shadow-sm">
-                  <div className="flex items-center gap-2 mb-4">
-                     <Lock className="h-4 w-4 text-green-600" />
-                     <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Secure Payment Method</h3>
-                  </div>
-
-                  {!cardVerified ? (
-                    <div className="space-y-4">
-                      <div className="relative">
-                        <CreditCard className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          placeholder="Card number" 
-                          className="pl-9 font-mono"
-                          maxLength={19}
-                          value={cardInputs.number}
-                          data-testid="input-card-number"
-                          onChange={(e) => {
-                            let v = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '')
-                            let matches = v.match(/\d{4,16}/g);
-                            let match = matches && matches[0] || ''
-                            let parts = []
-                            for (let i=0, len=match.length; i<len; i+=4) {
-                              parts.push(match.substring(i, i+4))
-                            }
-                            const formatted = parts.length ? parts.join(' ') : v;
-                            setCardInputs(prev => ({ ...prev, number: formatted }));
-                          }}
-                        />
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <Input 
-                          placeholder="MM / YY" 
-                          className="font-mono text-center" 
-                          maxLength={7} 
-                          value={cardInputs.exp}
-                          onChange={(e) => setCardInputs(prev => ({ ...prev, exp: e.target.value }))}
-                          data-testid="input-card-exp" 
-                        />
-                        <Input 
-                          placeholder="CVC" 
-                          className="font-mono text-center" 
-                          maxLength={4} 
-                          type="password" 
-                          value={cardInputs.cvc}
-                          onChange={(e) => setCardInputs(prev => ({ ...prev, cvc: e.target.value }))}
-                          data-testid="input-card-cvc" 
-                        />
-                        <Input 
-                          placeholder="Zip Code" 
-                          className="font-mono text-center" 
-                          maxLength={5} 
-                          value={cardInputs.zip}
-                          onChange={(e) => setCardInputs(prev => ({ ...prev, zip: e.target.value }))}
-                          data-testid="input-card-zip" 
-                        />
-                      </div>
-
-                      <Button 
-                        type="button" 
-                        className="w-full" 
-                        onClick={handleChargeCard}
-                        disabled={isProcessingCard || !paymentAgreement || !hasSignature}
-                        data-testid="button-charge-card"
-                      >
-                        {isProcessingCard ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving Card...
-                          </>
-                        ) : (
-                          "Save Card on File"
-                        )}
-                      </Button>
-                      {!paymentAgreement && (
-                        <p className="text-xs text-center text-amber-600">
-                          Please agree to the sample policy above to enable payment processing.
-                        </p>
-                      )}
-                      {paymentAgreement && !hasSignature && (
-                        <p className="text-xs text-center text-amber-600">
-                          Please sign the agreement above before processing payment.
-                        </p>
-                      )}
-                      <p className="text-xs text-center text-muted-foreground">
-                        Your card will be stored securely in case of issues with sample return.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-green-50 border border-green-200 rounded-md p-4 text-center">
-                      <div className="flex items-center justify-center gap-2 text-green-700 font-medium mb-1">
-                        <Check className="h-5 w-5" />
-                        Card on File
-                      </div>
-                      <p className="text-sm text-green-600">
-                        {savedCardDisplay 
-                          ? `${savedCardDisplay.brand} ending in ${savedCardDisplay.last4} is securely stored.`
-                          : "Card is securely stored on file."}
-                      </p>
-                      <Button 
-                        variant="link" 
-                        className="text-xs text-muted-foreground h-auto p-0 mt-2"
-                        onClick={() => {
-                          setCardVerified(false);
-                          form.setValue("auth_notes", "");
-                        }}
-                      >
-                        Use a different card
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
 
               <FormField
                 control={form.control}
