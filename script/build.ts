@@ -2,27 +2,9 @@ import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
 
-// Server deps to bundle to reduce openat(2) syscalls
-// which helps cold start times on Railway/Render
-const allowlist = [
-  "bcryptjs",
-  "connect-pg-simple",
-  "compression",
-  "date-fns",
-  "drizzle-orm",
-  "drizzle-zod",
-  "express",
-  "express-rate-limit",
-  "express-session",
-  "helmet",
-  "multer",
-  "pg",
-  "pino",
-  "stripe",
-  "ws",
-  "zod",
-  "zod-validation-error",
-];
+// Don't bundle ANY deps – load them from node_modules at runtime.
+// This keeps the bundle small and error stack traces readable.
+const allowlist: string[] = [];
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
@@ -48,6 +30,7 @@ async function buildAll() {
       "process.env.NODE_ENV": '"production"',
     },
     minify: false,
+    sourcemap: true,
     external: externals,
     logLevel: "info",
   });
