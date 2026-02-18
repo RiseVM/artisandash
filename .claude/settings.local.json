@@ -29,7 +29,9 @@
       "Bash(ls:*)",
       "Bash(xargs cat:*)",
       "Bash(replit deploy)",
-      "Bash(replit --help:*)"
+      "Bash(replit --help:*)",
+      "Bash(zip:*)",
+      "Bash(tar czf:*)"
     ]
   }
 }
