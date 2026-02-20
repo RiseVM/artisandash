@@ -10,16 +10,16 @@ export const isPortalAuthenticated: RequestHandler = async (req: any, res, next)
   }
 
   // Lazy import to avoid circular deps
-  const { storage } = await import("../modules/portal/storage");
+  const { portalStorage } = await import("../modules/portal/storage");
 
-  const portalUser = await storage.getClientPortalUser(req.session.portalUserId);
+  const portalUser = await portalStorage.getClientPortalUser(req.session.portalUserId);
   if (!portalUser || portalUser.is_active !== "yes") {
     req.session.destroy(() => {});
     return res.status(401).json({ error: "Portal access is inactive" });
   }
 
   // Load the customer's projects for access checks
-  const projects = await storage.getClientProjects(portalUser.customer.id);
+  const projects = await portalStorage.getClientProjects(portalUser.customer.id);
   req.portalUser = { ...portalUser, projects };
   next();
 };

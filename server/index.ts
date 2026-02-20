@@ -105,11 +105,25 @@ declare module "http" {
       startScheduler(60); // check every 60 minutes
     }
 
-    // Phase 4: contracts
-    // Phase 5: projects
-    // Phase 6: project-modules
-    // Phase 7: portal
+    // Phase 4: projects
+    const { registerProjectRoutes } = await import("./modules/projects/routes");
+    registerProjectRoutes(app);
+
+    // Phase 5: portal
+    const { registerPortalRoutes } = await import("./modules/portal/routes");
+    registerPortalRoutes(app);
+
+    // Phase 6: agreements
+    const { registerAgreementRoutes } = await import("./modules/agreements/routes");
+    registerAgreementRoutes(app);
+
+    // Phase 7: contracts
+    const { registerContractRoutes } = await import("./modules/contracts/routes");
+    registerContractRoutes(app);
+
     // Phase 8: timesheets
+    const { registerTimesheetRoutes } = await import("./modules/timesheets/routes");
+    registerTimesheetRoutes(app);
 
     // Health check
     app.get("/api/health", (_req, res) => {

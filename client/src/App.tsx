@@ -24,6 +24,30 @@ import { Inventory } from "@/features/inventory/Inventory";
 // Phase 3: Checkouts, Dashboard, Calendar
 import { Dashboard } from "@/features/checkouts/Dashboard";
 import { Calendar } from "@/features/checkouts/Calendar";
+import { NewCheckout } from "@/features/checkouts/NewCheckout";
+import { EditCheckout } from "@/features/checkouts/EditCheckout";
+
+// Phase 4: Projects
+import { Projects } from "@/features/projects/Projects";
+import { ProjectDetail } from "@/features/projects/ProjectDetail";
+
+// Phase 5: Portal
+import { PortalAuthProvider } from "@/features/portal/PortalAuthProvider";
+import { PortalLogin } from "@/features/portal/PortalLogin";
+import { PortalDashboard } from "@/features/portal/PortalDashboard";
+import { PortalProject } from "@/features/portal/PortalProject";
+
+// Phase 6: Agreements
+import { Agreements } from "@/features/agreements/Agreements";
+
+// Phase 7: Contracts
+import { Contracts } from "@/features/contracts/Contracts";
+import { CabinetryContractForm } from "@/features/contracts/CabinetryContractForm";
+import { HomeImprovementContractForm } from "@/features/contracts/HomeImprovementContractForm";
+
+// Phase 8: Timesheets
+import { MyTimesheets } from "@/features/timesheets/MyTimesheets";
+import { AdminTimesheets } from "@/features/timesheets/AdminTimesheets";
 
 // Placeholder component shown until feature modules are built
 function Placeholder({ name }: { name: string }) {
@@ -53,17 +77,19 @@ function NotFound() {
 // ============================================
 function PortalRouter() {
   return (
-    <Switch>
-      <Route path="/portal/login">
-        <Placeholder name="Portal Login" />
-      </Route>
-      <Route path="/portal/project/:id">
-        <Placeholder name="Portal Project" />
-      </Route>
-      <Route path="/portal">
-        <Placeholder name="Portal Dashboard" />
-      </Route>
-    </Switch>
+    <PortalAuthProvider>
+      <Switch>
+        <Route path="/portal/login">
+          <PortalLogin />
+        </Route>
+        <Route path="/portal/project/:id">
+          <PortalProject />
+        </Route>
+        <Route path="/portal">
+          <PortalDashboard />
+        </Route>
+      </Switch>
+    </PortalAuthProvider>
   );
 }
 
@@ -95,10 +121,10 @@ function AdminRouter() {
 
         {/* Checkouts */}
         <Route path="/new">
-          <Placeholder name="New Checkout" />
+          <NewCheckout />
         </Route>
         <Route path="/edit/:id">
-          <Placeholder name="Edit Checkout" />
+          <EditCheckout />
         </Route>
         <Route path="/calendar">
           <Calendar />
@@ -114,32 +140,32 @@ function AdminRouter() {
 
         {/* Contracts & Agreements */}
         <Route path="/agreements">
-          <Placeholder name="Agreements" />
+          <Agreements />
         </Route>
         <Route path="/contracts">
-          <Placeholder name="Contracts" />
+          <Contracts />
         </Route>
         <Route path="/contracts/cabinetry">
-          <Placeholder name="Cabinetry Contract" />
+          <CabinetryContractForm />
         </Route>
         <Route path="/contracts/home-improvement">
-          <Placeholder name="Home Improvement Contract" />
+          <HomeImprovementContractForm />
         </Route>
 
         {/* Projects */}
         <Route path="/projects">
-          <Placeholder name="Projects" />
+          <Projects />
         </Route>
         <Route path="/projects/:id">
-          <Placeholder name="Project Detail" />
+          <ProjectDetail />
         </Route>
 
         {/* Timesheets (NEW) */}
         <Route path="/timesheets">
-          <Placeholder name="My Timesheets" />
+          <MyTimesheets />
         </Route>
         <Route path="/admin/timesheets">
-          <Placeholder name="All Timesheets (Admin)" />
+          <AdminTimesheets />
         </Route>
 
         {/* Admin */}

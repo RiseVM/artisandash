@@ -8,7 +8,11 @@ import path from "path";
 const allowlist: string[] = [];
 
 async function buildAll() {
-  await rm("dist", { recursive: true, force: true });
+  try {
+    await rm("dist", { recursive: true, force: true });
+  } catch {
+    console.log("Could not remove dist/ (may be locked), continuing...");
+  }
 
   console.log("building client...");
   await viteBuild();

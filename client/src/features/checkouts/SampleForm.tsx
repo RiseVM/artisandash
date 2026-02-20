@@ -1,0 +1,976 @@
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
+import { useCustomers, useCreateCustomer } from "@/features/customers/hooks";
+import { useInventory, useCreateInventory } from "@/features/inventory/hooks";
+import { useCheckouts } from "./hooks";
+import type { Checkout } from "@shared/schema";
+import { useLocation } from "wouter";
+import {
+  Calendar,
+  Check,
+  ChevronsUpDown,
+  Loader2,
+  Plus,
+  PenLine,
+  RotateCcw,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useState, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
+import SignatureCanvas from "react-signature-canvas";
+
+const formSchema = z.object({
+  customer_id: z.number({ required_error: "Please select a customer" }),
+  inventory_item_ids: z.array(z.number()),
+  due_date: z.string().optional(),
+  project_type: z.string().optional(),
+  needs_installer: z.string().default("no"),
+  wants_designer: z.string().default("no"),
+  start_date: z.string().optional(),
+  has_special_request: z.string().default("no"),
+  special_request: z.string().optional(),
+  notes: z.string().optional(),
+  auth_notes: z.string().optional(),
+  payment_agreement: z.boolean().default(false),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+interface SampleFormProps {
+  initialData?: Checkout;
+  onSubmit: (data: any) => void;
+  title: string;
+}
+
+export function SampleForm({ initialData, onSubmit, title }: SampleFormProps) {
+  const [, setLocation] = useLocation();
+  const { data: customers = [] } = useCustomers();
+  const { data: inventory = [] } = useInventory();
+  const { data: checkouts = [] } = useCheckouts();
+
+  const checkedOutItemIds = checkouts
+    .filter((c) => c.status === "checked_out" || c.status === "overdue")
+    .map((c) => c.inventory_item_id);
+
+  const availableInventory = inventory.filter(
+    (item) => !checkedOutItemIds.includes(item.id),
+  );
+  const createCustomerMutation = useCreateCustomer();
+  const createInventoryMutation = useCreateInventory();
+  const { toast } = useToast();
+
+  const [customerOpen, setCustomerOpen] = useState(false);
+  const [itemOpen, setItemOpen] = useState(false);
+
+  const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
+  const [showNewItemDialog, setShowNewItemDialog] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+  });
+  const [newItemData, setNewItemData] = useState({
+    name: "",
+    color: "",
+    vendor: "",
+    size: "",
+  });
+
+  const signatureRef = useRef<SignatureCanvas>(null);
+  const [hasSignature, setHasSignature] = useState(false);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: initialData
+      ? {
+          customer_id: initialData.customer_id,
+          inventory_item_ids: [initialData.inventory_item_id],
+          due_date: initialData.due_date,
+          notes: initialData.notes || "",
+          auth_notes: initialData.auth_notes || "",
+          payment_agreement: true,
+        }
+      : {
+          customer_id: undefined,
+          inventory_item_ids: [],
+          due_date: format(new Date(), "yyyy-MM-dd"),
+          project_type: "",
+          needs_installer: "no",
+          wants_designer: "no",
+          start_date: "",
+          has_special_request: "no",
+          special_request: "",
+          notes: "",
+          auth_notes: "",
+          payment_agreement: false,
+        },
+  });
+
+  const selectedItemIds = form.watch("inventory_item_ids");
+  const selectedCustomerId = form.watch("customer_id");
+  const hasSpecialRequest = form.watch("has_special_request");
+  const paymentAgreement = form.watch("payment_agreement");
+
+  const addItemToList = (itemId: number) => {
+    const current = form.getValues("inventory_item_ids");
+    if (!current.includes(itemId)) {
+      form.setValue("inventory_item_ids", [...current, itemId]);
+    }
+    setItemOpen(false);
+  };
+
+  const removeItemFromList = (itemId: number) => {
+    const current = form.getValues("inventory_item_ids");
+    form.setValue(
+      "inventory_item_ids",
+      current.filter((id) => id !== itemId),
+    );
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomerData.name || !newCustomerData.email) {
+      toast({
+        title: "Required Fields",
+        description: "Name and email are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const newC = await createCustomerMutation.mutateAsync({
+      name: newCustomerData.name,
+      email: newCustomerData.email,
+      phone: newCustomerData.phone || null,
+    });
+    form.setValue("customer_id", newC.id);
+    setShowNewCustomerDialog(false);
+    setNewCustomerData({ name: "", email: "", phone: "" });
+    toast({
+      title: "Customer Created",
+      description: `${newC.name} added and selected.`,
+    });
+  };
+
+  const handleCreateItem = async () => {
+    if (!newItemData.name) {
+      toast({
+        title: "Required Fields",
+        description: "Item name is required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const newI = await createInventoryMutation.mutateAsync({
+      name: newItemData.name,
+      color: newItemData.color || null,
+      vendor: newItemData.vendor || null,
+      size: newItemData.size || null,
+      total_quantity: 1,
+    });
+    addItemToList(newI.id);
+    setShowNewItemDialog(false);
+    setNewItemData({ name: "", color: "", vendor: "", size: "" });
+    toast({
+      title: "Item Created",
+      description: `${newI.name} added to checkout.`,
+    });
+  };
+
+  const clearSignature = () => {
+    signatureRef.current?.clear();
+    setHasSignature(false);
+  };
+
+  const handleSignatureEnd = () => {
+    if (signatureRef.current && !signatureRef.current.isEmpty()) {
+      setHasSignature(true);
+    }
+  };
+
+  const getSignatureWithWhiteBackground = (): string => {
+    if (!signatureRef.current) return "";
+
+    const canvas = signatureRef.current.getCanvas();
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return signatureRef.current.toDataURL();
+
+    const tempCanvas = document.createElement("canvas");
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext("2d");
+    if (!tempCtx) return signatureRef.current.toDataURL();
+
+    tempCtx.fillStyle = "#FFFFFF";
+    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx.drawImage(canvas, 0, 0);
+
+    return tempCanvas.toDataURL("image/png");
+  };
+
+  const handleSubmit = (data: FormValues) => {
+    const hasSamples = data.inventory_item_ids.length > 0;
+
+    // Only require signature if samples are being checked out
+    if (hasSamples) {
+      if (!hasSignature && !initialData) {
+        toast({
+          title: "Signature Required",
+          description: "Please sign to acknowledge the sample policy.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!data.payment_agreement && !initialData) {
+        toast({
+          title: "Agreement Required",
+          description: "Please agree to the sample policy terms.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!data.due_date) {
+        toast({
+          title: "Due Date Required",
+          description: "Please select a due date for the sample checkout.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    const signatureData = hasSamples
+      ? getSignatureWithWhiteBackground()
+      : "";
+    onSubmit({ ...data, signature: signatureData });
+    setLocation("/");
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-2xl font-serif font-bold text-primary">{title}</h2>
+        <p className="text-muted-foreground">
+          Enter the details for the sample checkout.
+        </p>
+      </div>
+
+      <Card>
+        <CardContent className="pt-6">
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit(handleSubmit)}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="customer_id"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Customer</FormLabel>
+                      <div className="flex gap-2">
+                        <Popover
+                          open={customerOpen}
+                          onOpenChange={setCustomerOpen}
+                        >
+                          <PopoverTrigger asChild>
+                            <FormControl>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className={cn(
+                                  "flex-1 justify-between",
+                                  !field.value && "text-muted-foreground",
+                                )}
+                                data-testid="select-customer"
+                              >
+                                {field.value
+                                  ? customers.find(
+                                      (customer) =>
+                                        customer.id === field.value,
+                                    )?.name
+                                  : "Select customer"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </FormControl>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[250px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search customer..." />
+                              <CommandList>
+                                <CommandEmpty>
+                                  <p className="text-sm text-muted-foreground p-2">
+                                    No customer found.
+                                  </p>
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  {customers.map((customer) => (
+                                    <CommandItem
+                                      value={customer.name}
+                                      key={customer.id}
+                                      onSelect={() => {
+                                        form.setValue(
+                                          "customer_id",
+                                          customer.id,
+                                        );
+                                        setCustomerOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          customer.id === field.value
+                                            ? "opacity-100"
+                                            : "opacity-0",
+                                        )}
+                                      />
+                                      {customer.name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowNewCustomerDialog(true)}
+                          title="Add new customer"
+                          data-testid="button-new-customer"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Due date shown above sample selection when samples are selected */}
+              {selectedItemIds.length > 0 && (
+                <FormField
+                  control={form.control}
+                  name="due_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Sample Due Date</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                          <Input
+                            type="date"
+                            className="pl-10"
+                            {...field}
+                            data-testid="input-due-date"
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={form.control}
+                name="inventory_item_ids"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>Sample Items</FormLabel>
+                    <div className="space-y-3">
+                      <div className="flex gap-2">
+                        <Popover open={itemOpen} onOpenChange={setItemOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              className="flex-1 justify-between text-muted-foreground"
+                              data-testid="select-item"
+                            >
+                              Add a sample...
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search inventory..." />
+                              <CommandList>
+                                <CommandEmpty>
+                                  <p className="text-sm text-muted-foreground p-2">
+                                    Item not found.
+                                  </p>
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  {availableInventory
+                                    .filter(
+                                      (item) =>
+                                        !selectedItemIds.includes(item.id),
+                                    )
+                                    .map((item) => (
+                                      <CommandItem
+                                        value={item.name}
+                                        key={item.id}
+                                        onSelect={() => addItemToList(item.id)}
+                                      >
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        {item.name}
+                                        {item.sku && (
+                                          <span className="ml-2 text-xs text-muted-foreground">
+                                            ({item.sku})
+                                          </span>
+                                        )}
+                                      </CommandItem>
+                                    ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => setShowNewItemDialog(true)}
+                          title="Add new item"
+                          data-testid="button-new-item"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {selectedItemIds.length > 0 && (
+                        <div className="rounded-md border divide-y">
+                          {selectedItemIds.map((itemId) => {
+                            const item = inventory.find(
+                              (i) => i.id === itemId,
+                            );
+                            return (
+                              <div
+                                key={itemId}
+                                className="flex items-center justify-between p-3"
+                                data-testid={`selected-item-${itemId}`}
+                              >
+                                <div>
+                                  <span className="font-medium">
+                                    {item?.name || "Unknown"}
+                                  </span>
+                                  {item?.sku && (
+                                    <span className="ml-2 text-xs text-muted-foreground">
+                                      ({item.sku})
+                                    </span>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeItemFromList(itemId)}
+                                  className="text-destructive hover:text-destructive"
+                                  data-testid={`remove-item-${itemId}`}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {selectedItemIds.length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          No samples selected (optional — leave empty for
+                          customer info only).
+                        </p>
+                      )}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="start_date"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project Start Date</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Input
+                          type="date"
+                          className="pl-10"
+                          {...field}
+                          data-testid="input-start-date"
+                        />
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      When the project is expected to begin
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="project_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type of Project</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || ""}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-project-type">
+                          <SelectValue placeholder="Select project type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="retail">Retail</SelectItem>
+                        <SelectItem value="project">Project</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="needs_installer"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Do you need an installer?</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || "no"}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-needs-installer">
+                          <SelectValue placeholder="Select option" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      If yes, we'll follow up with installer information
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="wants_designer"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Interested in working with a designer?
+                    </FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || "no"}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-wants-designer">
+                          <SelectValue placeholder="Select option" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      If yes, our design team will reach out
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="has_special_request"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      Do you have a special sample request?
+                    </FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || "no"}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-has-special-request">
+                          <SelectValue placeholder="Select option" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="no">No</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      If yes, our showroom team will follow up
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {hasSpecialRequest === "yes" && (
+                <FormField
+                  control={form.control}
+                  name="special_request"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Special Request Details</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Please describe your special request..."
+                          className="resize-none"
+                          {...field}
+                          data-testid="input-special-request"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Only show payment requirements when samples are selected */}
+              {selectedItemIds.length > 0 && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="payment_agreement"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-amber-50 dark:bg-amber-950">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="checkbox-agreement"
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>I agree to the sample policy</FormLabel>
+                          <FormDescription>
+                            I acknowledge that I am responsible for returning the
+                            sample by the due date in good condition, and may be
+                            charged for the full retail price if it is not
+                            returned or is returned damaged.
+                          </FormDescription>
+                          <FormMessage />
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="rounded-lg border bg-card p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <PenLine className="h-4 w-4 text-primary" />
+                        <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">
+                          Customer Signature
+                        </h3>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearSignature}
+                        data-testid="button-clear-signature"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-1" />
+                        Clear
+                      </Button>
+                    </div>
+
+                    <div
+                      className="border-2 border-dashed rounded-lg bg-white touch-none overflow-hidden"
+                      style={{ height: "200px" }}
+                    >
+                      <SignatureCanvas
+                        ref={signatureRef}
+                        canvasProps={{
+                          width: 500,
+                          height: 200,
+                          className: "rounded-lg",
+                          style: {
+                            width: "100%",
+                            height: "100%",
+                            touchAction: "none",
+                          },
+                        }}
+                        onEnd={handleSignatureEnd}
+                        penColor="black"
+                        backgroundColor="rgb(255, 255, 255)"
+                        data-testid="signature-canvas"
+                      />
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground mt-2">
+                      Sign above using your finger or stylus to acknowledge the
+                      sample policy.
+                    </p>
+                    {hasSignature && (
+                      <div className="flex items-center justify-center gap-1 mt-2 text-green-600 text-sm">
+                        <Check className="h-4 w-4" />
+                        Signature captured
+                      </div>
+                    )}
+                    {!hasSignature && paymentAgreement && (
+                      <p className="text-xs text-center text-amber-600 mt-2">
+                        Please sign above before proceeding to payment.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Any additional context..."
+                        className="resize-none"
+                        {...field}
+                        data-testid="textarea-notes"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setLocation("/")}
+                  data-testid="button-cancel"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" data-testid="button-submit">
+                  {initialData
+                    ? "Update Checkout"
+                    : selectedItemIds.length > 0
+                      ? "Complete Checkout"
+                      : "Save Customer Info"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      {/* New Customer Dialog */}
+      <Dialog
+        open={showNewCustomerDialog}
+        onOpenChange={setShowNewCustomerDialog}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Name</Label>
+              <Input
+                className="col-span-3"
+                value={newCustomerData.name}
+                onChange={(e) =>
+                  setNewCustomerData({
+                    ...newCustomerData,
+                    name: e.target.value,
+                  })
+                }
+                data-testid="input-inline-customer-name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Email</Label>
+              <Input
+                className="col-span-3"
+                value={newCustomerData.email}
+                onChange={(e) =>
+                  setNewCustomerData({
+                    ...newCustomerData,
+                    email: e.target.value,
+                  })
+                }
+                data-testid="input-inline-customer-email"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Phone</Label>
+              <Input
+                className="col-span-3"
+                value={newCustomerData.phone}
+                onChange={(e) =>
+                  setNewCustomerData({
+                    ...newCustomerData,
+                    phone: e.target.value,
+                  })
+                }
+                data-testid="input-inline-customer-phone"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowNewCustomerDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateCustomer}
+              disabled={createCustomerMutation.isPending}
+              data-testid="button-save-inline-customer"
+            >
+              {createCustomerMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Create Customer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Item Dialog */}
+      <Dialog open={showNewItemDialog} onOpenChange={setShowNewItemDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Sample Item</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Name</Label>
+              <Input
+                className="col-span-3"
+                value={newItemData.name}
+                onChange={(e) =>
+                  setNewItemData({ ...newItemData, name: e.target.value })
+                }
+                data-testid="input-inline-item-name"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Color</Label>
+              <Input
+                className="col-span-3"
+                value={newItemData.color}
+                onChange={(e) =>
+                  setNewItemData({ ...newItemData, color: e.target.value })
+                }
+                data-testid="input-inline-item-color"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Vendor</Label>
+              <Input
+                className="col-span-3"
+                value={newItemData.vendor}
+                onChange={(e) =>
+                  setNewItemData({ ...newItemData, vendor: e.target.value })
+                }
+                data-testid="input-inline-item-vendor"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Size</Label>
+              <Input
+                className="col-span-3"
+                value={newItemData.size}
+                onChange={(e) =>
+                  setNewItemData({ ...newItemData, size: e.target.value })
+                }
+                data-testid="input-inline-item-size"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowNewItemDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateItem}
+              disabled={createInventoryMutation.isPending}
+              data-testid="button-save-inline-item"
+            >
+              {createInventoryMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : null}
+              Create Item
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
