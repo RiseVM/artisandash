@@ -54,12 +54,14 @@ export function ProjectMessages({ projectId }: ProjectMessagesProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Mark messages as read when component mounts or messages change
+  // Mark messages as read when component mounts with unread messages
+  const unreadCount = unreadData?.count ?? 0;
   useEffect(() => {
-    if (unreadData?.count && unreadData.count > 0) {
+    if (unreadCount > 0) {
       markRead.mutate({ projectId });
     }
-  }, [projectId, unreadData?.count]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
