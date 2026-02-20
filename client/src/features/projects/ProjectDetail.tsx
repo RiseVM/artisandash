@@ -166,7 +166,7 @@ export function ProjectDetail() {
     reorderedPhases.splice(destIndex, 0, removed);
 
     // Get the new order of phase IDs
-    const phaseIds = reorderedPhases.map((p) => p.id);
+    const phaseIds = reorderedPhases.map((p: any) => p.id);
 
     try {
       await reorderPhasesMutation.mutateAsync({ projectId, phaseIds });
