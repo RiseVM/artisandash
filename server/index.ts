@@ -96,6 +96,15 @@ declare module "http" {
     registerInventoryRoutes(app);
 
     // Phase 3: checkouts
+    const { registerCheckoutRoutes } = await import("./modules/checkouts/routes");
+    registerCheckoutRoutes(app);
+
+    // Start notification scheduler in production
+    if (process.env.NODE_ENV === "production") {
+      const { startScheduler } = await import("./services/notificationScheduler");
+      startScheduler(60); // check every 60 minutes
+    }
+
     // Phase 4: contracts
     // Phase 5: projects
     // Phase 6: project-modules

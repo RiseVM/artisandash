@@ -1,6 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
 import { rm, readFile } from "fs/promises";
+import path from "path";
 
 // Don't bundle ANY deps – load them from node_modules at runtime.
 // This keeps the bundle small and error stack traces readable.
@@ -28,6 +29,9 @@ async function buildAll() {
     outfile: "dist/index.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
+    },
+    alias: {
+      "@shared": path.resolve("shared"),
     },
     minify: false,
     sourcemap: true,

@@ -21,6 +21,10 @@ import { BugReports } from "@/features/admin/BugReports";
 import { Customers } from "@/features/customers/Customers";
 import { Inventory } from "@/features/inventory/Inventory";
 
+// Phase 3: Checkouts, Dashboard, Calendar
+import { Dashboard } from "@/features/checkouts/Dashboard";
+import { Calendar } from "@/features/checkouts/Calendar";
+
 // Placeholder component shown until feature modules are built
 function Placeholder({ name }: { name: string }) {
   return (
@@ -86,7 +90,7 @@ function AdminRouter() {
       <Switch>
         {/* Dashboard */}
         <Route path="/">
-          <Placeholder name="Dashboard" />
+          <Dashboard />
         </Route>
 
         {/* Checkouts */}
@@ -97,7 +101,7 @@ function AdminRouter() {
           <Placeholder name="Edit Checkout" />
         </Route>
         <Route path="/calendar">
-          <Placeholder name="Calendar" />
+          <Calendar />
         </Route>
 
         {/* Inventory & Customers */}
