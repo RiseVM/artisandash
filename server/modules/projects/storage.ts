@@ -1159,13 +1159,19 @@ export async function seedDefaultProjectTemplate() {
   // Check if any templates exist already
   const existing = await db.select().from(projectTemplates);
   if (existing.length > 0) {
+    // Rename "Artisan Tile Project" to "default" if it exists
+    const artisanTemplate = existing.find(t => t.name === "Artisan Tile Project");
+    if (artisanTemplate) {
+      await db.update(projectTemplates).set({ name: "default" }).where(eq(projectTemplates.id, artisanTemplate.id));
+      console.log("Renamed 'Artisan Tile Project' template to 'default'");
+    }
     return; // Don't seed if templates already exist
   }
 
   console.log("Seeding default project template...");
 
   const [template] = await db.insert(projectTemplates).values({
-    name: "Artisan Tile Project",
+    name: "default",
     description: "Standard tile kitchen & bath project workflow with all phases from intake to completion",
     is_active: "yes",
   }).returning();

@@ -49,6 +49,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -84,6 +91,7 @@ export function ProjectTemplates() {
   const [newTemplate, setNewTemplate] = useState({
     name: "",
     description: "",
+    startFrom: "default" as "default" | "blank",
   });
 
   const createTemplateMutation = useCreateProjectTemplate();
@@ -91,6 +99,9 @@ export function ProjectTemplates() {
   const duplicateTemplateMutation = useDuplicateProjectTemplate();
 
   const canManageProjects = hasPermission("manage_projects");
+
+  // Find the "default" template for "Start from Default" option
+  const defaultTemplate = templates.find(t => t.name === "default");
 
   const filteredTemplates = templates.filter((template) =>
     template.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -108,12 +119,33 @@ export function ProjectTemplates() {
     }
 
     try {
-      const template = await createTemplateMutation.mutateAsync({
-        name: newTemplate.name,
-        description: newTemplate.description || null,
-      });
+      let template;
+      if (newTemplate.startFrom === "default" && defaultTemplate) {
+        // Duplicate the default template, then rename it
+        template = await duplicateTemplateMutation.mutateAsync(defaultTemplate.id);
+        // Update the name and description of the duplicated template
+        const { useUpdateProjectTemplate } = await import("./hooks");
+        // We'll use a direct API call to rename
+        const res = await fetch(`/api/project-templates/${template.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newTemplate.name,
+            description: newTemplate.description || template.description,
+          }),
+        });
+        if (res.ok) {
+          template = await res.json();
+        }
+      } else {
+        // Create blank template
+        template = await createTemplateMutation.mutateAsync({
+          name: newTemplate.name,
+          description: newTemplate.description || null,
+        });
+      }
       setIsAddOpen(false);
-      setNewTemplate({ name: "", description: "" });
+      setNewTemplate({ name: "", description: "", startFrom: "default" });
       toast({ title: "Template Created", description: `${template.name} has been created.` });
       setEditingTemplateId(template.id);
     } catch (err: any) {
@@ -287,12 +319,47 @@ export function ProjectTemplates() {
       </Card>
 
       {/* Add Template Dialog */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog open={isAddOpen} onOpenChange={(open) => {
+        setIsAddOpen(open);
+        if (!open) setNewTemplate({ name: "", description: "", startFrom: "default" });
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create New Template</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {defaultTemplate && (
+              <div className="space-y-2">
+                <Label>Start From</Label>
+                <Select
+                  value={newTemplate.startFrom}
+                  onValueChange={(value: "default" | "blank") => setNewTemplate({ ...newTemplate, startFrom: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">
+                      <div className="flex items-center gap-2">
+                        <Copy className="h-4 w-4" />
+                        Default Template (copy all phases & tasks)
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="blank">
+                      <div className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Blank Template
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {newTemplate.startFrom === "default" && (
+                  <p className="text-xs text-muted-foreground">
+                    Creates a copy of the default template with all phases and tasks. You can then customize it.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="name">Template Name *</Label>
               <Input
@@ -316,8 +383,8 @@ export function ProjectTemplates() {
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateTemplate} disabled={createTemplateMutation.isPending}>
-              {createTemplateMutation.isPending ? (
+            <Button onClick={handleCreateTemplate} disabled={createTemplateMutation.isPending || duplicateTemplateMutation.isPending}>
+              {(createTemplateMutation.isPending || duplicateTemplateMutation.isPending) ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Creating...

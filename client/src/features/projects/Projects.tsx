@@ -8,7 +8,7 @@ import {
   useProjectTemplates,
   useCreateProjectFromTemplate,
 } from "./hooks";
-import { useCustomers } from "../customers/hooks";
+import { useCustomers, useCreateCustomer } from "../customers/hooks";
 import { useAuth } from "@/features/auth/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  UserPlus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -105,6 +106,7 @@ export function Projects() {
   const updateProjectMutation = useUpdateProject();
   const createFromTemplateMutation = useCreateProjectFromTemplate();
   const deleteProjectMutation = useDeleteProject();
+  const createCustomerMutation = useCreateCustomer();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -113,6 +115,8 @@ export function Projects() {
   const [deleteProject, setDeleteProject] = useState<ProjectWithCustomer | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [templateDefaultApplied, setTemplateDefaultApplied] = useState(false);
+  const [isAddingNewClient, setIsAddingNewClient] = useState(false);
+  const [newClient, setNewClient] = useState({ name: "", email: "", phone: "" });
   const [newProject, setNewProject] = useState({
     name: "",
     customer_id: 0,
@@ -510,6 +514,8 @@ export function Projects() {
           setSelectedTemplateId(null);
           setTemplateDefaultApplied(false);
           setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
+          setIsAddingNewClient(false);
+          setNewClient({ name: "", email: "", phone: "" });
         }
       }}>
         <DialogContent>
@@ -562,21 +568,97 @@ export function Projects() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="customer">Customer *</Label>
-              <Select
-                value={newProject.customer_id ? newProject.customer_id.toString() : ""}
-                onValueChange={(value) => setNewProject({ ...newProject, customer_id: parseInt(value) })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id.toString()}>
-                      {customer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!isAddingNewClient ? (
+                <>
+                  <Select
+                    value={newProject.customer_id ? newProject.customer_id.toString() : ""}
+                    onValueChange={(value) => {
+                      if (value === "new") {
+                        setIsAddingNewClient(true);
+                      } else {
+                        setNewProject({ ...newProject, customer_id: parseInt(value) });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">
+                        <div className="flex items-center gap-2 text-primary font-medium">
+                          <UserPlus className="h-4 w-4" />
+                          + Add New Client
+                        </div>
+                      </SelectItem>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id.toString()}>
+                          {customer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">New Client</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsAddingNewClient(false);
+                        setNewClient({ name: "", email: "", phone: "" });
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  <Input
+                    placeholder="Client name *"
+                    value={newClient.name}
+                    onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Email *"
+                    type="email"
+                    value={newClient.email}
+                    onChange={(e) => setNewClient({ ...newClient, email: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Phone (optional)"
+                    value={newClient.phone}
+                    onChange={(e) => setNewClient({ ...newClient, phone: e.target.value })}
+                  />
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={!newClient.name || !newClient.email || createCustomerMutation.isPending}
+                    onClick={async () => {
+                      try {
+                        const customer = await createCustomerMutation.mutateAsync({
+                          name: newClient.name,
+                          email: newClient.email,
+                          phone: newClient.phone || null,
+                          address: null,
+                          notes: null,
+                        });
+                        setNewProject({ ...newProject, customer_id: customer.id });
+                        setIsAddingNewClient(false);
+                        setNewClient({ name: "", email: "", phone: "" });
+                        toast({ title: "Client Created", description: `${customer.name} has been added.` });
+                      } catch (err: any) {
+                        toast({ title: "Error", description: err?.message || "Failed to create client.", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    {createCustomerMutation.isPending ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</>
+                    ) : (
+                      <><UserPlus className="h-4 w-4 mr-2" />Add Client</>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
