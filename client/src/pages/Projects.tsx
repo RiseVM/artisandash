@@ -88,7 +88,7 @@ const statusLabels: Record<string, string> = {
 
 export function Projects() {
   const [, setLocation] = useLocation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const { data: projects = [], isLoading } = useProjects();
   const { data: customers = [] } = useCustomers();
@@ -265,7 +265,7 @@ export function Projects() {
         </TabsList>
 
         <TabsContent value="projects" className="space-y-6">
-          {canManageProjects && (
+          {isAuthenticated && (
             <div className="flex justify-end">
               <Button onClick={() => setIsAddOpen(true)} className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
