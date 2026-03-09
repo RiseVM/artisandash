@@ -105,6 +105,10 @@ declare module "http" {
       startScheduler(60); // check every 60 minutes
     }
 
+    // Seed default project template
+    const { seedDefaultProjectTemplate } = await import("./modules/projects/storage");
+    await seedDefaultProjectTemplate();
+
     // Phase 4: projects
     const { registerProjectRoutes } = await import("./modules/projects/routes");
     registerProjectRoutes(app);

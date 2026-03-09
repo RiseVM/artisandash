@@ -1150,3 +1150,218 @@ export const projectStorage = {
     return (result.rowCount ?? 0) > 0;
   },
 };
+
+// ============================================
+// SEED DEFAULT PROJECT TEMPLATE
+// ============================================
+
+export async function seedDefaultProjectTemplate() {
+  // Check if any templates exist already
+  const existing = await db.select().from(projectTemplates);
+  if (existing.length > 0) {
+    return; // Don't seed if templates already exist
+  }
+
+  console.log("Seeding default project template...");
+
+  const [template] = await db.insert(projectTemplates).values({
+    name: "Artisan Tile Project",
+    description: "Standard tile kitchen & bath project workflow with all phases from intake to completion",
+    is_active: "yes",
+  }).returning();
+
+  const phases = [
+    {
+      name: "Client Intake Checklist",
+      description: "Initial client contact, project scoping, and site assessment",
+      display_order: 1,
+      client_visible: "yes" as const,
+      requires_approval: "no" as const,
+      tasks: [
+        "Inquiry Received",
+        "Initial call completed/Client came into Showroom",
+        "Project Type Confirmed",
+        "Email DIY OR DESIGN CLIENT",
+        "Budget Range Confirmed",
+        "Timeline Discussed",
+        "Site Visit Scheduled/Showroom Appointment Scheduled",
+        "Locations Noted: Plumbing, Electrical, Structural",
+        "Photos & Video Taken",
+      ],
+    },
+    {
+      name: "Design & Materials & Finish Selections",
+      description: null,
+      display_order: 2,
+      client_visible: "yes" as const,
+      requires_approval: "yes" as const,
+      tasks: [
+        "Tile Selected",
+        "Grout Selected",
+        "Countertops Selected",
+        "Cabinet Finishes Confirmed",
+        "Hardware Selected",
+        "Flooring Selected",
+        "Paint Colors Selected",
+        "Client Sign Off Completed",
+      ],
+    },
+    {
+      name: "Client Onboarding",
+      description: null,
+      display_order: 3,
+      client_visible: "yes" as const,
+      requires_approval: "yes" as const,
+      tasks: [
+        "Preliminary Layout Created",
+        "Concept Designs",
+        "Deposit Received & Signed Contract",
+        "Client Design Approval Sign Off",
+        "Changes",
+        "Permits & Documentation",
+        "Insurance Confirmed",
+      ],
+    },
+    {
+      name: "Procurement",
+      description: null,
+      display_order: 4,
+      client_visible: "no" as const,
+      requires_approval: "no" as const,
+      tasks: [
+        "Scope of Work Finalized",
+        "Plumbing Fixtures",
+        "Tile & Finish Materials Ordering",
+        "Countertops",
+        "Cabinets/Vanity Ordering",
+        "Shower/Glass Doors",
+        "Lighting/Electrical",
+        "Hardware/Accessories",
+        "Wall Treatments",
+        "Accessories",
+      ],
+    },
+    {
+      name: "Invoice & Payments",
+      description: null,
+      display_order: 5,
+      client_visible: "no" as const,
+      requires_approval: "no" as const,
+      tasks: [
+        "Vendor Invoices Received",
+        "Confirm Client has Paid",
+        "Purchase Orders Matched to Invoices",
+        "Accounting/Admin logged invoices",
+        "Purchase Order Reviewed/Corrected/Copied to a Bill",
+        "Payments are approved",
+        "Payments are made to vendor",
+      ],
+    },
+    {
+      name: "Pre-Construction",
+      description: null,
+      display_order: 6,
+      client_visible: "yes" as const,
+      requires_approval: "no" as const,
+      tasks: [
+        "Pre-Construction Scheduling",
+        "Order Dumpster",
+        "Materials Received",
+        "Demo",
+        "Rough In Phase (Plumbing/Electrical)",
+        "Schedule Inspection",
+        "Inspection",
+      ],
+    },
+    {
+      name: "Active Construction",
+      description: null,
+      display_order: 7,
+      client_visible: "yes" as const,
+      requires_approval: "no" as const,
+      tasks: [
+        "Framing & Drywall",
+        "Waterproofing & Tile",
+        "Water Test",
+        "Paint",
+        "Cabinet Installation",
+        "Schedule Template Day with Fabricator",
+        "Confirm with Client - Someone must be home for template",
+        "Schedule installation day of counter",
+        "Vanity Top Installed",
+        "Accessories & Finish Work",
+      ],
+    },
+    {
+      name: "Punchlist Items Completed",
+      description: null,
+      display_order: 8,
+      client_visible: "yes" as const,
+      requires_approval: "yes" as const,
+      tasks: [
+        "Internal walkthrough completed",
+        "Punch list created",
+        "Client walkthrough completed",
+        "Contact contractor to fix issues",
+        "Punch list items resolved",
+        "Schedule Final Inspection",
+        "Inform ready for inspections",
+        "Final inspections passed",
+        "Permit closed",
+      ],
+    },
+    {
+      name: "Final Billing & Payments",
+      description: null,
+      display_order: 9,
+      client_visible: "yes" as const,
+      requires_approval: "no" as const,
+      tasks: [
+        "Final Vendor Invoices Received",
+        "Final Payments Released",
+        "Final Client Invoice Sent",
+        "Final Payment Received",
+        "Warranty Documents Compiled",
+      ],
+    },
+    {
+      name: "Completed Project",
+      description: null,
+      display_order: 10,
+      client_visible: "yes" as const,
+      requires_approval: "no" as const,
+      tasks: [
+        "Offboarding",
+        "Thank you email/card/gift",
+        "Care & Warranty Binder Delivered to Client",
+        "Schedule Photographer for Photoshoot Day",
+        "Accessories for Photoshoot purchased/collected/Ready to go",
+        "Final Photos Taken",
+        "Testimonial Review Request Sent",
+        "Referral Request Sent",
+        "Project Archived",
+      ],
+    },
+  ];
+
+  for (const phase of phases) {
+    const [newPhase] = await db.insert(phaseTemplates).values({
+      project_template_id: template.id,
+      name: phase.name,
+      description: phase.description,
+      display_order: phase.display_order,
+      client_visible: phase.client_visible,
+      requires_approval: phase.requires_approval,
+    }).returning();
+
+    for (let i = 0; i < phase.tasks.length; i++) {
+      await db.insert(taskTemplates).values({
+        phase_template_id: newPhase.id,
+        name: phase.tasks[i],
+        display_order: i + 1,
+      });
+    }
+  }
+
+  console.log(`Default template seeded: "${template.name}" with ${phases.length} phases and ${phases.reduce((sum, p) => sum + p.tasks.length, 0)} tasks`);
+}
