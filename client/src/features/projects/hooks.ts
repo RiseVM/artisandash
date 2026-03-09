@@ -233,6 +233,17 @@ export function useDeleteProjectTemplate() {
   });
 }
 
+export function useDuplicateProjectTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api.post<ProjectTemplate>(`/api/project-templates/${id}/duplicate`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projectTemplates"] });
+    },
+  });
+}
+
 // ============================================
 // PHASE TEMPLATE HOOKS
 // ============================================

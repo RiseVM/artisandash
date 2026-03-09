@@ -112,6 +112,7 @@ export function Projects() {
   const [editProject, setEditProject] = useState<ProjectWithCustomer | null>(null);
   const [deleteProject, setDeleteProject] = useState<ProjectWithCustomer | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [templateDefaultApplied, setTemplateDefaultApplied] = useState(false);
   const [newProject, setNewProject] = useState({
     name: "",
     customer_id: 0,
@@ -126,6 +127,12 @@ export function Projects() {
   });
 
   const activeTemplates = templates.filter(t => t.is_active === "yes");
+
+  // Auto-select the first active template as default
+  if (activeTemplates.length > 0 && !templateDefaultApplied && selectedTemplateId === null) {
+    setSelectedTemplateId(activeTemplates[0].id);
+    setTemplateDefaultApplied(true);
+  }
 
   const canManageProjects = hasPermission("manage_projects");
 
@@ -172,6 +179,7 @@ export function Projects() {
       setIsAddOpen(false);
       setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
       setSelectedTemplateId(null);
+      setTemplateDefaultApplied(false);
       toast({ title: "Project Created", description: `${project.name} has been created.` });
       // Navigate to the new project
       setLocation(`/projects/${project.id}`);
@@ -500,6 +508,7 @@ export function Projects() {
         setIsAddOpen(open);
         if (!open) {
           setSelectedTemplateId(null);
+          setTemplateDefaultApplied(false);
           setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
         }
       }}>

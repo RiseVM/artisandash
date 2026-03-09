@@ -6,6 +6,7 @@ import {
   useCreateProjectTemplate,
   useUpdateProjectTemplate,
   useDeleteProjectTemplate,
+  useDuplicateProjectTemplate,
   useCreatePhaseTemplate,
   useUpdatePhaseTemplate,
   useDeletePhaseTemplate,
@@ -61,6 +62,7 @@ import {
   ChevronDown,
   Trash2,
   Edit,
+  Copy,
   ArrowLeft,
   ListChecks,
   Eye,
@@ -86,6 +88,7 @@ export function ProjectTemplates() {
 
   const createTemplateMutation = useCreateProjectTemplate();
   const deleteTemplateMutation = useDeleteProjectTemplate();
+  const duplicateTemplateMutation = useDuplicateProjectTemplate();
 
   const canManageProjects = hasPermission("manage_projects");
 
@@ -117,6 +120,20 @@ export function ProjectTemplates() {
       toast({
         title: "Error",
         description: err?.message || "Failed to create template.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDuplicateTemplate = async (template: ProjectTemplate) => {
+    try {
+      const duplicated = await duplicateTemplateMutation.mutateAsync(template.id);
+      toast({ title: "Template Duplicated", description: `"${template.name}" has been duplicated. You can now edit the copy.` });
+      setEditingTemplateId(duplicated.id);
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to duplicate template.",
         variant: "destructive",
       });
     }
@@ -237,13 +254,24 @@ export function ProjectTemplates() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setEditingTemplateId(template.id)}
+                            title="Edit template"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => handleDuplicateTemplate(template)}
+                            disabled={duplicateTemplateMutation.isPending}
+                            title="Duplicate template"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setDeleteTemplate(template)}
+                            title="Delete template"
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>

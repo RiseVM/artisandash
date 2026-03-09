@@ -369,6 +369,44 @@ export const projectStorage = {
     return result.length > 0;
   },
 
+  async duplicateProjectTemplate(id: number, userId?: string): Promise<ProjectTemplate | undefined> {
+    const source = await projectStorage.getProjectTemplateWithDetails(id);
+    if (!source) return undefined;
+
+    // Create the new template
+    const [newTemplate] = await db.insert(projectTemplates).values({
+      name: `${source.name} (Copy)`,
+      description: source.description,
+      is_active: "yes",
+      created_by_user_id: userId || source.created_by_user_id,
+    }).returning();
+
+    // Duplicate phases and their tasks
+    for (const phase of source.phases) {
+      const [newPhase] = await db.insert(phaseTemplates).values({
+        project_template_id: newTemplate.id,
+        name: phase.name,
+        description: phase.description,
+        display_order: phase.display_order,
+        client_visible: phase.client_visible,
+        requires_approval: phase.requires_approval,
+      }).returning();
+
+      for (const task of phase.tasks) {
+        await db.insert(taskTemplates).values({
+          phase_template_id: newPhase.id,
+          name: task.name,
+          description: task.description,
+          display_order: task.display_order,
+          client_visible: task.client_visible,
+          requires_approval: task.requires_approval,
+        });
+      }
+    }
+
+    return newTemplate;
+  },
+
   // ── PHASE TEMPLATES ─────────────────────────
 
   async getPhaseTemplates(templateId: number): Promise<PhaseTemplate[]> {

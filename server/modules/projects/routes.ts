@@ -1276,6 +1276,26 @@ export function registerProjectRoutes(app: Express) {
     })
   );
 
+  // POST /api/project-templates/:id/duplicate - Duplicate a project template
+  app.post(
+    "/api/project-templates/:id/duplicate",
+    isAuthenticated,
+    requirePermission("manage_projects"),
+    asyncHandler(async (req: any, res) => {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid template ID" });
+      }
+
+      const duplicated = await projectStorage.duplicateProjectTemplate(id, req.user?.id);
+      if (!duplicated) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+
+      res.json(duplicated);
+    })
+  );
+
   // ============================================
   // PHASE TEMPLATES ROUTES
   // ============================================
