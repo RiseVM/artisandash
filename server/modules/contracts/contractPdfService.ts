@@ -31,6 +31,8 @@ export async function generateContractPdf(
         generateCabinetryContract(doc, formData, signatureDataUrl);
       } else if (contractType === 'home_improvement') {
         generateHomeImprovementContract(doc, formData, signatureDataUrl);
+      } else if (contractType === 'kitchen_design_retainer') {
+        generateKitchenDesignRetainerContract(doc, formData, signatureDataUrl);
       } else {
         reject(new Error(`Unknown contract type: ${contractType}`));
         return;
@@ -1027,6 +1029,124 @@ function generateHomeImprovementContract(doc: any, formData: Record<string, any>
     timeZone: 'America/New_York',
     year: 'numeric',
     month: 'long', 
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })} EST`, { align: 'center' });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KITCHEN DESIGN RETAINER AGREEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+function generateKitchenDesignRetainerContract(
+  doc: any,
+  formData: Record<string, any>,
+  signatureDataUrl: string
+) {
+  const date = formData.date || new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' });
+  const clientName = formData.clientName || '';
+  const clientAddress = formData.clientAddress || '';
+
+  function checkPageBreak(needed = 80) {
+    if (doc.y > doc.page.height - doc.page.margins.bottom - needed) {
+      doc.addPage();
+    }
+  }
+
+  // Header
+  doc.fontSize(13).font('Helvetica-Bold').text('Artisan Tile Kitchen and Bath', { align: 'center' });
+  doc.fontSize(10).font('Helvetica')
+    .text('1200 Boston Post Rd', { align: 'center' })
+    .text('Guilford CT 06437', { align: 'center' })
+    .text('203-458-8453', { align: 'center' });
+  doc.moveDown(0.5);
+  doc.fontSize(13).font('Helvetica-Bold').text('KITCHEN DESIGN RETAINER AGREEMENT', { align: 'center' });
+  doc.moveDown(0.8);
+
+  doc.fontSize(10).font('Helvetica').text(
+    `This Kitchen Design Retainer Agreement ("Agreement") is entered into on ${date}, by and between:`,
+    50, doc.y, { align: 'justify', width: 512 }
+  );
+  doc.moveDown(0.5);
+  doc.font('Helvetica-Bold').text('Designer: ', 50, doc.y, { continued: true }).font('Helvetica').text('Peter Lemos');
+  doc.font('Helvetica-Bold').text('Client: ', 50, doc.y, { continued: true }).font('Helvetica').text(clientName || '______________________________');
+  doc.font('Helvetica-Bold').text('Address: ', 50, doc.y, { continued: true }).font('Helvetica').text(clientAddress || '______________________________');
+  doc.moveDown(0.8);
+
+  const sections: [string, string][] = [
+    ['1.', 'Scope of Design Services',
+      'Designer agrees to provide professional kitchen design services, which may include site consultation, layout planning, design concepts, cabinet planning, and preliminary selections for materials and finishes (collectively referred to as "Design Services"). These services are intended to assist the Client in evaluating and planning a potential kitchen renovation project.'] as any,
+    ['2.', 'Design Retainer Fee',
+      'Client agrees to pay Designer a design retainer in the amount of One Thousand Two Hundred Dollars ($1,200.00) prior to the commencement of any design work.'] as any,
+    ['3.', 'Non-Refundable Retainer',
+      'The $1,200.00 design retainer compensates Designer for time, consultation, planning, and preparation of design materials. This retainer is non-refundable once design services have commenced, regardless of whether Client proceeds with the kitchen renovation project.'] as any,
+    ['4.', 'Credit Toward Cabinet Purchase',
+      "If Client proceeds with the purchase of kitchen cabinets through Designer or Designer's business within sixty (60) days of the design presentation, the $1,200.00 retainer will be applied as a credit toward the cabinet purchase price."] as any,
+    ['5.', 'No Obligation to Proceed',
+      "Client is under no obligation to move forward with the project following the design phase. However, if Client chooses not to proceed with purchasing cabinets through Designer, the design retainer will be retained by Designer as payment for services rendered."] as any,
+    ['6.', 'Ownership of Design Materials',
+      "All drawings, layouts, renderings, and design materials produced by Designer remain the intellectual property of Designer unless otherwise agreed in writing. Design materials are provided for Client's use in connection with the project and may not be reproduced, transferred, or used for construction or purchasing through other vendors without written permission from Designer."] as any,
+    ['7.', 'Limitation of Liability',
+      'Designer shall not be liable for construction issues, installation errors, or contractor performance unless Designer is separately contracted for such services.'] as any,
+    ['8.', 'Governing Law',
+      'This Agreement shall be governed by and construed in accordance with the laws of the State of Connecticut.'] as any,
+    ['9.', 'Entire Agreement',
+      'This Agreement constitutes the entire agreement between the parties regarding the design retainer and supersedes any prior discussions or agreements.'] as any,
+  ];
+
+  for (const [num, title, body] of sections as any) {
+    checkPageBreak();
+    doc.fontSize(11).font('Helvetica-Bold').text(`${num}  ${title}`, 50, doc.y);
+    doc.moveDown(0.3);
+    doc.fontSize(10).font('Helvetica').text(body, 70, doc.y, { align: 'justify', width: 492 });
+    doc.moveDown(0.6);
+  }
+
+  // Signature block
+  checkPageBreak(160);
+  doc.moveDown(0.5);
+  doc.fontSize(10).font('Helvetica').text(
+    'IN WITNESS WHEREOF, the parties have executed this Agreement as of the date first written above.',
+    50, doc.y, { align: 'justify', width: 512 }
+  );
+  doc.moveDown(1);
+
+  doc.font('Helvetica-Bold').text('Artisan Tile at Whitfield Design LLC', 50, doc.y);
+  doc.font('Helvetica').text('03/9/2026', 50, doc.y);
+  doc.moveDown(1.5);
+
+  // Embed client signature
+  if (signatureDataUrl && signatureDataUrl.startsWith('data:image')) {
+    try {
+      const base64Data = signatureDataUrl.replace(/^data:image\/\w+;base64,/, '');
+      const sigBuffer = Buffer.from(base64Data, 'base64');
+      doc.text('Client Signature:', 50, doc.y);
+      doc.moveDown(0.3);
+      doc.image(sigBuffer, 50, doc.y, { width: 200, height: 60 });
+      doc.moveDown(4);
+    } catch {
+      doc.text('Client Signature: ________________________________', 50, doc.y);
+      doc.moveDown(1);
+    }
+  } else {
+    doc.text('Client Signature: ________________________________', 50, doc.y);
+    doc.moveDown(1);
+  }
+
+  doc.text(`Name: ${clientName}`, 50, doc.y);
+  doc.moveDown(0.5);
+  doc.text(`Date: ${date}`, 50, doc.y);
+
+  // Footer
+  doc.moveDown(2);
+  doc.strokeColor('#333333').lineWidth(0.5);
+  doc.moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+  doc.moveDown(0.5);
+  doc.fontSize(8).fillColor('#666666');
+  doc.text(`Document generated: ${new Date().toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'long',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit'

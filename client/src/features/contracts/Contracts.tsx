@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateEST } from "@/lib/utils";
-import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus } from "lucide-react";
+import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus, PenLine } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Contract } from "@shared/schema";
 
@@ -30,9 +30,9 @@ export function Contracts() {
   const [deleteContract, setDeleteContract] = useState<Contract | null>(null);
 
   const getContractTypeName = (type: string) => {
-    return type === 'custom_cabinetry'
-      ? 'Cabinet Design & Layout Agreement'
-      : 'Home Improvement Contract';
+    if (type === 'custom_cabinetry') return 'Cabinet Design & Layout Agreement';
+    if (type === 'kitchen_design_retainer') return 'Kitchen Design Retainer';
+    return 'Home Improvement Contract';
   };
 
   const filteredContracts = contracts.filter(contract => {
@@ -108,6 +108,26 @@ export function Contracts() {
               <Button className="w-full" data-testid="button-new-home-improvement">
                 <Plus className="h-4 w-4 mr-2" />
                 Create New Contract
+              </Button>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/contracts/kitchen-design-retainer">
+          <Card className="cursor-pointer hover:border-primary transition-colors" data-testid="card-kitchen-design-retainer">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <PenLine className="h-5 w-5" />
+                Kitchen Design Retainer Agreement
+              </CardTitle>
+              <CardDescription>
+                $1,200 design retainer for kitchen planning with Peter Lemos. Applies as credit toward cabinet purchase.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" data-testid="button-new-kitchen-design-retainer">
+                <Plus className="h-4 w-4 mr-2" />
+                Create New Agreement
               </Button>
             </CardContent>
           </Card>

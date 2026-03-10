@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { useCheckouts, useUpdateCheckout, useDeleteCheckout, useSendReminder } from "./hooks";
 import { useCustomers } from "../customers/hooks";
 import { useInventory } from "../inventory/hooks";
+import { useContracts } from "../contracts/hooks";
 import { StatusBadge } from "./StatusBadge";
 import type { CheckoutView } from "@shared/schema";
 import { startOfMonth } from "date-fns";
@@ -33,7 +34,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn, formatShortDateEST, formatReminderDateEST } from "@/lib/utils";
 import {
   Search, CheckCircle2, Calendar, Filter, Check, ChevronsUpDown,
-  Loader2, Trash2, Mail, ClipboardList, AlertTriangle, Package, RotateCcw,
+  Loader2, Trash2, Mail, ClipboardList, AlertTriangle, Package, RotateCcw, FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +54,7 @@ export function Dashboard() {
   const { data: checkouts = [], isLoading: checkoutsLoading } = useCheckouts();
   const { data: customers = [] } = useCustomers();
   const { data: inventory = [] } = useInventory();
+  const { data: contracts = [] } = useContracts();
   const updateCheckoutMutation = useUpdateCheckout();
   const deleteCheckoutMutation = useDeleteCheckout();
   const sendReminderMutation = useSendReminder();
@@ -71,8 +73,13 @@ export function Dashboard() {
   const stats = useMemo(() => {
     const activeCount = checkouts.filter((c) => c.status !== "returned").length;
     const overdueCount = checkouts.filter((c) => c.status === "overdue").length;
-    return { activeCount, overdueCount };
-  }, [checkouts]);
+    const monthStart = startOfMonth(new Date());
+    const contractsThisMonth = contracts.filter((c) => {
+      if (!c.signed_at) return false;
+      return new Date(c.signed_at) >= monthStart;
+    }).length;
+    return { activeCount, overdueCount, contractsThisMonth };
+  }, [checkouts, contracts]);
 
   const recentActivity = useMemo(() => {
     const activities: { id: string; type: string; description: string; date: Date; icon: any; color: string }[] = [];
@@ -91,8 +98,19 @@ export function Dashboard() {
         });
       }
     });
+    contracts.slice(0, 10).forEach((c) => {
+      const typeName =
+        c.contract_type === 'custom_cabinetry' ? 'Cabinetry' :
+        c.contract_type === 'kitchen_design_retainer' ? 'Kitchen Design Retainer' :
+        'Home Improvement';
+      activities.push({
+        id: `contract-${c.id}`, type: "contract",
+        description: `${c.customer_name} signed ${typeName} contract`,
+        date: new Date(c.signed_at), icon: FileText, color: "text-green-600",
+      });
+    });
     return activities.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 8);
-  }, [checkouts]);
+  }, [checkouts, contracts]);
 
   const handleSendReminder = async (checkoutId: number, customerEmail: string) => {
     setSendingReminderId(checkoutId);
@@ -336,7 +354,7 @@ export function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -363,6 +381,21 @@ export function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        <Link href="/contracts">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Contracts This Month</p>
+                  <p className="text-3xl font-bold text-primary">{stats.contractsThisMonth}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                  <FileText className="h-6 w-6 text-green-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Recent Activity */}

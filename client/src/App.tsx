@@ -45,6 +45,7 @@ import { Agreements } from "@/features/agreements/Agreements";
 import { Contracts } from "@/features/contracts/Contracts";
 import { CabinetryContractForm } from "@/features/contracts/CabinetryContractForm";
 import { HomeImprovementContractForm } from "@/features/contracts/HomeImprovementContractForm";
+import { KitchenDesignRetainerForm } from "@/features/contracts/KitchenDesignRetainerForm";
 
 // Phase 8: Timesheets
 import { MyTimesheets } from "@/features/timesheets/MyTimesheets";
@@ -151,6 +152,9 @@ function AdminRouter() {
         </Route>
         <Route path="/contracts/home-improvement">
           <HomeImprovementContractForm />
+        </Route>
+        <Route path="/contracts/kitchen-design-retainer">
+          <KitchenDesignRetainerForm />
         </Route>
 
         {/* Projects */}
