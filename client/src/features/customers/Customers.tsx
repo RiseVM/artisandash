@@ -48,7 +48,7 @@ import {
   Loader2,
   Trash2,
   Download,
-  CreditCard,
+
   Mail,
   Key,
   Globe,
@@ -423,7 +423,7 @@ export function Customers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Card on File</TableHead>
+
                   <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
@@ -443,19 +443,6 @@ export function Customers() {
                     </TableCell>
                     <TableCell>{customer.email}</TableCell>
                     <TableCell>{customer.phone || "—"}</TableCell>
-                    <TableCell>
-                      {customer.card_last4 ? (
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>
-                            {customer.card_brand || "Card"} ••••{" "}
-                            {customer.card_last4}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
                     <TableCell>
                       <span className="text-muted-foreground text-sm">
                         {customer.notes || "—"}
