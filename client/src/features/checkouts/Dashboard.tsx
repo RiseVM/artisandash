@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useCheckouts, useUpdateCheckout, useDeleteCheckout, useSendReminder } from "./hooks";
 import { useCustomers } from "../customers/hooks";
 import { useInventory } from "../inventory/hooks";
@@ -51,6 +51,7 @@ interface EditCheckoutState {
 }
 
 export function Dashboard() {
+  const [, setLocation] = useLocation();
   const { data: checkouts = [], isLoading: checkoutsLoading } = useCheckouts();
   const { data: customers = [] } = useCustomers();
   const { data: inventory = [] } = useInventory();
@@ -82,19 +83,21 @@ export function Dashboard() {
   }, [checkouts, contracts]);
 
   const recentActivity = useMemo(() => {
-    const activities: { id: string; type: string; description: string; date: Date; icon: any; color: string }[] = [];
+    const activities: { id: string; type: string; description: string; date: Date; icon: any; color: string; checkoutId?: number; href?: string }[] = [];
     checkouts.slice(0, 20).forEach((c) => {
       if (c.status === "returned") {
         activities.push({
           id: `return-${c.id}`, type: "return",
           description: `${c.customer.name} returned ${c.item.name}`,
           date: new Date(c.due_date), icon: RotateCcw, color: "text-green-600",
+          checkoutId: c.id,
         });
       } else {
         activities.push({
           id: `checkout-${c.id}`, type: "checkout",
           description: `${c.customer.name} checked out ${c.item.name}`,
           date: new Date(c.checkout_date), icon: Package, color: "text-blue-600",
+          checkoutId: c.id,
         });
       }
     });
@@ -107,6 +110,7 @@ export function Dashboard() {
         id: `contract-${c.id}`, type: "contract",
         description: `${c.customer_name} signed ${typeName} contract`,
         date: new Date(c.signed_at), icon: FileText, color: "text-green-600",
+        href: "/contracts",
       });
     });
     return activities.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 8);
@@ -406,8 +410,16 @@ export function Dashboard() {
             <div className="space-y-3">
               {recentActivity.map((activity) => {
                 const Icon = activity.icon;
+                const handleClick = () => {
+                  if (activity.checkoutId) {
+                    const sample = checkouts.find((c) => c.id === activity.checkoutId);
+                    if (sample) openEditDialog(sample);
+                  } else if (activity.href) {
+                    setLocation(activity.href);
+                  }
+                };
                 return (
-                  <div key={activity.id} className="flex items-center gap-3 text-sm">
+                  <div key={activity.id} className="flex items-center gap-3 text-sm cursor-pointer rounded-md px-2 py-1 -mx-2 hover:bg-muted/50 transition-colors" onClick={handleClick}>
                     <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                       <Icon className={`h-4 w-4 ${activity.color}`} />
                     </div>
