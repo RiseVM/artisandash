@@ -123,6 +123,33 @@ export function registerAgreementRoutes(app: Express) {
     }),
   );
 
+  // Update an agreement
+  app.patch(
+    "/api/agreements/:id",
+    isAuthenticated,
+    asyncHandler(async (req, res) => {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid agreement ID" });
+      }
+      const allowedFields = ["customer_id", "document_title", "agreement_text"];
+      const updateData: any = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      }
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "No valid fields to update" });
+      }
+      const updated = await agreementStorage.updateSignedAgreement(id, updateData);
+      if (!updated) {
+        return res.status(404).json({ error: "Agreement not found" });
+      }
+      res.json(updated);
+    }),
+  );
+
   // Delete an agreement
   app.delete(
     "/api/agreements/:id",

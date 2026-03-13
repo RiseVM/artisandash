@@ -1,11 +1,16 @@
 import { useState } from "react";
-import { useSignedAgreements, useDeleteSignedAgreement } from "./hooks";
+import { useSignedAgreements, useDeleteSignedAgreement, useUpdateSignedAgreement } from "./hooks";
 import { useCustomers } from "@/features/customers/hooks";
 import { useSendPortalSetupEmail } from "@/features/portal/hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateEST } from "@/lib/utils";
-import { Search, FileText, Trash2, Eye, Loader2, ExternalLink, UserPlus } from "lucide-react";
+import { Search, FileText, Trash2, Eye, Loader2, ExternalLink, Pencil, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { SignedAgreement } from "@shared/schema";
 
@@ -25,16 +30,28 @@ export function Agreements() {
   const { data: agreements = [], isLoading } = useSignedAgreements();
   const { data: customers = [] } = useCustomers();
   const deleteAgreementMutation = useDeleteSignedAgreement();
+  const updateAgreementMutation = useUpdateSignedAgreement();
   const sendPortalSetupMutation = useSendPortalSetupEmail();
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
   const [selectedAgreement, setSelectedAgreement] = useState<SignedAgreement | null>(null);
+  const [editingAgreement, setEditingAgreement] = useState<{
+    id: number;
+    customer_id: number;
+    document_title: string;
+    agreement_text: string;
+  } | null>(null);
   const [deleteAgreement, setDeleteAgreement] = useState<SignedAgreement | null>(null);
 
   const getCustomerName = (customerId: number) => {
     const customer = customers.find((c) => c.id === customerId);
     return customer?.name || "Unknown";
+  };
+
+  const getCustomerEmail = (customerId: number) => {
+    const customer = customers.find((c) => c.id === customerId);
+    return customer?.email || "";
   };
 
   const filteredAgreements = agreements.filter((agreement) => {
@@ -51,11 +68,38 @@ export function Agreements() {
     if (!deleteAgreement) return;
     try {
       await deleteAgreementMutation.mutateAsync(deleteAgreement.id);
-      toast({ title: "Agreement deleted" });
+      toast({ title: "Checkout deleted" });
       setDeleteAgreement(null);
     } catch {
       setDeleteAgreement(null);
-      toast({ title: "Error deleting agreement", variant: "destructive" });
+      toast({ title: "Error deleting checkout", variant: "destructive" });
+    }
+  };
+
+  const openEditDialog = (agreement: SignedAgreement) => {
+    setEditingAgreement({
+      id: agreement.id,
+      customer_id: agreement.customer_id,
+      document_title: agreement.document_title,
+      agreement_text: agreement.agreement_text || "",
+    });
+  };
+
+  const handleUpdate = async () => {
+    if (!editingAgreement) return;
+    try {
+      await updateAgreementMutation.mutateAsync({
+        id: editingAgreement.id,
+        data: {
+          customer_id: editingAgreement.customer_id,
+          document_title: editingAgreement.document_title,
+          agreement_text: editingAgreement.agreement_text || undefined,
+        },
+      });
+      toast({ title: "Checkout updated" });
+      setEditingAgreement(null);
+    } catch {
+      toast({ title: "Error updating checkout", variant: "destructive" });
     }
   };
 
@@ -73,7 +117,7 @@ export function Agreements() {
         context: 'agreement',
         context_details: agreement.document_title,
       });
-      toast({ title: "Portal invitation sent" });
+      toast({ title: "Portal invitation sent to " + customer.email });
     } catch (err) {
       toast({
         title: "Error sending portal invitation",
@@ -138,7 +182,10 @@ export function Agreements() {
                 {filteredAgreements.map((agreement) => (
                   <TableRow key={agreement.id}>
                     <TableCell className="font-medium">{agreement.document_title}</TableCell>
-                    <TableCell>{getCustomerName(agreement.customer_id)}</TableCell>
+                    <TableCell>
+                      <div>{getCustomerName(agreement.customer_id)}</div>
+                      <div className="text-xs text-muted-foreground">{getCustomerEmail(agreement.customer_id)}</div>
+                    </TableCell>
                     <TableCell>
                       {agreement.signed_at
                         ? formatDateEST(agreement.signed_at, { includeTime: true })
@@ -164,6 +211,14 @@ export function Agreements() {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => openEditDialog(agreement)}
+                        >
+                          <Pencil className="h-4 w-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => setSelectedAgreement(agreement)}
                         >
                           <Eye className="h-4 w-4 mr-1" />
@@ -174,9 +229,9 @@ export function Agreements() {
                           size="sm"
                           onClick={() => handleSendPortalInvite(agreement)}
                           disabled={sendPortalSetupMutation.isPending}
-                          title="Send portal invitation"
                         >
-                          <UserPlus className="h-4 w-4" />
+                          <Mail className="h-4 w-4 mr-1" />
+                          Portal Invite
                         </Button>
                         <Button
                           variant="outline"
@@ -195,6 +250,59 @@ export function Agreements() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingAgreement} onOpenChange={(open) => !open && setEditingAgreement(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Edit Checkout</DialogTitle></DialogHeader>
+          {editingAgreement && (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Document Title</Label>
+                <Input
+                  value={editingAgreement.document_title}
+                  onChange={(e) => setEditingAgreement({ ...editingAgreement, document_title: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Customer</Label>
+                <Select
+                  value={String(editingAgreement.customer_id)}
+                  onValueChange={(val) => setEditingAgreement({ ...editingAgreement, customer_id: parseInt(val) })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.id} value={String(customer.id)}>
+                        {customer.name} {customer.email ? `(${customer.email})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Agreement Text</Label>
+                <Textarea
+                  value={editingAgreement.agreement_text}
+                  onChange={(e) => setEditingAgreement({ ...editingAgreement, agreement_text: e.target.value })}
+                  placeholder="Agreement terms..."
+                  className="resize-none"
+                  rows={5}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingAgreement(null)}>Cancel</Button>
+            <Button onClick={handleUpdate} disabled={updateAgreementMutation.isPending}>
+              {updateAgreementMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View Agreement Dialog */}
       <Dialog open={!!selectedAgreement} onOpenChange={() => setSelectedAgreement(null)}>

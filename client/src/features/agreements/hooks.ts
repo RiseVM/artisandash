@@ -27,6 +27,16 @@ export function useCreateSignedAgreement() {
   });
 }
 
+export function useUpdateSignedAgreement() {
+  const qc = useQueryClient();
+  return useMutation<SignedAgreement, Error, { id: number; data: Partial<InsertSignedAgreement> }>({
+    mutationFn: ({ id, data }) => api.patch(`/api/agreements/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/agreements"] });
+    },
+  });
+}
+
 export function useDeleteSignedAgreement() {
   const qc = useQueryClient();
   return useMutation<void, Error, number>({

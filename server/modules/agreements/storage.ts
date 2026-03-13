@@ -29,6 +29,15 @@ export const agreementStorage = {
     return result;
   },
 
+  async updateSignedAgreement(id: number, data: Partial<InsertSignedAgreement>): Promise<SignedAgreement | undefined> {
+    const [result] = await db
+      .update(signedAgreements)
+      .set(data)
+      .where(eq(signedAgreements.id, id))
+      .returning();
+    return result;
+  },
+
   async deleteSignedAgreement(id: number): Promise<boolean> {
     const result = await db
       .delete(signedAgreements)
