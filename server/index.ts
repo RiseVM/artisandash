@@ -68,6 +68,12 @@ declare module "http" {
     app.use("/api", apiLimiter);
 
     // ------------------------------------
+    // Database migrations (safe to run multiple times)
+    // ------------------------------------
+    const { migrateContracts } = await import("./migrate-contracts");
+    await migrateContracts();
+
+    // ------------------------------------
     // Route registration
     // ------------------------------------
 
