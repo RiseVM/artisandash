@@ -123,6 +123,9 @@ function AdminRouter() {
         </Route>
 
         {/* Checkouts */}
+        <Route path="/checkouts">
+          <Dashboard />
+        </Route>
         <Route path="/new">
           <NewCheckout />
         </Route>

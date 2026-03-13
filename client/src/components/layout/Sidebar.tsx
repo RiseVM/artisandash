@@ -8,6 +8,7 @@ import {
   LogOut,
   Calendar,
   FileText,
+  FileCheck,
   ClipboardList,
   Shield,
   Activity,
@@ -25,7 +26,8 @@ export function Sidebar() {
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/new", label: "New Checkout", icon: PlusCircle },
-    { href: "/agreements", label: "Checkouts", icon: FileText },
+    { href: "/checkouts", label: "Checkouts", icon: FileText },
+    { href: "/agreements", label: "Signed Docs", icon: FileCheck },
     { href: "/contracts", label: "Contracts", icon: ClipboardList },
     { href: "/projects", label: "Projects", icon: FolderKanban },
     { href: "/calendar", label: "Calendar", icon: Calendar },
