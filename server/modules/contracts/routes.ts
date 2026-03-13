@@ -202,7 +202,7 @@ export function registerContractRoutes(app: Express) {
       // Send email with signing link
       try {
         const { sendSigningRequestEmail } = await import("../../services/emailService");
-        const signingUrl = `${process.env.PORTAL_BASE_URL || "https://artisantileshowroom.com"}/sign/${signingToken}`;
+        const signingUrl = `${process.env.PORTAL_BASE_URL || "https://dashboard.artisantilect.com"}/sign/${signingToken}`;
 
         await sendSigningRequestEmail(
           contract.customer_email,

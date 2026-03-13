@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { z } from "zod";
 import crypto from "crypto";
 import bcryptjs from "bcryptjs";
-import { asyncHandler, isPortalAuthenticated } from "../../middleware";
+import { asyncHandler, isAuthenticated, isPortalAuthenticated } from "../../middleware";
 import { portalStorage } from "./storage";
 
 export function registerPortalRoutes(app: Express) {
@@ -513,7 +513,7 @@ export function registerPortalRoutes(app: Express) {
   // ── POST /api/send-portal-setup-email ────────────
   app.post(
     "/api/send-portal-setup-email",
-    isPortalAuthenticated,
+    isAuthenticated,
     asyncHandler(async (req: any, res) => {
       const { customer_email, customer_name, context, context_details } = z
         .object({

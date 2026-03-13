@@ -316,7 +316,7 @@ export async function sendContractEmail(
 // ── Portal emails ───────────────────────────────
 
 const PORTAL_BASE_URL =
-  process.env.PORTAL_BASE_URL || "https://artisantileshowroom.com/portal";
+  process.env.PORTAL_BASE_URL || "https://dashboard.artisantilect.com/portal";
 
 export async function sendPortalInvite(
   customerEmail: string,
