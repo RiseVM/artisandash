@@ -1,12 +1,15 @@
 import type { Express, RequestHandler } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
-import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, insertCustomFieldDefinitionSchema, insertOutOfScopeItemSchema, insertClientFeedbackSchema, insertBugReportSchema, type User, type ClientPortalUser } from "@shared/schema";
+import { insertCustomerSchema, insertInventorySchema, insertCheckoutSchema, insertSignedAgreementSchema, insertContractSchema, insertUserSchema, insertProjectSchema, insertProjectPhaseSchema, insertProjectTaskSchema, insertProjectTemplateSchema, insertPhaseTemplateSchema, insertTaskTemplateSchema, insertClientPortalAccessSchema, insertProjectDeliverySchema, insertChangeOrderSchema, insertProjectFileSchema, insertTimeEntrySchema, insertProjectLineItemSchema, insertProjectPaymentSchema, insertProjectUpdateSchema, insertProjectMessageSchema, insertCustomFieldDefinitionSchema, insertOutOfScopeItemSchema, insertClientFeedbackSchema, insertBugReportSchema, contracts, type User, type ClientPortalUser } from "@shared/schema";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "../db/index";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification, sendBugReportNotification, sendCheckoutConfirmation } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification, sendBugReportNotification, sendCheckoutConfirmation, sendPortalSetupInvitation } from "./emailService";
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
+import { getUncachableResendClient } from "./emailService";
 import { authenticateUser, seedAdminUser, hashPassword, canManageUsers, canViewReports } from "./authService";
 import { getSession } from "./replitAuth";
 import passport from "passport";
@@ -1156,22 +1159,35 @@ export async function registerRoutes(
     }
   });
 
+  // Create contract - supports both drafts and signed contracts
   app.post("/api/contracts", requirePermission("create_contracts"), async (req: any, res) => {
     try {
       const userId = req.user?.id;
+      const userName = req.user?.firstName && req.user?.lastName
+        ? `${req.user.firstName} ${req.user.lastName}`
+        : req.user?.email;
       const data = insertContractSchema.parse(req.body);
-      
-      if (!data.signature_data || data.signature_data.trim().length === 0) {
-        return res.status(400).json({ error: "Signature data is required" });
+
+      // If saving as draft (no signature), just save and return
+      if (data.status === 'draft' || !data.signature_data || data.signature_data.trim().length === 0) {
+        const contract = await storage.createContract({
+          ...data,
+          status: data.status || 'draft',
+          signature_data: data.signature_data || null,
+          created_by_user_id: userId,
+          created_by_user_name: userName,
+        });
+        return res.status(201).json(contract);
       }
-      
+
+      // Fully signed contract flow
       // Generate PDF
       const pdfBuffer = await generateContractPdf(data.contract_type, data.form_data as Record<string, any>, data.signature_data);
-      
+
       // Upload to Google Drive
       let googleDriveFileId: string | null = null;
       let googleDriveLink: string | null = null;
-      
+
       try {
         const driveResult = await uploadContractToGoogleDrive({
           customerName: data.customer_name,
@@ -1185,7 +1201,7 @@ export async function registerRoutes(
       } catch (driveError) {
         console.error("Failed to upload contract PDF to Google Drive:", driveError);
       }
-      
+
       // Send email to customer
       let emailSent = "no";
       try {
@@ -1199,16 +1215,18 @@ export async function registerRoutes(
       } catch (emailError) {
         console.error("Failed to send contract email:", emailError);
       }
-      
+
       // Save to database
       const contract = await storage.createContract({
         ...data,
+        status: 'signed',
         created_by_user_id: userId,
+        created_by_user_name: userName,
         google_drive_file_id: googleDriveFileId,
         google_drive_link: googleDriveLink,
         email_sent: emailSent,
       });
-      
+
       res.status(201).json(contract);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -1216,6 +1234,357 @@ export async function registerRoutes(
       }
       console.error("Error creating contract:", error);
       res.status(500).json({ error: "Failed to create contract" });
+    }
+  });
+
+  // Update contract (save draft progress, etc.)
+  app.patch("/api/contracts/:id", requirePermission("create_contracts"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid contract ID" });
+
+      const existing = await storage.getContract(id);
+      if (!existing) return res.status(404).json({ error: "Contract not found" });
+
+      // Don't allow editing completed/signed contracts
+      if (existing.status === 'signed' || existing.status === 'completed') {
+        return res.status(400).json({ error: "Cannot edit a signed or completed contract" });
+      }
+
+      const { form_data, customer_name, customer_email, customer_phone, customer_address, property_address, last_step, signature_data, status } = req.body;
+
+      const updateData: any = {};
+      if (form_data !== undefined) updateData.form_data = form_data;
+      if (customer_name !== undefined) updateData.customer_name = customer_name;
+      if (customer_email !== undefined) updateData.customer_email = customer_email;
+      if (customer_phone !== undefined) updateData.customer_phone = customer_phone;
+      if (customer_address !== undefined) updateData.customer_address = customer_address;
+      if (property_address !== undefined) updateData.property_address = property_address;
+      if (last_step !== undefined) updateData.last_step = last_step;
+      if (signature_data !== undefined) updateData.signature_data = signature_data;
+      if (status !== undefined) updateData.status = status;
+
+      const updated = await storage.updateContract(id, updateData);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating contract:", error);
+      res.status(500).json({ error: "Failed to update contract" });
+    }
+  });
+
+  // Sign a draft contract (finalize it)
+  app.post("/api/contracts/:id/sign", requirePermission("create_contracts"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existing = await storage.getContract(id);
+      if (!existing) return res.status(404).json({ error: "Contract not found" });
+
+      if (existing.status === 'signed' || existing.status === 'completed') {
+        return res.status(400).json({ error: "Contract is already signed" });
+      }
+
+      const { signature_data } = req.body;
+      if (!signature_data || signature_data.trim().length === 0) {
+        return res.status(400).json({ error: "Signature data is required" });
+      }
+
+      // Generate PDF
+      const pdfBuffer = await generateContractPdf(
+        existing.contract_type,
+        existing.form_data as Record<string, any>,
+        signature_data
+      );
+
+      // Upload to Google Drive
+      let googleDriveFileId: string | null = null;
+      let googleDriveLink: string | null = null;
+
+      try {
+        const driveResult = await uploadContractToGoogleDrive({
+          customerName: existing.customer_name,
+          contractType: existing.contract_type,
+          pdfBuffer,
+        });
+        if (driveResult) {
+          googleDriveFileId = driveResult.fileId;
+          googleDriveLink = driveResult.webViewLink;
+        }
+      } catch (driveError) {
+        console.error("Failed to upload contract PDF to Google Drive:", driveError);
+      }
+
+      // Send email
+      let emailSent = "no";
+      try {
+        const emailSuccess = await sendContractEmail(
+          existing.customer_email,
+          existing.customer_name,
+          existing.contract_type,
+          pdfBuffer
+        );
+        emailSent = emailSuccess ? "yes" : "no";
+      } catch (emailError) {
+        console.error("Failed to send contract email:", emailError);
+      }
+
+      const updated = await storage.updateContract(id, {
+        signature_data,
+        status: 'signed',
+        google_drive_file_id: googleDriveFileId,
+        google_drive_link: googleDriveLink,
+        email_sent: emailSent,
+      } as any);
+
+      // Also set signed_at timestamp
+      if (updated) {
+        await db.update(contracts).set({ signed_at: new Date() }).where(eq(contracts.id, id));
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error signing contract:", error);
+      res.status(500).json({ error: "Failed to sign contract" });
+    }
+  });
+
+  // Send contract for remote signature via email
+  app.post("/api/contracts/:id/send-for-signature", requirePermission("create_contracts"), async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const existing = await storage.getContract(id);
+      if (!existing) return res.status(404).json({ error: "Contract not found" });
+
+      if (existing.status === 'signed' || existing.status === 'completed') {
+        return res.status(400).json({ error: "Contract is already signed" });
+      }
+
+      // Generate a unique signing token
+      const crypto = await import("crypto");
+      const signingToken = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 day expiration
+
+      await storage.updateContract(id, {
+        status: 'sent_for_signature',
+        signing_token: signingToken,
+        signing_token_expires: expiresAt,
+      } as any);
+
+      // Build the signing URL
+      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      const signingUrl = `${baseUrl}/sign/${signingToken}`;
+
+      // Send the email
+      const { client: resendClient, fromEmail } = await getUncachableResendClient();
+
+      const contractTypeName = existing.contract_type === 'custom_cabinetry'
+        ? 'Cabinet Design and Layout Agreement'
+        : 'Home Improvement Contract';
+
+      await resendClient.emails.send({
+        from: fromEmail || 'noreply@artisantile.com',
+        to: existing.customer_email,
+        subject: `Please Sign: ${contractTypeName} from Artisan Tile`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2c3e50;">${contractTypeName}</h2>
+            <p>Dear ${existing.customer_name},</p>
+            <p>Artisan Tile Kitchen & Bath has prepared a ${contractTypeName.toLowerCase()} for your review and signature.</p>
+            <p>Please click the button below to review and sign the contract on your device:</p>
+            <p style="text-align: center; margin: 30px 0;">
+              <a href="${signingUrl}" style="display: inline-block; background-color: #2c3e50; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-size: 16px;">
+                Review & Sign Contract
+              </a>
+            </p>
+            <p style="color: #666; font-size: 14px;">This link will expire in 7 days. If you have any questions, please contact us.</p>
+            <p>Thank you,<br/>Artisan Tile Kitchen & Bath<br/>1200 Boston Post Road<br/>Guilford, CT 06437</p>
+          </div>
+        `,
+      });
+
+      res.json({ success: true, message: "Contract sent for signature" });
+    } catch (error) {
+      console.error("Error sending contract for signature:", error);
+      res.status(500).json({ error: "Failed to send contract for signature" });
+    }
+  });
+
+  // Generate contract PDF for printing/downloading
+  app.get("/api/contracts/:id/pdf", requirePermission("view_contracts"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const contract = await storage.getContract(id);
+      if (!contract) return res.status(404).json({ error: "Contract not found" });
+
+      const pdfBuffer = await generateContractPdf(
+        contract.contract_type,
+        contract.form_data as Record<string, any>,
+        contract.signature_data || ''
+      );
+
+      const contractTypeName = contract.contract_type === 'custom_cabinetry'
+        ? 'Cabinet_Design_Agreement'
+        : 'Home_Improvement_Contract';
+      const fileName = `${contractTypeName}_${contract.customer_name.replace(/\s+/g, '_')}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Error generating contract PDF:", error);
+      res.status(500).json({ error: "Failed to generate PDF" });
+    }
+  });
+
+  // Resend signed contract email
+  app.post("/api/contracts/:id/resend-email", requirePermission("view_contracts"), async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const contract = await storage.getContract(id);
+      if (!contract) return res.status(404).json({ error: "Contract not found" });
+
+      if (!contract.signature_data) {
+        return res.status(400).json({ error: "Contract has not been signed yet" });
+      }
+
+      const pdfBuffer = await generateContractPdf(
+        contract.contract_type,
+        contract.form_data as Record<string, any>,
+        contract.signature_data
+      );
+
+      const emailSuccess = await sendContractEmail(
+        contract.customer_email,
+        contract.customer_name,
+        contract.contract_type,
+        pdfBuffer
+      );
+
+      if (emailSuccess) {
+        await storage.updateContract(id, { email_sent: "yes" } as any);
+      }
+
+      res.json({ success: emailSuccess });
+    } catch (error) {
+      console.error("Error resending contract email:", error);
+      res.status(500).json({ error: "Failed to resend email" });
+    }
+  });
+
+  // PUBLIC: Get contract for remote signing
+  app.get("/api/sign/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const contract = await storage.getContractBySigningToken(token);
+
+      if (!contract) {
+        return res.status(404).json({ error: "Contract not found or link is invalid" });
+      }
+
+      if (contract.status === 'signed' || contract.status === 'completed') {
+        return res.status(400).json({ error: "This contract has already been signed" });
+      }
+
+      if (contract.signing_token_expires && new Date() > new Date(contract.signing_token_expires)) {
+        return res.status(400).json({ error: "This signing link has expired. Please contact Artisan Tile for a new link." });
+      }
+
+      // Return contract data without sensitive internal fields
+      res.json({
+        id: contract.id,
+        contract_type: contract.contract_type,
+        customer_name: contract.customer_name,
+        customer_email: contract.customer_email,
+        form_data: contract.form_data,
+        status: contract.status,
+      });
+    } catch (error) {
+      console.error("Error fetching contract for signing:", error);
+      res.status(500).json({ error: "Failed to fetch contract" });
+    }
+  });
+
+  // PUBLIC: Submit remote signature
+  app.post("/api/sign/:token", async (req, res) => {
+    try {
+      const { token } = req.params;
+      const { signature_data } = req.body;
+
+      if (!signature_data || signature_data.trim().length === 0) {
+        return res.status(400).json({ error: "Signature is required" });
+      }
+
+      const contract = await storage.getContractBySigningToken(token);
+
+      if (!contract) {
+        return res.status(404).json({ error: "Contract not found or link is invalid" });
+      }
+
+      if (contract.status === 'signed' || contract.status === 'completed') {
+        return res.status(400).json({ error: "This contract has already been signed" });
+      }
+
+      if (contract.signing_token_expires && new Date() > new Date(contract.signing_token_expires)) {
+        return res.status(400).json({ error: "This signing link has expired" });
+      }
+
+      // Generate PDF with signature
+      const pdfBuffer = await generateContractPdf(
+        contract.contract_type,
+        contract.form_data as Record<string, any>,
+        signature_data
+      );
+
+      // Upload to Google Drive
+      let googleDriveFileId: string | null = null;
+      let googleDriveLink: string | null = null;
+
+      try {
+        const driveResult = await uploadContractToGoogleDrive({
+          customerName: contract.customer_name,
+          contractType: contract.contract_type,
+          pdfBuffer,
+        });
+        if (driveResult) {
+          googleDriveFileId = driveResult.fileId;
+          googleDriveLink = driveResult.webViewLink;
+        }
+      } catch (driveError) {
+        console.error("Failed to upload contract PDF to Google Drive:", driveError);
+      }
+
+      // Send signed copy to customer
+      let emailSent = "no";
+      try {
+        const emailSuccess = await sendContractEmail(
+          contract.customer_email,
+          contract.customer_name,
+          contract.contract_type,
+          pdfBuffer
+        );
+        emailSent = emailSuccess ? "yes" : "no";
+      } catch (emailError) {
+        console.error("Failed to send contract email:", emailError);
+      }
+
+      // Update contract
+      await storage.updateContract(contract.id, {
+        signature_data,
+        status: 'signed',
+        google_drive_file_id: googleDriveFileId,
+        google_drive_link: googleDriveLink,
+        email_sent: emailSent,
+        signing_token: null,
+        signing_token_expires: null,
+      } as any);
+
+      // Set signed_at
+      await db.update(contracts).set({ signed_at: new Date() }).where(eq(contracts.id, contract.id));
+
+      res.json({ success: true, message: "Contract signed successfully" });
+    } catch (error) {
+      console.error("Error processing remote signature:", error);
+      res.status(500).json({ error: "Failed to process signature" });
     }
   });
 
@@ -3558,6 +3927,113 @@ export async function registerRoutes(
     }
   });
 
+  // Portal: Get client's contracts
+  app.get("/api/portal/contracts", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const customerEmail = req.portalUser.email;
+      const customerContracts = await storage.getContractsByCustomerEmail(customerEmail);
+
+      // Return contracts without signature data URLs (too large) but with metadata
+      const sanitized = customerContracts.map(c => ({
+        id: c.id,
+        contract_type: c.contract_type,
+        customer_name: c.customer_name,
+        status: c.status,
+        signed_at: c.signed_at,
+        created_at: c.created_at,
+        has_signature: !!c.signature_data,
+        google_drive_link: c.google_drive_link,
+      }));
+
+      res.json(sanitized);
+    } catch (error) {
+      console.error("Error fetching portal contracts:", error);
+      res.status(500).json({ error: "Failed to fetch contracts" });
+    }
+  });
+
+  // Portal: Download contract PDF
+  app.get("/api/portal/contracts/:id/pdf", isPortalAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid contract ID" });
+
+      const contract = await storage.getContract(id);
+      if (!contract) return res.status(404).json({ error: "Contract not found" });
+
+      // Verify the contract belongs to this portal user
+      if (contract.customer_email !== req.portalUser.email) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      if (!contract.signature_data) {
+        return res.status(400).json({ error: "Contract has not been signed yet" });
+      }
+
+      const pdfBuffer = await generateContractPdf(
+        contract.contract_type,
+        contract.form_data as Record<string, any>,
+        contract.signature_data
+      );
+
+      const contractTypeName = contract.contract_type === 'custom_cabinetry'
+        ? 'Cabinet_Design_Agreement'
+        : 'Home_Improvement_Contract';
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${contractTypeName}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Error generating portal contract PDF:", error);
+      res.status(500).json({ error: "Failed to generate PDF" });
+    }
+  });
+
+  // PUBLIC: Self-service password reset request for portal
+  app.post("/api/portal/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({ error: "Email is required" });
+      }
+
+      const access = await storage.getClientPortalAccessByEmail(email);
+
+      // Always return success to prevent email enumeration
+      if (!access || access.is_active !== "yes") {
+        return res.json({ success: true, message: "If an account exists with that email, a password reset link will be sent." });
+      }
+
+      // Generate new temporary password
+      const crypto = await import("crypto");
+      const tempPassword = crypto.randomBytes(4).toString("hex") + "A1!";
+
+      const bcrypt = await import("bcrypt");
+      const password_hash = await bcrypt.hash(tempPassword, 10);
+      await storage.updateClientPortalAccess(access.id, { password_hash });
+
+      // Get customer name for the email
+      const customer = await storage.getCustomer(access.customer_id);
+      const customerName = customer?.name || "Valued Customer";
+
+      // Send password reset email
+      try {
+        await sendPortalPasswordReset(
+          access.email,
+          customerName,
+          tempPassword
+        );
+      } catch (emailError) {
+        console.error("Failed to send portal password reset email:", emailError);
+      }
+
+      res.json({ success: true, message: "If an account exists with that email, a password reset link will be sent." });
+    } catch (error) {
+      console.error("Portal password reset error:", error);
+      res.status(500).json({ error: "Failed to process password reset" });
+    }
+  });
+
   // ============================================
   // ADMIN ROUTES FOR MANAGING PORTAL ACCESS
   // ============================================
@@ -3843,6 +4319,39 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting portal access:", error);
       res.status(500).json({ error: "Failed to delete portal access" });
+    }
+  });
+
+  // Send portal setup invitation email (from contracts, checkouts, or projects)
+  app.post("/api/send-portal-setup-email", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customer_email, customer_name, context, context_details } = req.body;
+
+      if (!customer_email || !customer_name || !context) {
+        return res.status(400).json({ error: "customer_email, customer_name, and context are required" });
+      }
+
+      const success = await sendPortalSetupInvitation(
+        customer_email,
+        customer_name,
+        context,
+        context_details || ''
+      );
+
+      if (success) {
+        await storage.createActivityLog({
+          userId: req.user?.id,
+          userEmail: req.user?.email,
+          action: "send_portal_setup_email",
+          entityType: context,
+          details: `Sent portal setup invitation to ${customer_email} from ${context}`,
+        });
+      }
+
+      res.json({ success });
+    } catch (error) {
+      console.error("Error sending portal setup email:", error);
+      res.status(500).json({ error: "Failed to send portal setup email" });
     }
   });
 

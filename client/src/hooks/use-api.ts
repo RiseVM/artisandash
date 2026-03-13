@@ -257,6 +257,63 @@ export function useDeleteContract() {
   });
 }
 
+export function useUpdateContract() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: number } & Partial<InsertContract>) => {
+      const res = await apiRequest("PATCH", `/api/contracts/${id}`, data);
+      return res.json() as Promise<Contract>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+    },
+  });
+}
+
+export function useSignContract() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, signature_data }: { id: number; signature_data: string }) => {
+      const res = await apiRequest("POST", `/api/contracts/${id}/sign`, { signature_data });
+      return res.json() as Promise<Contract>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+    },
+  });
+}
+
+export function useSendForSignature() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/contracts/${id}/send-for-signature`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contracts"] });
+    },
+  });
+}
+
+export function useResendContractEmail() {
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("POST", `/api/contracts/${id}/resend-email`);
+      return res.json();
+    },
+  });
+}
+
+export function useSendPortalSetupEmail() {
+  return useMutation({
+    mutationFn: async (data: { customer_email: string; customer_name: string; context: string; context_details: string }) => {
+      const res = await apiRequest("POST", `/api/send-portal-setup-email`, data);
+      return res.json();
+    },
+  });
+}
+
 // ============================================
 // PROJECT TRACKER HOOKS
 // ============================================

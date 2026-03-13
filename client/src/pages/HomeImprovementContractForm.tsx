@@ -1,7 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import SignatureCanvas from "react-signature-canvas";
-import { useCreateContract } from "@/hooks/use-api";
+import { useCreateContract, useUpdateContract, useSignContract } from "@/hooks/use-api";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,16 +10,25 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Loader2, Home, Eye, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Home, Eye, ChevronLeft, ChevronRight, Download, Save } from "lucide-react";
 import { HomeImprovementContractPreview } from "@/components/HomeImprovementContractPreview";
+import type { Contract } from "@shared/schema";
 
 export function HomeImprovementContractForm() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const createContractMutation = useCreateContract();
+  const updateContractMutation = useUpdateContract();
+  const signContractMutation = useSignContract();
   const sigCanvas = useRef<SignatureCanvas>(null);
   const [step, setStep] = useState<'form' | 'preview' | 'sign'>('form');
   const [hasReviewedContract, setHasReviewedContract] = useState(false);
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Check for draft parameter
+  const params = new URLSearchParams(window.location.search);
+  const draftParam = params.get('draft');
 
   const [formData, setFormData] = useState({
     date: new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' }),
@@ -37,6 +47,46 @@ export function HomeImprovementContractForm() {
 
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+
+  // Load draft if resuming
+  const { data: draftContract } = useQuery<Contract>({
+    queryKey: ["/api/contracts", draftParam],
+    queryFn: async () => {
+      const res = await fetch(`/api/contracts/${draftParam}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch draft");
+      return res.json();
+    },
+    enabled: !!draftParam,
+  });
+
+  useEffect(() => {
+    if (draftContract && draftContract.contract_type === 'home_improvement') {
+      setDraftId(draftContract.id);
+      const fd = draftContract.form_data as any;
+      if (fd) {
+        setFormData({
+          date: fd.date || formData.date,
+          ownerName1: fd.ownerName1 || "",
+          ownerName2: fd.ownerName2 || "",
+          ownerAddress: fd.ownerAddress || "",
+          propertyAddress: fd.propertyAddress || "",
+          workDescription: fd.workDescription || "",
+          laborPrice: fd.laborPrice || "",
+          materialsPrice: fd.materialsPrice || "",
+          totalContractPrice: fd.totalContractPrice || "",
+          startDate: fd.startDate || "",
+          completionDate: fd.completionDate || "",
+          contractorDisclosure: fd.contractorDisclosure || "",
+        });
+      }
+      setCustomerEmail(draftContract.customer_email || "");
+      setCustomerPhone(draftContract.customer_phone || "");
+      // Resume from last step
+      if (draftContract.last_step === 'preview' || draftContract.last_step === 'sign') {
+        setStep(draftContract.last_step as any);
+      }
+    }
+  }, [draftContract]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -63,9 +113,40 @@ export function HomeImprovementContractForm() {
     return true;
   };
 
+  const saveDraft = async (nextStep?: 'form' | 'preview' | 'sign') => {
+    setIsSaving(true);
+    try {
+      const contractData = {
+        contract_type: "home_improvement" as const,
+        customer_name: formData.ownerName1 || "Draft",
+        customer_email: customerEmail || "draft@placeholder.com",
+        customer_phone: customerPhone || null,
+        customer_address: formData.ownerAddress || null,
+        property_address: formData.propertyAddress || null,
+        form_data: { ...formData },
+        last_step: nextStep || step,
+        status: 'draft' as const,
+      };
+
+      if (draftId) {
+        await updateContractMutation.mutateAsync({ id: draftId, ...contractData });
+        toast({ title: "Draft saved" });
+      } else {
+        const result = await createContractMutation.mutateAsync(contractData as any);
+        setDraftId(result.id);
+        toast({ title: "Draft saved" });
+      }
+    } catch (err) {
+      toast({ title: "Error saving draft", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const goToPreview = () => {
     if (validateForm()) {
       setStep('preview');
+      if (draftId) saveDraft('preview');
     }
   };
 
@@ -75,6 +156,7 @@ export function HomeImprovementContractForm() {
       return;
     }
     setStep('sign');
+    if (draftId) saveDraft('sign');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -93,18 +175,25 @@ export function HomeImprovementContractForm() {
     }
 
     try {
-      await createContractMutation.mutateAsync({
-        contract_type: "home_improvement",
-        customer_name: formData.ownerName1,
-        customer_email: customerEmail,
-        customer_phone: customerPhone || null,
-        customer_address: formData.ownerAddress || null,
-        property_address: formData.propertyAddress || null,
-        form_data: { ...formData, contractReviewed: true },
-        signature_data: signatureData,
-      });
+      if (draftId) {
+        // Sign existing draft
+        await signContractMutation.mutateAsync({ id: draftId, signature_data: signatureData });
+      } else {
+        // Create and sign in one step
+        await createContractMutation.mutateAsync({
+          contract_type: "home_improvement",
+          customer_name: formData.ownerName1,
+          customer_email: customerEmail,
+          customer_phone: customerPhone || null,
+          customer_address: formData.ownerAddress || null,
+          property_address: formData.propertyAddress || null,
+          form_data: { ...formData, contractReviewed: true },
+          signature_data: signatureData,
+          status: 'signed',
+        } as any);
+      }
 
-      toast({ title: "Contract created successfully!" });
+      toast({ title: "Contract signed successfully!" });
       setLocation("/contracts");
     } catch (err) {
       toast({ title: "Error creating contract", variant: "destructive" });
@@ -113,10 +202,16 @@ export function HomeImprovementContractForm() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => setLocation("/contracts")} data-testid="button-back">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Contracts
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => setLocation("/contracts")} data-testid="button-back">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Contracts
+          </Button>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => saveDraft()} disabled={isSaving}>
+          {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+          Save Draft
         </Button>
       </div>
 
@@ -125,6 +220,7 @@ export function HomeImprovementContractForm() {
           Home Improvement Contract
         </h1>
         <p className="text-muted-foreground">
+          {draftId && <span className="text-blue-600 mr-2">(Resuming draft)</span>}
           {step === 'form' && "Step 1: Fill out the contract details"}
           {step === 'preview' && "Step 2: Review the complete contract"}
           {step === 'sign' && "Step 3: Sign the contract"}
@@ -274,9 +370,9 @@ export function HomeImprovementContractForm() {
             </div>
 
             <div className="flex justify-end mb-4">
-              <a 
-                href="/api/contract-templates/home-improvement" 
-                target="_blank" 
+              <a
+                href="/api/contract-templates/home-improvement"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 hover:underline"
                 data-testid="link-download-template"
@@ -289,8 +385,8 @@ export function HomeImprovementContractForm() {
             <HomeImprovementContractPreview formData={formData} />
 
             <div className="flex items-center space-x-2 pt-4 border-t">
-              <Checkbox 
-                id="reviewed" 
+              <Checkbox
+                id="reviewed"
                 checked={hasReviewedContract}
                 onCheckedChange={(checked) => setHasReviewedContract(checked === true)}
                 data-testid="checkbox-reviewed"
@@ -353,8 +449,8 @@ export function HomeImprovementContractForm() {
                   <ChevronLeft className="h-4 w-4 mr-2" />
                   Back to Review
                 </Button>
-                <Button type="submit" disabled={createContractMutation.isPending} data-testid="button-submit">
-                  {createContractMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <Button type="submit" disabled={createContractMutation.isPending || signContractMutation.isPending} data-testid="button-submit">
+                  {(createContractMutation.isPending || signContractMutation.isPending) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Sign & Create Contract
                 </Button>
               </div>

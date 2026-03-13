@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSignedAgreements, useCustomers, useDeleteSignedAgreement } from "@/hooks/use-api";
+import { useSignedAgreements, useCustomers, useDeleteSignedAgreement, useSendPortalSetupEmail } from "@/hooks/use-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateEST } from "@/lib/utils";
-import { Search, FileText, Trash2, Eye, Loader2, ExternalLink } from "lucide-react";
+import { Search, FileText, Trash2, Eye, Loader2, ExternalLink, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { SignedAgreement } from "@shared/schema";
 
@@ -23,6 +23,7 @@ export function Agreements() {
   const { data: agreements = [], isLoading } = useSignedAgreements();
   const { data: customers = [] } = useCustomers();
   const deleteAgreementMutation = useDeleteSignedAgreement();
+  const sendPortalSetupMutation = useSendPortalSetupEmail();
   const { toast } = useToast();
   
   const [search, setSearch] = useState("");
@@ -32,6 +33,31 @@ export function Agreements() {
   const getCustomerName = (customerId: number) => {
     const customer = customers.find(c => c.id === customerId);
     return customer?.name || "Unknown";
+  };
+
+  const getCustomerEmail = (customerId: number) => {
+    const customer = customers.find(c => c.id === customerId);
+    return customer?.email || "";
+  };
+
+  const handleSendPortalSetup = async (agreement: SignedAgreement) => {
+    const email = getCustomerEmail(agreement.customer_id);
+    const name = getCustomerName(agreement.customer_id);
+    if (!email) {
+      toast({ title: "No email", description: "This customer has no email address on file.", variant: "destructive" });
+      return;
+    }
+    try {
+      await sendPortalSetupMutation.mutateAsync({
+        customer_email: email,
+        customer_name: name,
+        context: 'checkout',
+        context_details: agreement.document_title,
+      });
+      toast({ title: "Invitation Sent", description: `Portal setup email sent to ${email}` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to send portal setup email.", variant: "destructive" });
+    }
   };
 
   const filteredAgreements = agreements.filter(agreement => {
@@ -136,6 +162,15 @@ export function Agreements() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSendPortalSetup(agreement)}
+                          disabled={sendPortalSetupMutation.isPending}
+                          title="Send portal setup invitation"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"

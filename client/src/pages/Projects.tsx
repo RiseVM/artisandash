@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useProjects, useCustomers, useCreateProject, useUpdateProject, useDeleteProject, useProjectTemplates, useCreateProjectFromTemplate } from "@/hooks/use-api";
+import { useProjects, useCustomers, useCreateProject, useUpdateProject, useDeleteProject, useProjectTemplates, useCreateProjectFromTemplate, useSendPortalSetupEmail } from "@/hooks/use-api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  UserPlus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -97,6 +98,7 @@ export function Projects() {
   const updateProjectMutation = useUpdateProject();
   const createFromTemplateMutation = useCreateProjectFromTemplate();
   const deleteProjectMutation = useDeleteProject();
+  const sendPortalSetupMutation = useSendPortalSetupEmail();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -235,6 +237,24 @@ export function Projects() {
     }
   };
 
+  const handleSendPortalSetup = async (project: ProjectWithCustomer) => {
+    if (!project.customer.email) {
+      toast({ title: "No email", description: "This customer has no email address on file.", variant: "destructive" });
+      return;
+    }
+    try {
+      await sendPortalSetupMutation.mutateAsync({
+        customer_email: project.customer.email,
+        customer_name: project.customer.name,
+        context: 'project',
+        context_details: project.name,
+      });
+      toast({ title: "Invitation Sent", description: `Portal setup email sent to ${project.customer.email}` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message || "Failed to send portal setup email.", variant: "destructive" });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -343,6 +363,15 @@ export function Projects() {
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  handleSendPortalSetup(project);
+                                }}
+                              >
+                                <UserPlus className="h-4 w-4 mr-2" />
+                                Send Portal Invite
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   handleOpenEditProject(project);
                                 }}
                               >
@@ -446,6 +475,15 @@ export function Projects() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendPortalSetup(project);
+                                  }}
+                                >
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Send Portal Invite
+                                </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation();

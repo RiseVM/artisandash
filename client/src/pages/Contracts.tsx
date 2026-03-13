@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useContracts, useDeleteContract } from "@/hooks/use-api";
+import { useContracts, useDeleteContract, useSendForSignature, useResendContractEmail, useSendPortalSetupEmail } from "@/hooks/use-api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -16,22 +17,32 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateEST } from "@/lib/utils";
-import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus } from "lucide-react";
+import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus, Send, Printer, Mail, MailPlus, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Contract } from "@shared/schema";
+
+const statusConfig: Record<string, { label: string; className: string }> = {
+  draft: { label: "Draft", className: "bg-gray-100 text-gray-800" },
+  sent_for_signature: { label: "Sent for Signature", className: "bg-yellow-100 text-yellow-800" },
+  signed: { label: "Signed", className: "bg-green-100 text-green-800" },
+  completed: { label: "Completed", className: "bg-blue-100 text-blue-800" },
+};
 
 export function Contracts() {
   const { data: contracts = [], isLoading } = useContracts();
   const deleteContractMutation = useDeleteContract();
+  const sendForSignatureMutation = useSendForSignature();
+  const resendEmailMutation = useResendContractEmail();
+  const sendPortalSetupMutation = useSendPortalSetupEmail();
   const { toast } = useToast();
-  
+
   const [search, setSearch] = useState("");
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [deleteContract, setDeleteContract] = useState<Contract | null>(null);
 
   const getContractTypeName = (type: string) => {
-    return type === 'custom_cabinetry' 
-      ? 'Cabinet Design & Layout Agreement' 
+    return type === 'custom_cabinetry'
+      ? 'Cabinet Design & Layout Agreement'
       : 'Home Improvement Contract';
   };
 
@@ -40,7 +51,8 @@ export function Contracts() {
     return (
       contract.customer_name.toLowerCase().includes(searchLower) ||
       contract.customer_email.toLowerCase().includes(searchLower) ||
-      getContractTypeName(contract.contract_type).toLowerCase().includes(searchLower)
+      getContractTypeName(contract.contract_type).toLowerCase().includes(searchLower) ||
+      (contract.status || '').toLowerCase().includes(searchLower)
     );
   });
 
@@ -52,6 +64,42 @@ export function Contracts() {
       setDeleteContract(null);
     } catch (err) {
       toast({ title: "Error deleting contract", variant: "destructive" });
+    }
+  };
+
+  const handleSendForSignature = async (contract: Contract) => {
+    try {
+      await sendForSignatureMutation.mutateAsync(contract.id);
+      toast({ title: "Contract sent for signature!", description: `Email sent to ${contract.customer_email}` });
+    } catch (err) {
+      toast({ title: "Error sending contract", variant: "destructive" });
+    }
+  };
+
+  const handleResendEmail = async (contract: Contract) => {
+    try {
+      await resendEmailMutation.mutateAsync(contract.id);
+      toast({ title: "Email resent!", description: `Signed contract sent to ${contract.customer_email}` });
+    } catch (err) {
+      toast({ title: "Error resending email", variant: "destructive" });
+    }
+  };
+
+  const handlePrint = (contract: Contract) => {
+    window.open(`/api/contracts/${contract.id}/pdf`, '_blank');
+  };
+
+  const handleSendPortalSetup = async (contract: Contract) => {
+    try {
+      await sendPortalSetupMutation.mutateAsync({
+        customer_email: contract.customer_email,
+        customer_name: contract.customer_name,
+        context: 'contract',
+        context_details: getContractTypeName(contract.contract_type),
+      });
+      toast({ title: "Portal setup email sent!", description: `Invitation sent to ${contract.customer_email}` });
+    } catch (err) {
+      toast({ title: "Error sending portal setup email", variant: "destructive" });
     }
   };
 
@@ -123,8 +171,8 @@ export function Contracts() {
             </CardTitle>
             <div className="relative w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search contracts..." 
+              <Input
+                placeholder="Search contracts..."
                 className="pl-9"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -145,65 +193,130 @@ export function Contracts() {
                   <TableHead>Contract Type</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Signed Date</TableHead>
-                  <TableHead>Email Sent</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
                   <TableHead>Google Drive</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredContracts.map((contract) => (
-                  <TableRow key={contract.id} data-testid={`row-contract-${contract.id}`}>
-                    <TableCell className="font-medium">{getContractTypeName(contract.contract_type)}</TableCell>
-                    <TableCell>{contract.customer_name}</TableCell>
-                    <TableCell>{contract.customer_email}</TableCell>
-                    <TableCell>
-                      {contract.signed_at 
-                        ? formatDateEST(contract.signed_at, { includeTime: true })
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <span className={contract.email_sent === 'yes' ? 'text-green-600' : 'text-muted-foreground'}>
-                        {contract.email_sent === 'yes' ? 'Yes' : 'No'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {contract.google_drive_link ? (
-                        <a 
-                          href={contract.google_drive_link} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline flex items-center gap-1"
-                          data-testid={`link-drive-${contract.id}`}
-                        >
-                          View <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedContract(contract)}
-                          data-testid={`button-view-${contract.id}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setDeleteContract(contract)}
-                          data-testid={`button-delete-${contract.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredContracts.map((contract) => {
+                  const status = statusConfig[contract.status || 'draft'] || statusConfig.draft;
+                  return (
+                    <TableRow key={contract.id} data-testid={`row-contract-${contract.id}`}>
+                      <TableCell className="font-medium">{getContractTypeName(contract.contract_type)}</TableCell>
+                      <TableCell>{contract.customer_name}</TableCell>
+                      <TableCell>{contract.customer_email}</TableCell>
+                      <TableCell>
+                        <Badge className={status.className}>{status.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {contract.signed_at
+                          ? formatDateEST(contract.signed_at, { includeTime: true })
+                          : contract.created_at
+                            ? formatDateEST(contract.created_at)
+                            : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {contract.google_drive_link ? (
+                          <a
+                            href={contract.google_drive_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline flex items-center gap-1"
+                            data-testid={`link-drive-${contract.id}`}
+                          >
+                            View <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          {/* View details */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedContract(contract)}
+                            title="View details"
+                            data-testid={`button-view-${contract.id}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+
+                          {/* Print/Download PDF */}
+                          {contract.signature_data && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handlePrint(contract)}
+                              title="Print / Download PDF"
+                            >
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                          )}
+
+                          {/* Send for remote signature (draft contracts only) */}
+                          {(contract.status === 'draft' || !contract.status) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSendForSignature(contract)}
+                              disabled={sendForSignatureMutation.isPending}
+                              title="Email for signature"
+                            >
+                              <Send className="h-4 w-4" />
+                            </Button>
+                          )}
+
+                          {/* Resend signed contract email */}
+                          {(contract.status === 'signed' || contract.status === 'completed') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendEmail(contract)}
+                              disabled={resendEmailMutation.isPending}
+                              title="Resend signed contract email"
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                          )}
+
+                          {/* Send portal setup email */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSendPortalSetup(contract)}
+                            disabled={sendPortalSetupMutation.isPending}
+                            title="Send portal setup invitation"
+                          >
+                            <UserPlus className="h-4 w-4" />
+                          </Button>
+
+                          {/* Continue editing (drafts) */}
+                          {(contract.status === 'draft' || contract.status === 'sent_for_signature') && (
+                            <Link href={`/contracts/${contract.contract_type === 'custom_cabinetry' ? 'cabinetry' : 'home-improvement'}?draft=${contract.id}`}>
+                              <Button variant="ghost" size="sm" title="Continue editing">
+                                <FileText className="h-4 w-4 text-blue-600" />
+                              </Button>
+                            </Link>
+                          )}
+
+                          {/* Delete */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteContract(contract)}
+                            data-testid={`button-delete-${contract.id}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -217,6 +330,12 @@ export function Contracts() {
           </DialogHeader>
           {selectedContract && (
             <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <h4 className="font-semibold">Status</h4>
+                <Badge className={(statusConfig[selectedContract.status || 'draft'] || statusConfig.draft).className}>
+                  {(statusConfig[selectedContract.status || 'draft'] || statusConfig.draft).label}
+                </Badge>
+              </div>
               <div>
                 <h4 className="font-semibold">Contract Type</h4>
                 <p>{getContractTypeName(selectedContract.contract_type)}</p>
@@ -243,32 +362,54 @@ export function Contracts() {
               )}
               <div>
                 <h4 className="font-semibold">Signed Date</h4>
-                <p>{selectedContract.signed_at ? formatDateEST(selectedContract.signed_at, { includeTime: true }) : '-'}</p>
+                <p>{selectedContract.signed_at ? formatDateEST(selectedContract.signed_at, { includeTime: true }) : 'Not yet signed'}</p>
               </div>
               {selectedContract.signature_data && (
                 <div>
                   <h4 className="font-semibold">Signature</h4>
                   <div className="border rounded-md p-2 bg-white">
-                    <img 
-                      src={selectedContract.signature_data} 
-                      alt="Customer Signature" 
+                    <img
+                      src={selectedContract.signature_data}
+                      alt="Customer Signature"
                       className="max-h-24"
                     />
                   </div>
                 </div>
               )}
-              {selectedContract.google_drive_link && (
-                <div>
-                  <a 
-                    href={selectedContract.google_drive_link} 
-                    target="_blank" 
+
+              <div className="flex gap-2 pt-4 border-t">
+                {selectedContract.signature_data && (
+                  <Button size="sm" variant="outline" onClick={() => handlePrint(selectedContract)}>
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print / Download PDF
+                  </Button>
+                )}
+                {selectedContract.google_drive_link && (
+                  <a
+                    href={selectedContract.google_drive_link}
+                    target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline flex items-center gap-1"
                   >
-                    View in Google Drive <ExternalLink className="h-4 w-4" />
+                    <Button size="sm" variant="outline">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      View in Google Drive
+                    </Button>
                   </a>
-                </div>
-              )}
+                )}
+                {(selectedContract.status === 'draft' || !selectedContract.status) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      handleSendForSignature(selectedContract);
+                      setSelectedContract(null);
+                    }}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Email for Signature
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

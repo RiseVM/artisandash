@@ -201,11 +201,17 @@ export const contracts = pgTable("contracts", {
   customer_address: text("customer_address"),
   property_address: text("property_address"),
   form_data: jsonb("form_data").notNull(), // Stores all contract-specific fields as JSON
-  signature_data: text("signature_data").notNull(),
+  signature_data: text("signature_data"), // nullable for drafts
+  status: text("status").default("draft").notNull(), // 'draft' | 'sent_for_signature' | 'signed' | 'completed'
+  signing_token: text("signing_token"), // unique token for remote signing links
+  signing_token_expires: timestamp("signing_token_expires"), // expiration for signing links
+  last_step: text("last_step").default("form"), // 'form' | 'preview' | 'sign' - tracks where user left off
   google_drive_file_id: text("google_drive_file_id"),
   google_drive_link: text("google_drive_link"),
   email_sent: text("email_sent").default("no"), // 'yes' | 'no'
-  signed_at: timestamp("signed_at").defaultNow().notNull(),
+  signed_at: timestamp("signed_at"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
   created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
   created_by_user_name: varchar("created_by_user_name"),
 });
@@ -213,6 +219,10 @@ export const contracts = pgTable("contracts", {
 export const insertContractSchema = createInsertSchema(contracts).omit({
   id: true,
   signed_at: true,
+  created_at: true,
+  updated_at: true,
+  signing_token: true,
+  signing_token_expires: true,
 });
 
 export type InsertContract = z.infer<typeof insertContractSchema>;

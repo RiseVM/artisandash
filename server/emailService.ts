@@ -770,6 +770,65 @@ export async function sendClientMessageToAdminNotification(
 }
 
 // ============================================
+// CLIENT PORTAL SETUP INVITATION
+// ============================================
+
+export async function sendPortalSetupInvitation(
+  customerEmail: string,
+  customerName: string,
+  context: string, // 'contract' | 'checkout' | 'project'
+  contextDetails: string // e.g., contract type name, project name, etc.
+): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+
+    const contextMessages: Record<string, string> = {
+      contract: `Your ${contextDetails} has been created`,
+      checkout: `Your sample checkout for ${contextDetails} has been processed`,
+      project: `Your project "${contextDetails}" has been set up`,
+    };
+
+    const contextMessage = contextMessages[context] || `Your ${context} has been processed`;
+
+    const subject = `Access Your Artisan Tile Client Portal`;
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">Welcome to Your Client Portal</h2>
+        <p>Dear ${customerName},</p>
+        <p>${contextMessage}. We'd like to invite you to set up your Artisan Tile client portal account.</p>
+        <p>Through the portal, you can:</p>
+        <ul>
+          <li>View and download your signed contracts</li>
+          <li>Track project progress and phase updates</li>
+          <li>Approve change orders</li>
+          <li>View project photos and documents</li>
+          <li>Communicate directly with our team</li>
+        </ul>
+        <p>To set up your account, our team will send you login credentials shortly, or you can contact us to get started.</p>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="margin: 0;">Thank you for choosing us,</p>
+          <p style="margin: 5px 0 0 0; font-weight: bold;">Artisan Tile Kitchen & Bath</p>
+          <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">1200 Boston Post Road, Guilford, CT 06437</p>
+        </div>
+      </div>
+    `;
+
+    const result = await client.emails.send({
+      from: fromEmail || 'noreply@artisantile.com',
+      to: customerEmail,
+      subject,
+      html: bodyHtml,
+    });
+
+    console.log(`Portal setup invitation sent to ${customerEmail}:`, result);
+    return true;
+  } catch (error) {
+    console.error(`Failed to send portal setup invitation to ${customerEmail}:`, error);
+    return false;
+  }
+}
+
+// ============================================
 // BUG REPORT NOTIFICATION
 // ============================================
 

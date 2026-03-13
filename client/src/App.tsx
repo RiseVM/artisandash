@@ -28,6 +28,7 @@ import { PortalAuthProvider } from "@/hooks/usePortalAuth";
 import { PortalLogin } from "@/pages/portal/PortalLogin";
 import { PortalDashboard } from "@/pages/portal/PortalDashboard";
 import { PortalProject } from "@/pages/portal/PortalProject";
+import { RemoteSign } from "@/pages/RemoteSign";
 
 function PortalRouter() {
   return (
@@ -82,6 +83,15 @@ function AdminRouter() {
 
 function Router() {
   const [location] = useLocation();
+
+  // Remote signing page (public, no auth required)
+  if (location.startsWith("/sign/")) {
+    return (
+      <Switch>
+        <Route path="/sign/:token" component={RemoteSign} />
+      </Switch>
+    );
+  }
 
   // Portal routes have their own auth system
   if (location.startsWith("/portal")) {

@@ -156,6 +156,8 @@ export interface IStorage {
   // Contracts
   getContracts(): Promise<Contract[]>;
   getContract(id: number): Promise<Contract | undefined>;
+  getContractBySigningToken(token: string): Promise<Contract | undefined>;
+  getContractsByCustomerEmail(email: string): Promise<Contract[]>;
   createContract(contract: InsertContract): Promise<Contract>;
   updateContract(id: number, contract: Partial<InsertContract>): Promise<Contract | undefined>;
   deleteContract(id: number): Promise<boolean>;
@@ -632,12 +634,26 @@ export class DatabaseStorage implements IStorage {
 
   // Contracts
   async getContracts(): Promise<Contract[]> {
-    return db.select().from(contracts).orderBy(desc(contracts.signed_at));
+    return db.select().from(contracts).orderBy(desc(contracts.created_at));
   }
 
   async getContract(id: number): Promise<Contract | undefined> {
     const result = await db.select().from(contracts).where(eq(contracts.id, id));
     return result[0];
+  }
+
+  async getContractBySigningToken(token: string): Promise<Contract | undefined> {
+    const result = await db.select().from(contracts).where(eq(contracts.signing_token, token));
+    return result[0];
+  }
+
+  async getContractsByCustomerEmail(email: string): Promise<Contract[]> {
+    return db.select().from(contracts)
+      .where(and(
+        eq(contracts.customer_email, email),
+        or(eq(contracts.status, 'signed'), eq(contracts.status, 'completed'))
+      ))
+      .orderBy(desc(contracts.created_at));
   }
 
   async createContract(contract: InsertContract): Promise<Contract> {
@@ -646,7 +662,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateContract(id: number, contract: Partial<InsertContract>): Promise<Contract | undefined> {
-    const result = await db.update(contracts).set(contract).where(eq(contracts.id, id)).returning();
+    const result = await db.update(contracts).set({
+      ...contract,
+      updated_at: new Date(),
+    } as any).where(eq(contracts.id, id)).returning();
     return result[0];
   }
 
