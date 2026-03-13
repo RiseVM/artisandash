@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { PortalLayout } from "./PortalLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { FolderKanban, ChevronRight, Loader2, Calendar } from "lucide-react";
-import type { ProjectWithCustomer } from "@shared/schema";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { FolderKanban, ChevronRight, Loader2, Calendar, Download, FileText } from "lucide-react";
+import type { ProjectWithCustomer, Contract } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -23,8 +26,9 @@ const statusLabels: Record<string, string> = {
 
 export function PortalDashboard() {
   const [, setLocation] = useLocation();
+  const [activeTab, setActiveTab] = useState("projects");
 
-  const { data: projects = [], isLoading } = useQuery<ProjectWithCustomer[]>({
+  const { data: projects = [], isLoading: projectsLoading } = useQuery<ProjectWithCustomer[]>({
     queryKey: ["/api/portal/projects"],
     queryFn: async () => {
       const res = await fetch("/api/portal/projects", { credentials: "include" });
@@ -33,76 +37,152 @@ export function PortalDashboard() {
     },
   });
 
+  const { data: contracts = [], isLoading: contractsLoading } = useQuery<Contract[]>({
+    queryKey: ["/api/portal/contracts"],
+    queryFn: async () => {
+      const res = await fetch("/api/portal/contracts", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch contracts");
+      return res.json();
+    },
+  });
+
+  const getContractTypeName = (type: string) => {
+    if (type === 'custom_cabinetry') return 'Cabinet Design & Layout Agreement';
+    if (type === 'kitchen_design_retainer') return 'Kitchen Design Retainer';
+    return 'Home Improvement Contract';
+  };
+
+  const handleDownloadPDF = (contractId: number) => {
+    window.open(`/api/portal/contracts/${contractId}/pdf`, '_blank');
+  };
+
   return (
     <PortalLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold">Your Projects</h1>
-          <p className="text-muted-foreground">Track the progress of your projects</p>
+          <h1 className="text-2xl font-bold">Your Account</h1>
+          <p className="text-muted-foreground">View your projects and contracts</p>
         </div>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : projects.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <FolderKanban className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Projects Yet</h3>
-              <p className="text-muted-foreground">
-                You don't have any projects associated with your account yet.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {projects.map((project) => (
-              <Card
-                key={project.id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => setLocation(`/portal/project/${project.id}`)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <FolderKanban className="h-5 w-5 text-muted-foreground" />
-                        {project.name}
-                      </CardTitle>
-                      {project.description && (
-                        <CardDescription className="mt-1">
-                          {project.description}
-                        </CardDescription>
-                      )}
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Badge className={statusColors[project.status]}>
-                        {statusLabels[project.status]}
-                      </Badge>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {new Date(project.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Progress</span>
-                        <span className="font-medium">{project.overall_progress}%</span>
-                      </div>
-                      <Progress value={project.overall_progress} className="h-2" />
-                    </div>
-                  </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="projects">Projects</TabsTrigger>
+            <TabsTrigger value="contracts">Contracts</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="projects" className="space-y-4">
+            {projectsLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : projects.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <FolderKanban className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Projects Yet</h3>
+                  <p className="text-muted-foreground">
+                    You don't have any projects associated with your account yet.
+                  </p>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {projects.map((project) => (
+                  <Card
+                    key={project.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setLocation(`/portal/project/${project.id}`)}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="flex items-center gap-2">
+                            <FolderKanban className="h-5 w-5 text-muted-foreground" />
+                            {project.name}
+                          </CardTitle>
+                          {project.description && (
+                            <CardDescription className="mt-1">
+                              {project.description}
+                            </CardDescription>
+                          )}
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Badge className={statusColors[project.status]}>
+                            {statusLabels[project.status]}
+                          </Badge>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(project.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Progress</span>
+                            <span className="font-medium">{project.overall_progress}%</span>
+                          </div>
+                          <Progress value={project.overall_progress} className="h-2" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="contracts" className="space-y-4">
+            {contractsLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : contracts.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Contracts Yet</h3>
+                  <p className="text-muted-foreground">
+                    You don't have any signed contracts yet.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {contracts.map((contract) => (
+                  <Card key={contract.id}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <FileText className="h-5 w-5 text-muted-foreground" />
+                            {getContractTypeName(contract.contract_type)}
+                          </CardTitle>
+                          <CardDescription className="mt-1">
+                            Signed on {new Date(contract.signed_at || contract.created_at).toLocaleDateString()}
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        onClick={() => handleDownloadPDF(contract.id)}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download PDF
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </PortalLayout>
   );

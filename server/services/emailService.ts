@@ -457,3 +457,87 @@ export async function sendBugReportNotification(
     return false;
   }
 }
+
+// ── Signing request email ────────────────────
+
+export async function sendSigningRequestEmail(
+  customerEmail: string,
+  customerName: string,
+  contractType: string,
+  signingUrl: string,
+): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    const contractTypeName =
+      contractType === "custom_cabinetry"
+        ? "Cabinet Design and Layout Agreement"
+        : "Home Improvement Contract";
+
+    const subject = `Please Sign Your ${contractTypeName}`;
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">Action Required: Sign Your Contract</h2>
+        <p>Dear ${customerName},</p>
+        <p>We're ready for you to review and sign your ${contractTypeName.toLowerCase()}. Please click the button below to proceed:</p>
+        <p style="text-align: center; margin: 30px 0;">
+          <a href="${signingUrl}" style="display: inline-block; background-color: #2c3e50; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">Review & Sign Contract</a>
+        </p>
+        <p style="color: #666; font-size: 14px;">This link will expire in 7 days. Please sign at your earliest convenience.</p>
+        <p>If you have any questions about your contract, please don't hesitate to contact us.</p>
+        <p>Best regards,<br/>Artisan Tile Kitchen & Bath<br/>1200 Boston Post Road<br/>Guilford, CT 06437</p>
+      </div>`;
+
+    await client.emails.send({
+      from: fromEmail || "noreply@artisantile.com",
+      to: customerEmail,
+      subject,
+      html: bodyHtml,
+    });
+    return true;
+  } catch (error) {
+    console.error(`Failed to send signing request email to ${customerEmail}:`, error);
+    return false;
+  }
+}
+
+// ── Portal setup invitation email ────────────────────
+
+export async function sendPortalSetupInvitation(
+  customerEmail: string,
+  customerName: string,
+  context: string,
+  contextDetails: string,
+): Promise<boolean> {
+  try {
+    const { client, fromEmail } = await getResendClient();
+    const subject = "Access Your Artisan Tile Client Portal";
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2c3e50;">Welcome to Your Client Portal</h2>
+        <p>Dear ${customerName},</p>
+        <p>You've been invited to access the Artisan Tile client portal to track your ${context}: <strong>${contextDetails}</strong>.</p>
+        <p style="text-align: center; margin: 30px 0;">
+          <a href="${PORTAL_BASE_URL}/login" style="display: inline-block; background-color: #2c3e50; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold;">Access Portal</a>
+        </p>
+        <p style="color: #666; font-size: 14px;">From the portal, you can:</p>
+        <ul style="color: #666; font-size: 14px;">
+          <li>View project progress and timelines</li>
+          <li>Download project documents and files</li>
+          <li>Approve changes and updates</li>
+          <li>Communicate directly with our team</li>
+        </ul>
+        <p>Best regards,<br/>Artisan Tile Kitchen & Bath</p>
+      </div>`;
+
+    await client.emails.send({
+      from: fromEmail || "noreply@artisantile.com",
+      to: customerEmail,
+      subject,
+      html: bodyHtml,
+    });
+    return true;
+  } catch (error) {
+    console.error(`Failed to send portal setup invitation to ${customerEmail}:`, error);
+    return false;
+  }
+}

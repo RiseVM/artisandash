@@ -46,6 +46,7 @@ import { Contracts } from "@/features/contracts/Contracts";
 import { CabinetryContractForm } from "@/features/contracts/CabinetryContractForm";
 import { HomeImprovementContractForm } from "@/features/contracts/HomeImprovementContractForm";
 import { KitchenDesignRetainerForm } from "@/features/contracts/KitchenDesignRetainerForm";
+import { RemoteSign } from "@/features/RemoteSign";
 
 // Phase 8: Timesheets
 import { MyTimesheets } from "@/features/timesheets/MyTimesheets";
@@ -193,10 +194,30 @@ function AdminRouter() {
 }
 
 // ============================================
+// Remote Signing Router (PUBLIC)
+// ============================================
+function RemoteSigningRouter() {
+  return (
+    <Switch>
+      <Route path="/sign/:token">
+        <RemoteSign />
+      </Route>
+      <Route>
+        <NotFound />
+      </Route>
+    </Switch>
+  );
+}
+
+// ============================================
 // Root Router
 // ============================================
 function Router() {
   const [location] = useLocation();
+
+  if (location.startsWith("/sign/")) {
+    return <RemoteSigningRouter />;
+  }
 
   if (location.startsWith("/portal")) {
     return <PortalRouter />;

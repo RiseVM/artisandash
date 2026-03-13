@@ -2,6 +2,7 @@ import { db } from "../../../db/index";
 import {
   clientPortalAccess,
   customers,
+  contracts,
   projects,
   projectPhases,
   projectTasks,
@@ -23,6 +24,7 @@ import {
   type ProjectUpdate,
   type ProjectMessage,
   type ClientFeedback,
+  type Contract,
   type InsertClientPortalAccess,
   type InsertClientFeedback,
 } from "@shared/schema";
@@ -338,5 +340,20 @@ export const portalStorage = {
       .from(clientFeedback)
       .where(eq(clientFeedback.project_id, projectId))
       .orderBy(desc(clientFeedback.created_at));
+  },
+
+  // ── CLIENT CONTRACTS ────────────────────────────
+
+  async getContractsByCustomerEmail(email: string): Promise<Contract[]> {
+    return db
+      .select()
+      .from(contracts)
+      .where(
+        and(
+          eq(contracts.customer_email, email),
+          or(eq(contracts.status, "signed"), eq(contracts.status, "completed")),
+        ),
+      )
+      .orderBy(desc(contracts.created_at));
   },
 };

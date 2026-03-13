@@ -4,11 +4,16 @@ import { eq, desc } from "drizzle-orm";
 
 export const contractStorage = {
   async getContracts(): Promise<Contract[]> {
-    return db.select().from(contracts).orderBy(desc(contracts.signed_at));
+    return db.select().from(contracts).orderBy(desc(contracts.created_at));
   },
 
   async getContract(id: number): Promise<Contract | undefined> {
     const result = await db.select().from(contracts).where(eq(contracts.id, id));
+    return result[0];
+  },
+
+  async getContractBySigningToken(token: string): Promise<Contract | undefined> {
+    const result = await db.select().from(contracts).where(eq(contracts.signing_token, token));
     return result[0];
   },
 
@@ -18,7 +23,7 @@ export const contractStorage = {
   },
 
   async updateContract(id: number, contract: Partial<InsertContract>): Promise<Contract | undefined> {
-    const result = await db.update(contracts).set(contract).where(eq(contracts.id, id)).returning();
+    const result = await db.update(contracts).set({ ...contract, updated_at: new Date() }).where(eq(contracts.id, id)).returning();
     return result[0];
   },
 

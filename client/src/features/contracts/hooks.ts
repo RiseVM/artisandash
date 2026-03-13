@@ -19,6 +19,42 @@ export function useCreateContract() {
   });
 }
 
+export function useUpdateContract() {
+  const qc = useQueryClient();
+  return useMutation<Contract, Error, { id: number; data: Partial<InsertContract> }>({
+    mutationFn: ({ id, data }) => api.patch(`/api/contracts/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/contracts"] });
+    },
+  });
+}
+
+export function useSignContract() {
+  const qc = useQueryClient();
+  return useMutation<Contract, Error, { id: number; signature_data: string }>({
+    mutationFn: ({ id, signature_data }) => api.post(`/api/contracts/${id}/sign`, { signature_data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/contracts"] });
+    },
+  });
+}
+
+export function useSendForSignature() {
+  const qc = useQueryClient();
+  return useMutation<Contract, Error, number>({
+    mutationFn: (id) => api.post(`/api/contracts/${id}/send-for-signature`, {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/contracts"] });
+    },
+  });
+}
+
+export function useResendContractEmail() {
+  return useMutation<{ success: boolean }, Error, number>({
+    mutationFn: (id) => api.post(`/api/contracts/${id}/resend-email`, {}),
+  });
+}
+
 export function useDeleteContract() {
   const qc = useQueryClient();
   return useMutation<void, Error, number>({

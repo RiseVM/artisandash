@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSignedAgreements, useDeleteSignedAgreement } from "./hooks";
 import { useCustomers } from "@/features/customers/hooks";
+import { useSendPortalSetupEmail } from "@/features/portal/hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateEST } from "@/lib/utils";
-import { Search, FileText, Trash2, Eye, Loader2, ExternalLink } from "lucide-react";
+import { Search, FileText, Trash2, Eye, Loader2, ExternalLink, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { SignedAgreement } from "@shared/schema";
 
@@ -24,6 +25,7 @@ export function Agreements() {
   const { data: agreements = [], isLoading } = useSignedAgreements();
   const { data: customers = [] } = useCustomers();
   const deleteAgreementMutation = useDeleteSignedAgreement();
+  const sendPortalSetupMutation = useSendPortalSetupEmail();
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
@@ -54,6 +56,30 @@ export function Agreements() {
     } catch {
       setDeleteAgreement(null);
       toast({ title: "Error deleting agreement", variant: "destructive" });
+    }
+  };
+
+  const handleSendPortalInvite = async (agreement: SignedAgreement) => {
+    const customer = customers.find((c) => c.id === agreement.customer_id);
+    if (!customer || !customer.email) {
+      toast({ title: "Customer email not found", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await sendPortalSetupMutation.mutateAsync({
+        customer_email: customer.email,
+        customer_name: customer.name || "Customer",
+        context: 'agreement',
+        context_details: agreement.document_title,
+      });
+      toast({ title: "Portal invitation sent" });
+    } catch (err) {
+      toast({
+        title: "Error sending portal invitation",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
     }
   };
 
@@ -142,6 +168,15 @@ export function Agreements() {
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSendPortalInvite(agreement)}
+                          disabled={sendPortalSetupMutation.isPending}
+                          title="Send portal invitation"
+                        >
+                          <UserPlus className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="outline"

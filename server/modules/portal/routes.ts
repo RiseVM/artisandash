@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
+import crypto from "crypto";
 import bcryptjs from "bcryptjs";
 import { asyncHandler, isPortalAuthenticated } from "../../middleware";
 import { portalStorage } from "./storage";
@@ -421,6 +422,116 @@ export function registerPortalRoutes(app: Express) {
       });
 
       res.status(201).json(feedback);
+    }),
+  );
+
+  // ── GET /api/portal/contracts ───────────────────
+  app.get(
+    "/api/portal/contracts",
+    isPortalAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const contracts = await portalStorage.getContractsByCustomerEmail(req.portalUser.email);
+      res.json(contracts);
+    }),
+  );
+
+  // ── GET /api/portal/contracts/:id/pdf ──────────
+  app.get(
+    "/api/portal/contracts/:id/pdf",
+    isPortalAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const contractId = parseInt(req.params.id);
+      if (isNaN(contractId)) {
+        return res.status(400).json({ error: "Invalid contract ID" });
+      }
+
+      const contracts = await portalStorage.getContractsByCustomerEmail(req.portalUser.email);
+      const contract = contracts.find((c) => c.id === contractId);
+
+      if (!contract) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      try {
+        const { generateContractPdf } = await import("../contracts/contractPdfService");
+        const signatureData = contract.signature_data || "";
+        const pdfBuffer = await generateContractPdf(
+          contract.contract_type,
+          contract.form_data || {},
+          signatureData,
+        );
+
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="contract_${contractId}.pdf"`);
+        res.send(pdfBuffer);
+      } catch (error) {
+        console.error("PDF generation failed:", error);
+        return res.status(500).json({ error: "Failed to generate PDF" });
+      }
+    }),
+  );
+
+  // ── POST /api/portal/forgot-password ────────────
+  app.post(
+    "/api/portal/forgot-password",
+    asyncHandler(async (req: any, res) => {
+      const { email } = z.object({ email: z.string().email() }).parse(req.body);
+
+      const portalAccess = await portalStorage.getClientPortalAccessByEmail(email);
+      if (!portalAccess) {
+        // Don't reveal whether email exists
+        return res.json({ success: true, message: "If an account exists, a password reset email has been sent" });
+      }
+
+      // Generate temporary password
+      const tempPassword = crypto.randomBytes(12).toString("hex").slice(0, 16);
+      const passwordHash = await bcryptjs.hash(tempPassword, 10);
+
+      // Update the password in the database
+      await portalStorage.updateClientPortalAccess(portalAccess.id, {
+        password_hash: passwordHash,
+      });
+
+      // Send email with temporary password
+      try {
+        const { sendPortalPasswordReset } = await import("../../services/emailService");
+
+        const customer = await (async () => {
+          // Get customer name from clientPortalAccess or default
+          return portalAccess.customer_name || portalAccess.email.split("@")[0];
+        })();
+
+        await sendPortalPasswordReset(email, customer, tempPassword);
+      } catch (emailError) {
+        console.log("[portal] Password reset email skipped:", emailError instanceof Error ? emailError.message : "unknown error");
+      }
+
+      res.json({ success: true, message: "Password reset email sent" });
+    }),
+  );
+
+  // ── POST /api/send-portal-setup-email ────────────
+  app.post(
+    "/api/send-portal-setup-email",
+    isPortalAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const { customer_email, customer_name, context, context_details } = z
+        .object({
+          customer_email: z.string().email(),
+          customer_name: z.string(),
+          context: z.string(), // 'project' | 'contract'
+          context_details: z.string(), // project name or contract type
+        })
+        .parse(req.body);
+
+      try {
+        const { sendPortalSetupInvitation } = await import("../../services/emailService");
+        await sendPortalSetupInvitation(customer_email, customer_name, context, context_details);
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Failed to send portal setup email:", error);
+        return res.status(500).json({ error: "Failed to send email" });
+      }
     }),
   );
 }

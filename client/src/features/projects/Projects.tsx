@@ -10,6 +10,7 @@ import {
 } from "./hooks";
 import { useCustomers, useCreateCustomer } from "../customers/hooks";
 import { useAuth } from "@/features/auth/hooks";
+import { useSendPortalSetupEmail } from "@/features/portal/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,6 +108,7 @@ export function Projects() {
   const createFromTemplateMutation = useCreateProjectFromTemplate();
   const deleteProjectMutation = useDeleteProject();
   const createCustomerMutation = useCreateCustomer();
+  const sendPortalSetupMutation = useSendPortalSetupEmail();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -208,6 +210,29 @@ export function Projects() {
       toast({
         title: "Error",
         description: err?.message || "Failed to delete project.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSendPortalInvite = async (project: ProjectWithCustomer) => {
+    if (!project.customer.email) {
+      toast({ title: "Customer email not found", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await sendPortalSetupMutation.mutateAsync({
+        customer_email: project.customer.email,
+        customer_name: project.customer.name,
+        context: 'project',
+        context_details: project.name,
+      });
+      toast({ title: "Portal invitation sent" });
+    } catch (err) {
+      toast({
+        title: "Error sending portal invitation",
+        description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       });
     }
@@ -368,6 +393,15 @@ export function Projects() {
                               >
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSendPortalInvite(project);
+                                }}
+                              >
+                                <UserPlus className="h-4 w-4 mr-2" />
+                                Send Portal Invite
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"

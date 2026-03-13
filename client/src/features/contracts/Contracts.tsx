@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useContracts, useDeleteContract } from "./hooks";
+import { useContracts, useDeleteContract, useSendForSignature, useResendContractEmail } from "./hooks";
+import { useSendPortalSetupEmail } from "../portal/hooks";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,14 +16,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { formatDateEST } from "@/lib/utils";
-import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus, PenLine } from "lucide-react";
+import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus, PenLine, Printer, Send, Mail, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Contract } from "@shared/schema";
 
 export function Contracts() {
   const { data: contracts = [], isLoading } = useContracts();
   const deleteContractMutation = useDeleteContract();
+  const sendForSignatureMutation = useSendForSignature();
+  const resendEmailMutation = useResendContractEmail();
+  const sendPortalSetupMutation = useSendPortalSetupEmail();
   const { toast } = useToast();
 
   const [search, setSearch] = useState("");
@@ -33,6 +38,21 @@ export function Contracts() {
     if (type === 'custom_cabinetry') return 'Cabinet Design & Layout Agreement';
     if (type === 'kitchen_design_retainer') return 'Kitchen Design Retainer';
     return 'Home Improvement Contract';
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'draft':
+        return <Badge variant="outline">Draft</Badge>;
+      case 'sent_for_signature':
+        return <Badge variant="secondary">Sent for Signature</Badge>;
+      case 'signed':
+        return <Badge variant="default">Signed</Badge>;
+      case 'completed':
+        return <Badge className="bg-green-600">Completed</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
   };
 
   const filteredContracts = contracts.filter(contract => {
@@ -52,6 +72,54 @@ export function Contracts() {
       setDeleteContract(null);
     } catch (err) {
       toast({ title: "Error deleting contract", variant: "destructive" });
+    }
+  };
+
+  const handlePrintPDF = (contractId: number) => {
+    window.open(`/api/contracts/${contractId}/pdf`, '_blank');
+  };
+
+  const handleSendForSignature = async (contract: Contract) => {
+    try {
+      await sendForSignatureMutation.mutateAsync(contract.id);
+      toast({ title: "Signing request sent to customer" });
+    } catch (err) {
+      toast({
+        title: "Error sending signing request",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleResendEmail = async (contract: Contract) => {
+    try {
+      await resendEmailMutation.mutateAsync(contract.id);
+      toast({ title: "Email resent to customer" });
+    } catch (err) {
+      toast({
+        title: "Error resending email",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSendPortalInvite = async (contract: Contract) => {
+    try {
+      await sendPortalSetupMutation.mutateAsync({
+        customer_email: contract.customer_email,
+        customer_name: contract.customer_name,
+        context: 'contract',
+        context_details: getContractTypeName(contract.contract_type),
+      });
+      toast({ title: "Portal invitation sent" });
+    } catch (err) {
+      toast({
+        title: "Error sending portal invitation",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
     }
   };
 
@@ -164,10 +232,8 @@ export function Contracts() {
                 <TableRow>
                   <TableHead>Contract Type</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead>Email</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Signed Date</TableHead>
-                  <TableHead>Email Sent</TableHead>
-                  <TableHead>Google Drive</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -175,48 +241,83 @@ export function Contracts() {
                 {filteredContracts.map((contract) => (
                   <TableRow key={contract.id} data-testid={`row-contract-${contract.id}`}>
                     <TableCell className="font-medium">{getContractTypeName(contract.contract_type)}</TableCell>
-                    <TableCell>{contract.customer_name}</TableCell>
-                    <TableCell>{contract.customer_email}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{contract.customer_name}</p>
+                        <p className="text-sm text-muted-foreground">{contract.customer_email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(contract.status || 'draft')}</TableCell>
                     <TableCell>
                       {contract.signed_at
                         ? formatDateEST(contract.signed_at, { includeTime: true })
                         : '-'}
                     </TableCell>
-                    <TableCell>
-                      <span className={contract.email_sent === 'yes' ? 'text-green-600' : 'text-muted-foreground'}>
-                        {contract.email_sent === 'yes' ? 'Yes' : 'No'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {contract.google_drive_link ? (
-                        <a
-                          href={contract.google_drive_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline flex items-center gap-1"
-                          data-testid={`link-drive-${contract.id}`}
-                        >
-                          View <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
+                        {/* View details */}
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setSelectedContract(contract)}
-                          data-testid={`button-view-${contract.id}`}
+                          title="View details"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
+
+                        {/* Print PDF */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handlePrintPDF(contract.id)}
+                          title="Download PDF"
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+
+                        {/* Send for signature (draft only) */}
+                        {contract.status === 'draft' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSendForSignature(contract)}
+                            title="Send for signature"
+                            disabled={sendForSignatureMutation.isPending}
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* Resend email (signed contracts) */}
+                        {contract.status === 'signed' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResendEmail(contract)}
+                            title="Resend contract email"
+                            disabled={resendEmailMutation.isPending}
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* Send portal invite */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSendPortalInvite(contract)}
+                          title="Send portal invitation"
+                          disabled={sendPortalSetupMutation.isPending}
+                        >
+                          <UserPlus className="h-4 w-4" />
+                        </Button>
+
+                        {/* Delete */}
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => setDeleteContract(contract)}
-                          data-testid={`button-delete-${contract.id}`}
+                          title="Delete contract"
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>

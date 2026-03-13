@@ -1,4 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import type { ClientPortalUser } from "@shared/schema";
 
 // Re-export the types for convenience
@@ -87,4 +89,16 @@ export function usePortalAuthState() {
     login,
     logout,
   };
+}
+
+// ── Portal Data Mutations ────────────────────────
+
+export function useSendPortalSetupEmail() {
+  return useMutation<
+    { success: boolean },
+    Error,
+    { customer_email: string; customer_name: string; context: string; context_details: string }
+  >({
+    mutationFn: (data) => api.post("/api/send-portal-setup-email", data),
+  });
 }
