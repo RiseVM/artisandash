@@ -138,12 +138,14 @@ export function registerPortalRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid change order ID" });
       }
 
-      const { approvedBy, signature } = z
+      const { signature } = z
         .object({
-          approvedBy: z.string().min(1),
           signature: z.string().min(1),
         })
         .parse(req.body);
+
+      // Use the portal user's email as the approver identity
+      const approvedBy = req.portalUser.email;
 
       const changeOrder = await portalStorage.getChangeOrder(changeOrderId);
       if (!changeOrder) {
@@ -322,7 +324,7 @@ export function registerPortalRoutes(app: Express) {
       }
 
       const unreadCount = await portalStorage.getUnreadMessageCountForClient(projectId);
-      res.json({ unreadCount });
+      res.json({ count: unreadCount });
     }),
   );
 
@@ -336,9 +338,10 @@ export function registerPortalRoutes(app: Express) {
         return res.status(400).json({ error: "Invalid project ID" });
       }
 
-      const { content } = z
+      const { content, subject } = z
         .object({
-          content: z.string().min(1),
+          content: z.string().min(1).max(5000),
+          subject: z.string().max(200).optional(),
         })
         .parse(req.body);
 
@@ -354,6 +357,7 @@ export function registerPortalRoutes(app: Express) {
       const message = await portalStorage.createProjectMessage({
         project_id: projectId,
         content,
+        subject: subject || null,
         sender_name: req.portalUser.email,
         sender_type: "client",
         read_by_client: "yes",
