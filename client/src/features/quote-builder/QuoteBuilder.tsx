@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useCatalog, useSeedCatalog } from "@/features/catalog/hooks";
-import { useCreateEstimate } from "@/features/estimates/hooks";
+import { useCreateEstimate, useCreateEstimateLineItem } from "@/features/estimates/hooks";
 import { useCustomers, useCreateCustomer } from "@/features/customers/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ export function QuoteBuilder() {
   const { data: customers = [] } = useCustomers();
   const seedMutation = useSeedCatalog();
   const createEstimateMutation = useCreateEstimate();
+  const createLineItemMutation = useCreateEstimateLineItem();
   const createCustomerMutation = useCreateCustomer();
 
   // Customer selection state
@@ -158,64 +159,72 @@ export function QuoteBuilder() {
     });
   };
 
-  // Calculate totals
-  const { categoryBreakdowns, subtotal, markupAmount, grandTotal } = useMemo(() => {
-    const breakdowns: { category: ServiceCatalogCategoryWithItems; items: { name: string; price: number }[]; total: number }[] = [];
-    let sub = 0;
+  // Calculate totals — track both cost and client-facing (marked-up) prices
+  const { categoryBreakdowns, costSubtotal, grandTotal } = useMemo(() => {
+    const multiplier = 1 + markupPercent / 100;
+    const breakdowns: {
+      category: ServiceCatalogCategoryWithItems;
+      items: { name: string; costPrice: number; clientPrice: number; section: string }[];
+      costTotal: number;
+      clientTotal: number;
+    }[] = [];
+    let costSub = 0;
 
     for (const cat of catalog) {
       if (cat.is_active !== "yes") continue;
-      const catItems: { name: string; price: number }[] = [];
+      const catItems: { name: string; costPrice: number; clientPrice: number; section: string }[] = [];
 
       for (const item of cat.items) {
         if (item.is_active !== "yes") continue;
 
         if (item.is_group === "yes") {
-          // Group item — check children
           const children = item.children || [];
           if (item.is_exclusive === "yes") {
-            // Radio: check exclusiveSelections
             const selectedChildId = exclusiveSelections[item.id];
             if (selectedChildId) {
               const child = children.find((c) => c.id === selectedChildId);
               if (child && child.is_active === "yes") {
-                const price = parseFloat(child.price || "0");
-                catItems.push({ name: `${item.name}: ${child.name}`, price });
-                sub += price;
+                const cost = parseFloat(child.price || "0");
+                const client = Math.round(cost * multiplier);
+                catItems.push({ name: `${item.name}: ${child.name}`, costPrice: cost, clientPrice: client, section: cat.name });
+                costSub += cost;
               }
             }
           } else {
-            // Checkbox group: check each child
             for (const child of children) {
               if (child.is_active !== "yes") continue;
               if (selectedItems[child.id]) {
-                const price = parseFloat(child.price || "0");
-                catItems.push({ name: child.name, price });
-                sub += price;
+                const cost = parseFloat(child.price || "0");
+                const client = Math.round(cost * multiplier);
+                catItems.push({ name: child.name, costPrice: cost, clientPrice: client, section: cat.name });
+                costSub += cost;
               }
             }
           }
         } else {
-          // Regular top-level item
           if (selectedItems[item.id]) {
-            const price = parseFloat(item.price || "0");
-            catItems.push({ name: item.name, price });
-            sub += price;
+            const cost = parseFloat(item.price || "0");
+            const client = Math.round(cost * multiplier);
+            catItems.push({ name: item.name, costPrice: cost, clientPrice: client, section: cat.name });
+            costSub += cost;
           }
         }
       }
 
       if (catItems.length > 0) {
-        breakdowns.push({ category: cat, items: catItems, total: catItems.reduce((s, i) => s + i.price, 0) });
+        breakdowns.push({
+          category: cat,
+          items: catItems,
+          costTotal: catItems.reduce((s, i) => s + i.costPrice, 0),
+          clientTotal: catItems.reduce((s, i) => s + i.clientPrice, 0),
+        });
       }
     }
 
-    const markup = sub * (markupPercent / 100);
     return {
       categoryBreakdowns: breakdowns,
-      subtotal: sub,
-      markupAmount: markup,
-      grandTotal: sub + markup,
+      costSubtotal: costSub,
+      grandTotal: breakdowns.reduce((s, b) => s + b.clientTotal, 0),
     };
   }, [catalog, selectedItems, exclusiveSelections, markupPercent]);
 
@@ -234,6 +243,10 @@ export function QuoteBuilder() {
         ? `${selectedCustomer.name} — ${projectAddress.trim()}`
         : selectedCustomer.name;
 
+      // Internal notes: cost breakdown + markup (staff only)
+      const internalNotes = `Markup: ${markupPercent}%\nCost Subtotal: $${costSubtotal.toLocaleString()}\n\nCost Breakdown:\n${categoryBreakdowns.map((b) => `${b.category.name}: $${b.costTotal.toLocaleString()}\n${b.items.map((i) => `  - ${i.name}: $${i.costPrice.toLocaleString()} → $${i.clientPrice.toLocaleString()}`).join("\n")}`).join("\n\n")}`;
+
+      // Create estimate with client-facing total
       const estimate = await createEstimateMutation.mutateAsync({
         title,
         customer_id: selectedCustomer.id,
@@ -242,8 +255,26 @@ export function QuoteBuilder() {
         tax_rate: "0",
         tax_amount: "0",
         status: "draft",
-        notes: `Quote built from catalog.\nMarkup: ${markupPercent}%\n\nBreakdown (internal only):\n${categoryBreakdowns.map((b) => `${b.category.name}: $${b.total.toLocaleString()}\n${b.items.map((i) => `  - ${i.name}: $${i.price.toLocaleString()}`).join("\n")}`).join("\n\n")}\n\nSubtotal: $${subtotal.toLocaleString()}\nMarkup (${markupPercent}%): $${markupAmount.toLocaleString()}\nGrand Total: $${grandTotal.toLocaleString()}`,
+        internal_notes: internalNotes,
       });
+
+      // Create line items with client-facing (post-markup) prices
+      const allItems = categoryBreakdowns.flatMap((b) => b.items);
+      for (let i = 0; i < allItems.length; i++) {
+        const item = allItems[i];
+        await createLineItemMutation.mutateAsync({
+          estimateId: estimate.id,
+          data: {
+            description: item.name,
+            section: item.section,
+            quantity: "1",
+            unit: "lot",
+            unit_price: item.clientPrice.toFixed(2),
+            total: item.clientPrice.toFixed(2),
+            display_order: i,
+          },
+        });
+      }
 
       toast({ title: "Estimate Created", description: `${title} — $${grandTotal.toLocaleString()}` });
       navigate(`/estimates/${estimate.id}`);
@@ -475,14 +506,27 @@ export function QuoteBuilder() {
         ))}
       </div>
 
-      {/* ── Right: Quote Summary ─────────────── */}
+      {/* ── Right: Quote Summary (Client-Facing View) ─────────────── */}
       <div className="w-80 shrink-0 overflow-y-auto pb-6">
         <Card className="sticky top-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              Quote Summary
+              Client Quote Preview
             </CardTitle>
+            {/* Markup control — staff only, small and subtle */}
+            <div className="flex items-center gap-1 mt-1">
+              <span className="text-xs text-muted-foreground">Markup</span>
+              <Input
+                type="number"
+                value={markupPercent}
+                onChange={(e) => setMarkupPercent(Number(e.target.value) || 0)}
+                className="w-14 h-6 text-xs text-center"
+                min={0}
+                max={100}
+              />
+              <span className="text-xs text-muted-foreground">%</span>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {selectedCustomer && (
@@ -505,13 +549,13 @@ export function QuoteBuilder() {
                         {b.category.icon && <span className="text-xs">{b.category.icon}</span>}
                         {b.category.name}
                       </span>
-                      <span className="text-sm font-mono">${fmt(b.total)}</span>
+                      <span className="text-sm font-mono">${fmt(b.clientTotal)}</span>
                     </div>
                     <div className="ml-4 mt-1 space-y-0.5">
                       {b.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-xs text-muted-foreground">
                           <span className="truncate mr-2">{item.name}</span>
-                          <span className="font-mono shrink-0">${fmt(item.price)}</span>
+                          <span className="font-mono shrink-0">${fmt(item.clientPrice)}</span>
                         </div>
                       ))}
                     </div>
@@ -520,32 +564,8 @@ export function QuoteBuilder() {
 
                 <Separator />
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span>Subtotal</span>
-                    <span className="font-mono">${fmt(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <span>Markup</span>
-                      <Input
-                        type="number"
-                        value={markupPercent}
-                        onChange={(e) => setMarkupPercent(Number(e.target.value) || 0)}
-                        className="w-16 h-7 text-xs text-center"
-                        min={0}
-                        max={100}
-                      />
-                      <span className="text-xs">%</span>
-                    </div>
-                    <span className="font-mono">${fmt(markupAmount)}</span>
-                  </div>
-                </div>
-
-                <Separator />
-
                 <div className="flex justify-between text-lg font-bold">
-                  <span>Grand Total</span>
+                  <span>Total</span>
                   <span className="font-mono">${fmt(grandTotal)}</span>
                 </div>
               </div>
@@ -555,9 +575,9 @@ export function QuoteBuilder() {
               className="w-full"
               size="lg"
               onClick={handleCreateEstimate}
-              disabled={createEstimateMutation.isPending || !selectedCustomer || grandTotal <= 0}
+              disabled={createEstimateMutation.isPending || createLineItemMutation.isPending || !selectedCustomer || grandTotal <= 0}
             >
-              {createEstimateMutation.isPending ? (
+              {(createEstimateMutation.isPending || createLineItemMutation.isPending) ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</>
               ) : (
                 <><FileText className="h-4 w-4 mr-2" />Create Estimate</>
