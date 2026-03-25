@@ -52,6 +52,15 @@ import { RemoteSign } from "@/features/RemoteSign";
 import { MyTimesheets } from "@/features/timesheets/MyTimesheets";
 import { AdminTimesheets } from "@/features/timesheets/AdminTimesheets";
 
+// Phase 9: Estimates & Messages
+import { Estimates } from "@/features/estimates/Estimates";
+import { EstimateBuilder } from "@/features/estimates/EstimateBuilder";
+import { Messages } from "@/features/messages/Messages";
+
+// Phase 10: Quote Builder & Catalog
+import { QuoteBuilder } from "@/features/quote-builder/QuoteBuilder";
+import { CatalogSettings } from "@/features/admin/CatalogSettings";
+
 // Placeholder component shown until feature modules are built
 function Placeholder({ name }: { name: string }) {
   return (
@@ -169,7 +178,30 @@ function AdminRouter() {
           <ProjectDetail />
         </Route>
 
-        {/* Timesheets (NEW) */}
+        {/* Estimates */}
+        <Route path="/estimates">
+          <Estimates />
+        </Route>
+        <Route path="/estimates/:id">
+          <EstimateBuilder />
+        </Route>
+
+        {/* Messages */}
+        <Route path="/messages">
+          <Messages />
+        </Route>
+
+        {/* Quote Builder */}
+        <Route path="/quote-builder">
+          <QuoteBuilder />
+        </Route>
+
+        {/* Catalog Settings (Admin) */}
+        <Route path="/settings/catalog">
+          <CatalogSettings />
+        </Route>
+
+        {/* Timesheets */}
         <Route path="/timesheets">
           <MyTimesheets />
         </Route>

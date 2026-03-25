@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { ArrowLeft, Loader2 } from "lucide-react";
+import { NotesPanel } from "@/components/shared/NotesPanel";
 
 export function EditCheckout() {
   const [, params] = useRoute("/edit/:id");
@@ -64,10 +65,13 @@ export function EditCheckout() {
   };
 
   return (
-    <SampleForm
-      title="Edit Sample"
-      initialData={checkout}
-      onSubmit={handleSubmit}
-    />
+    <div className="space-y-6">
+      <SampleForm
+        title="Edit Sample"
+        initialData={checkout}
+        onSubmit={handleSubmit}
+      />
+      <NotesPanel entityType="checkout" entityId={id} />
+    </div>
   );
 }

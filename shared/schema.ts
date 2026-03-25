@@ -1197,3 +1197,285 @@ export type TimeClockWithDetails = TimeClock & {
   user?: User | null;
   project?: { id: number; name: string } | null;
 };
+
+// ============================================
+// ESTIMATES
+// ============================================
+
+// Estimates - Standalone pre-project quotes linked to customers
+export const estimates = pgTable("estimates", {
+  id: serial("id").primaryKey(),
+  customer_id: integer("customer_id").references(() => customers.id).notNull(),
+
+  // Estimate number (auto-generated: EST-YYYY-NNN)
+  estimate_number: text("estimate_number").notNull(),
+
+  // Details
+  title: text("title").notNull(),
+  description: text("description"),
+
+  // Status workflow
+  status: text("status").default("draft").notNull(), // draft | sent | approved | rejected | expired | converted
+
+  // Dates
+  issue_date: text("issue_date"),
+  expiry_date: text("expiry_date"),
+
+  // Totals (recalculated from line items)
+  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).default("0").notNull(),
+  tax_rate: numeric("tax_rate", { precision: 5, scale: 4 }).default("0").notNull(),
+  tax_amount: numeric("tax_amount", { precision: 12, scale: 2 }).default("0").notNull(),
+  total: numeric("total", { precision: 12, scale: 2 }).default("0").notNull(),
+
+  // Notes
+  notes: text("notes"),
+  internal_notes: text("internal_notes"),
+
+  // Linked project (if converted)
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'set null' }),
+
+  // Metadata
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_estimates_customer_id").on(table.customer_id),
+  index("IDX_estimates_status").on(table.status),
+  index("IDX_estimates_estimate_number").on(table.estimate_number),
+]);
+
+// Estimate Line Items - Itemized rows per estimate
+export const estimateLineItems = pgTable("estimate_line_items", {
+  id: serial("id").primaryKey(),
+  estimate_id: integer("estimate_id").references(() => estimates.id, { onDelete: 'cascade' }).notNull(),
+
+  // Grouping
+  section: text("section"), // e.g., "Materials", "Labor", "Design"
+  category: text("category"), // materials | labor | equipment | subcontractor | permit | other
+
+  // Item details
+  description: text("description").notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 2 }).default("1").notNull(),
+  unit: text("unit"), // each | sqft | linear ft | hour | lot | etc
+  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
+  total: numeric("total", { precision: 12, scale: 2 }).notNull(),
+
+  // Display order
+  display_order: integer("display_order").default(0).notNull(),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_estimate_line_items_estimate_id").on(table.estimate_id),
+]);
+
+// Insert schemas for estimates
+export const insertEstimateSchema = createInsertSchema(estimates).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertEstimateLineItemSchema = createInsertSchema(estimateLineItems).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Types for estimates
+export type InsertEstimate = z.infer<typeof insertEstimateSchema>;
+export type Estimate = typeof estimates.$inferSelect;
+
+export type InsertEstimateLineItem = z.infer<typeof insertEstimateLineItemSchema>;
+export type EstimateLineItem = typeof estimateLineItems.$inferSelect;
+
+// View types
+export type EstimateWithCustomer = Estimate & {
+  customer: Customer;
+  createdByUser?: User | null;
+};
+
+export type EstimateWithDetails = Estimate & {
+  customer: Customer;
+  lineItems: EstimateLineItem[];
+  createdByUser?: User | null;
+};
+
+// ============================================
+// ENTITY NOTES
+// ============================================
+
+// Entity Notes - Polymorphic timestamped notes for projects, customers, estimates, and checkouts
+export const entityNotes = pgTable("entity_notes", {
+  id: serial("id").primaryKey(),
+
+  // Polymorphic link
+  entity_type: text("entity_type").notNull(), // project | customer | estimate | checkout
+  entity_id: integer("entity_id").notNull(),
+
+  // Content
+  content: text("content").notNull(),
+  note_type: text("note_type").default("general").notNull(), // general | follow_up | warning | important
+
+  // Pin support
+  is_pinned: text("is_pinned").default("no").notNull(), // yes | no
+
+  // Author
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  created_by_user_name: varchar("created_by_user_name"),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_entity_notes_entity").on(table.entity_type, table.entity_id),
+  index("IDX_entity_notes_pinned").on(table.is_pinned),
+]);
+
+export const insertEntityNoteSchema = createInsertSchema(entityNotes).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertEntityNote = z.infer<typeof insertEntityNoteSchema>;
+export type EntityNote = typeof entityNotes.$inferSelect;
+
+export type EntityNoteWithUser = EntityNote & {
+  createdByUser?: User | null;
+};
+
+// ============================================
+// INTERNAL MESSAGES
+// ============================================
+
+// Internal Messages - Staff-only threaded messaging with priority levels
+export const internalMessages = pgTable("internal_messages", {
+  id: serial("id").primaryKey(),
+
+  // Thread support
+  parent_id: integer("parent_id"), // NULL = top-level message, otherwise reply
+  subject: text("subject"), // Only on top-level messages
+
+  // Content
+  content: text("content").notNull(),
+
+  // Priority
+  priority: text("priority").default("normal").notNull(), // low | normal | high | urgent
+
+  // Links (optional)
+  project_id: integer("project_id").references(() => projects.id, { onDelete: 'set null' }),
+  customer_id: integer("customer_id").references(() => customers.id, { onDelete: 'set null' }),
+
+  // Author
+  sender_user_id: varchar("sender_user_id").references(() => users.id, { onDelete: 'set null' }).notNull(),
+  sender_user_name: varchar("sender_user_name").notNull(),
+
+  // Read tracking (JSON array of user IDs who have read this message)
+  read_by: jsonb("read_by").default(sql`'[]'::jsonb`).notNull(),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_internal_messages_parent_id").on(table.parent_id),
+  index("IDX_internal_messages_project_id").on(table.project_id),
+  index("IDX_internal_messages_customer_id").on(table.customer_id),
+  index("IDX_internal_messages_priority").on(table.priority),
+  index("IDX_internal_messages_created_at").on(table.created_at),
+]);
+
+export const insertInternalMessageSchema = createInsertSchema(internalMessages).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertInternalMessage = z.infer<typeof insertInternalMessageSchema>;
+export type InternalMessage = typeof internalMessages.$inferSelect;
+
+export type InternalMessageWithUser = InternalMessage & {
+  senderUser?: User | null;
+};
+
+export type InternalMessageThread = InternalMessage & {
+  senderUser?: User | null;
+  replies: InternalMessageWithUser[];
+  replyCount: number;
+  lastReplyAt?: Date | null;
+};
+
+// ============================================
+// SERVICE CATALOG (Quote Configurator)
+// ============================================
+
+// Service Catalog Categories - Top-level groupings (Shower, Floor, Paint, etc.)
+export const serviceCatalogCategories = pgTable("service_catalog_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  icon: text("icon"), // emoji icon
+  icon_bg: text("icon_bg"), // hex color for icon background
+  display_order: integer("display_order").default(0).notNull(),
+  is_active: text("is_active").default("yes").notNull(), // yes | no
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Service Catalog Items - Individual selectable services within categories
+export const serviceCatalogItems = pgTable("service_catalog_items", {
+  id: serial("id").primaryKey(),
+  category_id: integer("category_id").references(() => serviceCatalogCategories.id, { onDelete: 'cascade' }).notNull(),
+
+  // Optional parent item (for sub-items / grouped children)
+  parent_id: integer("parent_id"), // NULL = top-level item, otherwise child of a group
+
+  // Item details
+  name: text("name").notNull(),
+  description: text("description"),
+  price: numeric("price", { precision: 12, scale: 2 }).default("0").notNull(),
+
+  // Display
+  display_order: integer("display_order").default(0).notNull(),
+  is_active: text("is_active").default("yes").notNull(), // yes | no
+
+  // If true, this item is a group header (price=0, has children)
+  is_group: text("is_group").default("no").notNull(), // yes | no
+
+  // If true, children of this group are mutually exclusive (radio behavior)
+  is_exclusive: text("is_exclusive").default("no").notNull(), // yes | no
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_service_catalog_items_category_id").on(table.category_id),
+  index("IDX_service_catalog_items_parent_id").on(table.parent_id),
+]);
+
+// Insert schemas
+export const insertServiceCatalogCategorySchema = createInsertSchema(serviceCatalogCategories).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertServiceCatalogItemSchema = createInsertSchema(serviceCatalogItems).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Types
+export type InsertServiceCatalogCategory = z.infer<typeof insertServiceCatalogCategorySchema>;
+export type ServiceCatalogCategory = typeof serviceCatalogCategories.$inferSelect;
+
+export type InsertServiceCatalogItem = z.infer<typeof insertServiceCatalogItemSchema>;
+export type ServiceCatalogItem = typeof serviceCatalogItems.$inferSelect;
+
+// View types
+export type ServiceCatalogCategoryWithItems = ServiceCatalogCategory & {
+  items: ServiceCatalogItemWithChildren[];
+};
+
+export type ServiceCatalogItemWithChildren = ServiceCatalogItem & {
+  children?: ServiceCatalogItem[];
+};

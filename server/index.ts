@@ -135,6 +135,20 @@ declare module "http" {
     const { registerTimesheetRoutes } = await import("./modules/timesheets/routes");
     registerTimesheetRoutes(app);
 
+    // Phase 9: estimates, notes, internal messages
+    const { registerEstimateRoutes } = await import("./modules/estimates/routes");
+    registerEstimateRoutes(app);
+
+    const { registerNoteRoutes } = await import("./modules/notes/routes");
+    registerNoteRoutes(app);
+
+    const { registerInternalMessageRoutes } = await import("./modules/internal-messages/routes");
+    registerInternalMessageRoutes(app);
+
+    // Phase 10: service catalog
+    const { registerCatalogRoutes } = await import("./modules/catalog/routes");
+    registerCatalogRoutes(app);
+
     // Health check
     app.get("/api/health", (_req, res) => {
       res.json({ status: "ok", timestamp: new Date().toISOString() });

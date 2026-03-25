@@ -7,6 +7,7 @@ import {
 } from "./hooks";
 import { api } from "@/lib/api";
 import type { Customer } from "@shared/schema";
+import { NotesPanel } from "@/components/shared/NotesPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -461,7 +462,7 @@ export function Customers() {
         open={!!editingCustomer}
         onOpenChange={(open) => !open && handleCloseEditDialog()}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
           </DialogHeader>
@@ -667,6 +668,13 @@ export function Customers() {
                 </Button>
               )}
             </div>
+
+            {/* Customer Notes */}
+            {editingCustomer && (
+              <div className="border-t pt-4 mt-4">
+                <NotesPanel entityType="customer" entityId={editingCustomer.id} />
+              </div>
+            )}
           </div>
           <DialogFooter className="flex justify-between">
             <Button

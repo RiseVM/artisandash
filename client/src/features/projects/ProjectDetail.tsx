@@ -73,6 +73,8 @@ import { ProjectFiles } from "./components/ProjectFiles";
 import { ProjectActivityFeed } from "./components/ProjectActivityFeed";
 import { ProjectMessages } from "./components/ProjectMessages";
 import { ProjectOutOfScope } from "./components/ProjectOutOfScope";
+import { NotesPanel } from "@/components/shared/NotesPanel";
+import { InternalMessaging } from "@/components/shared/InternalMessaging";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -709,6 +711,12 @@ export function ProjectDetail() {
 
       {/* Activity Feed */}
       <ProjectActivityFeed projectId={projectId} />
+
+      {/* Staff Messages */}
+      <InternalMessaging compact projectId={projectId} />
+
+      {/* Notes */}
+      <NotesPanel entityType="project" entityId={projectId} />
 
       {/* Client Messages */}
       <ProjectMessages projectId={projectId} />

@@ -15,6 +15,10 @@ import {
   FolderKanban,
   Bug,
   Clock,
+  Calculator,
+  MessageSquare,
+  Wrench,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/hooks";
@@ -30,16 +34,20 @@ export function Sidebar() {
     { href: "/agreements", label: "Signed Docs", icon: FileCheck },
     { href: "/contracts", label: "Contracts", icon: ClipboardList },
     { href: "/projects", label: "Projects", icon: FolderKanban },
+    { href: "/estimates", label: "Estimates", icon: Calculator },
+    { href: "/quote-builder", label: "Quote Builder", icon: Wrench },
     { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/timesheets", label: "Timesheets", icon: Clock },
+    { href: "/messages", label: "Messages", icon: MessageSquare },
   ];
 
   const adminItems = [
     { href: "/admin/users", label: "User Management", icon: Shield, permission: "manage_users" },
     { href: "/admin/activity", label: "Activity Reports", icon: Activity, permission: "view_reports" },
     { href: "/admin/bug-reports", label: "Bug Reports", icon: Bug, permission: "manage_users" },
+    { href: "/settings/catalog", label: "Service Catalog", icon: Settings, permission: "manage_users" },
   ];
 
   const visibleAdminItems = adminItems.filter((item) => hasPermission(item.permission));
