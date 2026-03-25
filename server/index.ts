@@ -73,6 +73,9 @@ declare module "http" {
     const { migrateContracts } = await import("./migrate-contracts");
     await migrateContracts();
 
+    const { migratePhase9And10 } = await import("./migrate-phase9-10");
+    await migratePhase9And10();
+
     // ------------------------------------
     // Route registration
     // ------------------------------------
