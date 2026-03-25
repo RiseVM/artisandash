@@ -231,7 +231,7 @@ export function EstimateBuilder() {
             <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <User className="h-3 w-3" />
-                {estimate.customer.name}
+                {estimate.customer?.name || "No Customer"}
               </span>
               {estimate.issue_date && (
                 <span className="flex items-center gap-1">

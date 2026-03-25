@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useCatalog, useSeedCatalog } from "@/features/catalog/hooks";
 import { useCreateEstimate } from "@/features/estimates/hooks";
+import { useCustomers, useCreateCustomer } from "@/features/customers/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +16,16 @@ import {
   Calculator,
   FileText,
   Database,
+  Search,
+  UserPlus,
+  X,
+  Check,
 } from "lucide-react";
 import type {
   ServiceCatalogCategoryWithItems,
   ServiceCatalogItemWithChildren,
   ServiceCatalogItem,
+  Customer,
 } from "@shared/schema";
 
 type SelectedItems = Record<number, boolean>; // itemId -> selected
@@ -29,15 +35,98 @@ export function QuoteBuilder() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const { data: catalog = [], isLoading } = useCatalog();
+  const { data: customers = [] } = useCustomers();
   const seedMutation = useSeedCatalog();
   const createEstimateMutation = useCreateEstimate();
+  const createCustomerMutation = useCreateCustomer();
 
-  const [clientName, setClientName] = useState("");
-  const [clientAddress, setClientAddress] = useState("");
+  // Customer selection state
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerAddress, setNewCustomerAddress] = useState("");
+  const customerSearchRef = useRef<HTMLDivElement>(null);
+
+  const [projectAddress, setProjectAddress] = useState("");
   const [markupPercent, setMarkupPercent] = useState(15);
   const [selectedItems, setSelectedItems] = useState<SelectedItems>({});
   const [exclusiveSelections, setExclusiveSelections] = useState<ExclusiveSelections>({});
   const [expandedCategories, setExpandedCategories] = useState<Record<number, boolean>>({});
+
+  // Filter customers based on search
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers.slice(0, 10);
+    const q = customerSearch.toLowerCase();
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.email?.toLowerCase().includes(q) ||
+        c.phone?.toLowerCase().includes(q) ||
+        c.address?.toLowerCase().includes(q)
+    ).slice(0, 10);
+  }, [customers, customerSearch]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customerSearchRef.current && !customerSearchRef.current.contains(e.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setCustomerSearch("");
+    setShowCustomerDropdown(false);
+    setShowNewCustomerForm(false);
+    // Auto-fill project address if customer has one
+    if (customer.address && !projectAddress) {
+      setProjectAddress(customer.address);
+    }
+  };
+
+  const handleClearCustomer = () => {
+    setSelectedCustomer(null);
+    setCustomerSearch("");
+  };
+
+  const handleCreateNewCustomer = async () => {
+    if (!newCustomerName.trim()) {
+      toast({ title: "Customer name required", variant: "destructive" });
+      return;
+    }
+    if (!newCustomerEmail.trim()) {
+      toast({ title: "Customer email required", variant: "destructive" });
+      return;
+    }
+    try {
+      const customer = await createCustomerMutation.mutateAsync({
+        name: newCustomerName.trim(),
+        email: newCustomerEmail.trim(),
+        phone: newCustomerPhone.trim() || null,
+        address: newCustomerAddress.trim() || null,
+      });
+      setSelectedCustomer(customer);
+      setShowNewCustomerForm(false);
+      setNewCustomerName("");
+      setNewCustomerEmail("");
+      setNewCustomerPhone("");
+      setNewCustomerAddress("");
+      if (customer.address && !projectAddress) {
+        setProjectAddress(customer.address);
+      }
+      toast({ title: "Customer created", description: customer.name });
+    } catch (err: any) {
+      toast({ title: "Error creating customer", description: err?.message, variant: "destructive" });
+    }
+  };
 
   // Initialize all categories as expanded
   useMemo(() => {
@@ -131,8 +220,8 @@ export function QuoteBuilder() {
   }, [catalog, selectedItems, exclusiveSelections, markupPercent]);
 
   const handleCreateEstimate = async () => {
-    if (!clientName.trim()) {
-      toast({ title: "Client name required", variant: "destructive" });
+    if (!selectedCustomer) {
+      toast({ title: "Select or create a customer first", variant: "destructive" });
       return;
     }
     if (grandTotal <= 0) {
@@ -141,14 +230,15 @@ export function QuoteBuilder() {
     }
 
     try {
-      const title = clientAddress.trim()
-        ? `${clientName.trim()} — ${clientAddress.trim()}`
-        : clientName.trim();
+      const title = projectAddress.trim()
+        ? `${selectedCustomer.name} — ${projectAddress.trim()}`
+        : selectedCustomer.name;
 
       const estimate = await createEstimateMutation.mutateAsync({
         title,
+        customer_id: selectedCustomer.id,
         total: grandTotal.toFixed(2),
-        subtotal: grandTotal.toFixed(2), // Total is the final number the client sees
+        subtotal: grandTotal.toFixed(2),
         tax_rate: "0",
         tax_amount: "0",
         status: "draft",
@@ -212,21 +302,130 @@ export function QuoteBuilder() {
           </h1>
         </div>
 
-        {/* Client Info */}
+        {/* Customer Selection */}
         <Card>
           <CardContent className="pt-4 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                placeholder="Client Name *"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-              />
-              <Input
-                placeholder="Project Address"
-                value={clientAddress}
-                onChange={(e) => setClientAddress(e.target.value)}
-              />
-            </div>
+            {selectedCustomer ? (
+              <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                <div>
+                  <p className="font-medium text-sm">{selectedCustomer.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {[selectedCustomer.email, selectedCustomer.phone].filter(Boolean).join(" · ")}
+                  </p>
+                  {selectedCustomer.address && (
+                    <p className="text-xs text-muted-foreground">{selectedCustomer.address}</p>
+                  )}
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleClearCustomer}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div ref={customerSearchRef} className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search customers..."
+                    value={customerSearch}
+                    onChange={(e) => {
+                      setCustomerSearch(e.target.value);
+                      setShowCustomerDropdown(true);
+                      setShowNewCustomerForm(false);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    className="pl-9"
+                  />
+                </div>
+                {showCustomerDropdown && !showNewCustomerForm && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredCustomers.length > 0 ? (
+                      filteredCustomers.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => handleSelectCustomer(c)}
+                          className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors border-b last:border-0"
+                        >
+                          <p className="text-sm font-medium">{c.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {[c.email, c.phone].filter(Boolean).join(" · ")}
+                          </p>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+                        No customers found
+                      </div>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShowNewCustomerForm(true);
+                        setShowCustomerDropdown(false);
+                        setNewCustomerName(customerSearch);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center gap-2 text-blue-600 border-t"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      <span className="text-sm font-medium">Create New Customer</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* New Customer Form */}
+            {showNewCustomerForm && !selectedCustomer && (
+              <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium flex items-center gap-1">
+                    <UserPlus className="h-4 w-4" /> New Customer
+                  </p>
+                  <Button variant="ghost" size="sm" onClick={() => setShowNewCustomerForm(false)}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="Name *"
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Email *"
+                    type="email"
+                    value={newCustomerEmail}
+                    onChange={(e) => setNewCustomerEmail(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Phone"
+                    value={newCustomerPhone}
+                    onChange={(e) => setNewCustomerPhone(e.target.value)}
+                  />
+                  <Input
+                    placeholder="Address"
+                    value={newCustomerAddress}
+                    onChange={(e) => setNewCustomerAddress(e.target.value)}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleCreateNewCustomer}
+                  disabled={createCustomerMutation.isPending}
+                  className="w-full"
+                >
+                  {createCustomerMutation.isPending ? (
+                    <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Creating...</>
+                  ) : (
+                    <><Check className="h-3 w-3 mr-1" />Create & Select</>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            <Input
+              placeholder="Project Address (optional)"
+              value={projectAddress}
+              onChange={(e) => setProjectAddress(e.target.value)}
+            />
           </CardContent>
         </Card>
 
@@ -286,10 +485,10 @@ export function QuoteBuilder() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {clientName && (
+            {selectedCustomer && (
               <div className="text-sm">
-                <p className="font-medium">{clientName}</p>
-                {clientAddress && <p className="text-muted-foreground text-xs">{clientAddress}</p>}
+                <p className="font-medium">{selectedCustomer.name}</p>
+                {projectAddress && <p className="text-muted-foreground text-xs">{projectAddress}</p>}
               </div>
             )}
 
@@ -356,7 +555,7 @@ export function QuoteBuilder() {
               className="w-full"
               size="lg"
               onClick={handleCreateEstimate}
-              disabled={createEstimateMutation.isPending || !clientName.trim() || grandTotal <= 0}
+              disabled={createEstimateMutation.isPending || !selectedCustomer || grandTotal <= 0}
             >
               {createEstimateMutation.isPending ? (
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</>

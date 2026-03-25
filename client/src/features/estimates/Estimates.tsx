@@ -90,7 +90,7 @@ export function Estimates() {
     const matchesSearch =
       est.title.toLowerCase().includes(search.toLowerCase()) ||
       est.estimate_number.toLowerCase().includes(search.toLowerCase()) ||
-      est.customer.name.toLowerCase().includes(search.toLowerCase());
+      est.customer?.name?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || est.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -209,7 +209,7 @@ export function Estimates() {
                     <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        {est.customer.name}
+                        {est.customer?.name || "No Customer"}
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
