@@ -35,13 +35,13 @@ export const storage = {
         user: users,
       })
       .from(estimates)
-      .innerJoin(customers, eq(estimates.customer_id, customers.id))
+      .leftJoin(customers, eq(estimates.customer_id, customers.id))
       .leftJoin(users, eq(estimates.created_by_user_id, users.id))
       .orderBy(desc(estimates.created_at));
 
     return result.map((row: any) => ({
       ...row.estimate,
-      customer: row.customer,
+      customer: row.customer || null,
       createdByUser: row.user || null,
     }));
   },
@@ -54,7 +54,7 @@ export const storage = {
         user: users,
       })
       .from(estimates)
-      .innerJoin(customers, eq(estimates.customer_id, customers.id))
+      .leftJoin(customers, eq(estimates.customer_id, customers.id))
       .leftJoin(users, eq(estimates.created_by_user_id, users.id))
       .where(eq(estimates.id, id));
 
@@ -68,7 +68,7 @@ export const storage = {
 
     return {
       ...result[0].estimate,
-      customer: result[0].customer,
+      customer: result[0].customer || null,
       lineItems,
       createdByUser: result[0].user || null,
     };
