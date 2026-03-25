@@ -1205,7 +1205,7 @@ export type TimeClockWithDetails = TimeClock & {
 // Estimates - Standalone pre-project quotes linked to customers
 export const estimates = pgTable("estimates", {
   id: serial("id").primaryKey(),
-  customer_id: integer("customer_id").references(() => customers.id).notNull(),
+  customer_id: integer("customer_id").references(() => customers.id),
 
   // Estimate number (auto-generated: EST-YYYY-NNN)
   estimate_number: text("estimate_number").notNull(),

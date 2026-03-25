@@ -18,7 +18,7 @@ export async function migratePhase9And10() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS estimates (
         id SERIAL PRIMARY KEY,
-        customer_id INTEGER NOT NULL REFERENCES customers(id),
+        customer_id INTEGER REFERENCES customers(id),
         estimate_number TEXT NOT NULL,
         title TEXT NOT NULL,
         description TEXT,
@@ -41,6 +41,8 @@ export async function migratePhase9And10() {
     await client.query(`CREATE INDEX IF NOT EXISTS "IDX_estimates_customer_id" ON estimates(customer_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS "IDX_estimates_status" ON estimates(status)`);
     await client.query(`CREATE INDEX IF NOT EXISTS "IDX_estimates_estimate_number" ON estimates(estimate_number)`);
+    // Make customer_id nullable (Quote Builder creates estimates without a customer)
+    await client.query(`ALTER TABLE estimates ALTER COLUMN customer_id DROP NOT NULL`).catch(() => {});
 
     // ── ESTIMATE LINE ITEMS ──
     await client.query(`
