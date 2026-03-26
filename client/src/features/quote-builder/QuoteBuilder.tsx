@@ -4,32 +4,33 @@ import { useCatalog, useSeedCatalog } from "@/features/catalog/hooks";
 import { useCreateEstimate, useCreateEstimateLineItem } from "@/features/estimates/hooks";
 import { useCustomers, useCreateCustomer } from "@/features/customers/hooks";
 import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-  Loader2,
-  ChevronDown,
-  ChevronRight,
-  Calculator,
-  FileText,
-  Database,
-  Search,
-  UserPlus,
-  X,
-  Check,
-} from "lucide-react";
+import { Loader2, Search, UserPlus, X, Check, Database } from "lucide-react";
 import type {
   ServiceCatalogCategoryWithItems,
   ServiceCatalogItemWithChildren,
-  ServiceCatalogItem,
   Customer,
 } from "@shared/schema";
 
-type SelectedItems = Record<number, boolean>; // itemId -> selected
-type ExclusiveSelections = Record<number, number>; // groupId -> selectedChildId
+type SelectedItems = Record<number, boolean>;
+type ExclusiveSelections = Record<number, number>;
+
+/* ── Category icon background colors matching prototype ── */
+const CATEGORY_COLORS: Record<string, string> = {
+  shower: "#dbeafe",
+  floor: "#fef3c7",
+  paint: "#fce7f3",
+  electrical: "#fef9c3",
+  plumbing: "#e0e7ff",
+  permit: "#d1fae5",
+};
+
+function getCategoryBg(name: string, fallback?: string | null): string {
+  const key = name.toLowerCase();
+  for (const [k, v] of Object.entries(CATEGORY_COLORS)) {
+    if (key.includes(k)) return v;
+  }
+  return fallback || "#f3f4f6";
+}
 
 export function QuoteBuilder() {
   const [, navigate] = useLocation();
@@ -62,13 +63,15 @@ export function QuoteBuilder() {
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return customers.slice(0, 10);
     const q = customerSearch.toLowerCase();
-    return customers.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.email?.toLowerCase().includes(q) ||
-        c.phone?.toLowerCase().includes(q) ||
-        c.address?.toLowerCase().includes(q)
-    ).slice(0, 10);
+    return customers
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.email?.toLowerCase().includes(q) ||
+          c.phone?.toLowerCase().includes(q) ||
+          c.address?.toLowerCase().includes(q)
+      )
+      .slice(0, 10);
   }, [customers, customerSearch]);
 
   // Close dropdown on outside click
@@ -87,7 +90,6 @@ export function QuoteBuilder() {
     setCustomerSearch("");
     setShowCustomerDropdown(false);
     setShowNewCustomerForm(false);
-    // Auto-fill project address if customer has one
     if (customer.address && !projectAddress) {
       setProjectAddress(customer.address);
     }
@@ -133,7 +135,9 @@ export function QuoteBuilder() {
   useMemo(() => {
     if (catalog.length > 0 && Object.keys(expandedCategories).length === 0) {
       const expanded: Record<number, boolean> = {};
-      catalog.forEach((cat) => { expanded[cat.id] = true; });
+      catalog.forEach((cat) => {
+        expanded[cat.id] = true;
+      });
       setExpandedCategories(expanded);
     }
   }, [catalog]);
@@ -149,7 +153,6 @@ export function QuoteBuilder() {
   const selectExclusive = (groupId: number, childId: number) => {
     setExclusiveSelections((prev) => {
       const current = prev[groupId];
-      // If clicking the same one, deselect
       if (current === childId) {
         const next = { ...prev };
         delete next[groupId];
@@ -160,13 +163,14 @@ export function QuoteBuilder() {
   };
 
   // Calculate totals — track both cost and client-facing (marked-up) prices
-  const { categoryBreakdowns, costSubtotal, grandTotal } = useMemo(() => {
+  const { categoryBreakdowns, costSubtotal, markupAmount, grandTotal } = useMemo(() => {
     const multiplier = 1 + markupPercent / 100;
     const breakdowns: {
       category: ServiceCatalogCategoryWithItems;
       items: { name: string; costPrice: number; clientPrice: number; section: string }[];
       costTotal: number;
       clientTotal: number;
+      selectedCount: number;
     }[] = [];
     let costSub = 0;
 
@@ -186,7 +190,12 @@ export function QuoteBuilder() {
               if (child && child.is_active === "yes") {
                 const cost = parseFloat(child.price || "0");
                 const client = Math.round(cost * multiplier);
-                catItems.push({ name: `${item.name}: ${child.name}`, costPrice: cost, clientPrice: client, section: cat.name });
+                catItems.push({
+                  name: `${item.name}: ${child.name}`,
+                  costPrice: cost,
+                  clientPrice: client,
+                  section: cat.name,
+                });
                 costSub += cost;
               }
             }
@@ -217,13 +226,16 @@ export function QuoteBuilder() {
           items: catItems,
           costTotal: catItems.reduce((s, i) => s + i.costPrice, 0),
           clientTotal: catItems.reduce((s, i) => s + i.clientPrice, 0),
+          selectedCount: catItems.length,
         });
       }
     }
 
+    const mAmt = costSub * (markupPercent / 100);
     return {
       categoryBreakdowns: breakdowns,
       costSubtotal: costSub,
+      markupAmount: mAmt,
       grandTotal: breakdowns.reduce((s, b) => s + b.clientTotal, 0),
     };
   }, [catalog, selectedItems, exclusiveSelections, markupPercent]);
@@ -243,10 +255,8 @@ export function QuoteBuilder() {
         ? `${selectedCustomer.name} — ${projectAddress.trim()}`
         : selectedCustomer.name;
 
-      // Internal notes: cost breakdown + markup (staff only)
       const internalNotes = `Markup: ${markupPercent}%\nCost Subtotal: $${costSubtotal.toLocaleString()}\n\nCost Breakdown:\n${categoryBreakdowns.map((b) => `${b.category.name}: $${b.costTotal.toLocaleString()}\n${b.items.map((i) => `  - ${i.name}: $${i.costPrice.toLocaleString()} → $${i.clientPrice.toLocaleString()}`).join("\n")}`).join("\n\n")}`;
 
-      // Create estimate with client-facing total
       const estimate = await createEstimateMutation.mutateAsync({
         title,
         customer_id: selectedCustomer.id,
@@ -258,7 +268,6 @@ export function QuoteBuilder() {
         internal_notes: internalNotes,
       });
 
-      // Create line items with client-facing (post-markup) prices
       const allItems = categoryBreakdowns.flatMap((b) => b.items);
       for (let i = 0; i < allItems.length; i++) {
         const item = allItems[i];
@@ -292,12 +301,33 @@ export function QuoteBuilder() {
     }
   };
 
-  const fmt = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const handleClearAll = () => {
+    setSelectedItems({});
+    setExclusiveSelections({});
+    setSelectedCustomer(null);
+    setCustomerSearch("");
+    setProjectAddress("");
+    setMarkupPercent(15);
+  };
+
+  const fmt = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
+
+  // Count total selected items across all categories
+  const totalSelectedCount = categoryBreakdowns.reduce((s, b) => s + b.selectedCount, 0);
+
+  // Count per-category selected
+  const catSelectedMap = useMemo(() => {
+    const m: Record<number, { count: number; total: number }> = {};
+    for (const b of categoryBreakdowns) {
+      m[b.category.id] = { count: b.selectedCount, total: b.costTotal };
+    }
+    return m;
+  }, [categoryBreakdowns]);
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
+        <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#6b6560" }} />
       </div>
     );
   }
@@ -305,57 +335,565 @@ export function QuoteBuilder() {
   // Empty catalog state
   if (catalog.length === 0) {
     return (
-      <div className="max-w-lg mx-auto text-center py-20 space-y-4">
-        <Database className="h-12 w-12 mx-auto text-muted-foreground" />
-        <h2 className="text-xl font-semibold">No Service Catalog Found</h2>
-        <p className="text-muted-foreground">
+      <div style={{ maxWidth: 440, margin: "0 auto", textAlign: "center", paddingTop: 80, fontFamily: "'DM Sans', sans-serif" }}>
+        <Database style={{ width: 48, height: 48, margin: "0 auto 16px", color: "#6b6560" }} />
+        <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+          No Service Catalog Found
+        </h2>
+        <p style={{ color: "#6b6560", fontSize: 14, marginBottom: 20 }}>
           The service catalog is empty. Seed it with default bathroom remodel services to get started.
         </p>
-        <Button onClick={handleSeedCatalog} disabled={seedMutation.isPending}>
-          {seedMutation.isPending ? (
-            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Seeding...</>
-          ) : (
-            <><Database className="h-4 w-4 mr-2" />Seed Default Catalog</>
-          )}
-        </Button>
+        <button onClick={handleSeedCatalog} disabled={seedMutation.isPending} className="qb-btn-create">
+          {seedMutation.isPending ? "Seeding..." : "Seed Default Catalog"}
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex gap-6 h-[calc(100vh-4rem)]">
-      {/* ── Left: Catalog ────────────────────── */}
-      <div className="flex-1 overflow-y-auto pr-2 space-y-4 pb-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Calculator className="h-6 w-6" />
-            Quote Builder
-          </h1>
-        </div>
+    <>
+      {/* Inject fonts + scoped styles */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-        {/* Customer Selection */}
-        <Card>
-          <CardContent className="pt-4 space-y-3">
+        .qb-shell {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 0;
+          min-height: calc(100vh - 64px);
+          margin: -1rem -1rem -1rem -1rem;
+          /* Break out of Layout container padding */
+          margin: -1.5rem -2.5rem;
+          font-family: 'DM Sans', sans-serif;
+          color: #1c1c1c;
+        }
+        @media (max-width: 768px) {
+          .qb-shell { margin: -1rem; }
+        }
+
+        .qb-configurator {
+          padding: 32px;
+          overflow-y: auto;
+          background: #f4f0eb;
+        }
+
+        .qb-title {
+          font-family: 'Playfair Display', serif;
+          font-size: 28px;
+          font-weight: 700;
+          margin-bottom: 4px;
+          color: #1c1c1c;
+        }
+        .qb-sub {
+          color: #6b6560;
+          font-size: 13px;
+          margin-bottom: 28px;
+        }
+
+        .qb-client-row {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 28px;
+          padding-bottom: 28px;
+          border-bottom: 1px solid #e2dcd5;
+        }
+        .qb-client-selected {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background: #e8f3ed;
+          border-radius: 8px;
+          padding: 10px 14px;
+          flex: 1;
+        }
+        .qb-input {
+          flex: 1;
+          padding: 10px 14px;
+          border: 1px solid #e2dcd5;
+          border-radius: 6px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 14px;
+          background: #faf8f5;
+          color: #1c1c1c;
+          outline: none;
+          transition: border-color 0.15s;
+        }
+        .qb-input:focus { border-color: #8b6f47; }
+        .qb-input::placeholder { color: #aaa; }
+        .qb-input-search {
+          padding-left: 36px;
+        }
+
+        .qb-category {
+          margin-bottom: 20px;
+          background: #faf8f5;
+          border: 1px solid #e2dcd5;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+
+        .qb-cat-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 18px;
+          cursor: pointer;
+          user-select: none;
+          border-bottom: 1px solid #e2dcd5;
+          gap: 12px;
+          transition: background 0.1s;
+        }
+        .qb-cat-header:hover { background: #f4f0eb; }
+
+        .qb-cat-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex: 1;
+        }
+        .qb-cat-icon {
+          width: 34px;
+          height: 34px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          flex-shrink: 0;
+        }
+        .qb-cat-info h3 {
+          font-size: 14px;
+          font-weight: 600;
+          margin: 0;
+        }
+        .qb-cat-info p {
+          font-size: 12px;
+          color: #6b6560;
+          margin: 1px 0 0;
+        }
+        .qb-cat-meta {
+          text-align: right;
+          flex-shrink: 0;
+        }
+        .qb-cat-selected {
+          font-size: 11px;
+          color: #8b6f47;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+        .qb-cat-total {
+          font-size: 13px;
+          font-weight: 600;
+          color: #3d7a5c;
+        }
+        .qb-cat-chevron {
+          color: #6b6560;
+          font-size: 12px;
+          transition: transform 0.2s;
+          flex-shrink: 0;
+        }
+        .qb-cat-chevron.open { transform: rotate(180deg); }
+
+        .qb-cat-body {
+          padding: 4px 0;
+        }
+
+        /* Line items */
+        .qb-line-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          padding: 11px 18px;
+          cursor: pointer;
+          transition: background 0.1s;
+          border-bottom: 1px solid #e2dcd5;
+        }
+        .qb-line-item:last-child { border-bottom: none; }
+        .qb-line-item:hover { background: #f4f0eb; }
+        .qb-line-item.selected { background: #e8f3ed; }
+        .qb-line-item.selected:hover { background: #daeee4; }
+
+        .qb-line-item.is-option {
+          padding-left: 40px;
+          background: #fdfcfa;
+        }
+        .qb-line-item.is-option.selected { background: #e8f3ed; }
+
+        .qb-checkbox {
+          width: 18px;
+          height: 18px;
+          border: 2px solid #ccc;
+          border-radius: 4px;
+          flex-shrink: 0;
+          margin-top: 1px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+          background: #fff;
+          font-size: 11px;
+          font-weight: 700;
+          color: transparent;
+        }
+        .qb-line-item.selected .qb-checkbox {
+          background: #3d7a5c;
+          border-color: #3d7a5c;
+          color: #fff;
+        }
+
+        .qb-radio {
+          width: 18px;
+          height: 18px;
+          border: 2px solid #ccc;
+          border-radius: 50%;
+          flex-shrink: 0;
+          margin-top: 1px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+          background: #fff;
+        }
+        .qb-line-item.selected .qb-radio { border-color: #3d7a5c; }
+        .qb-radio-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: transparent;
+          transition: background 0.15s;
+        }
+        .qb-line-item.selected .qb-radio-dot { background: #3d7a5c; }
+
+        .qb-item-info { flex: 1; }
+        .qb-item-name {
+          font-size: 13.5px;
+          font-weight: 500;
+          line-height: 1.3;
+        }
+        .qb-item-desc {
+          font-size: 12px;
+          color: #6b6560;
+          margin-top: 2px;
+          line-height: 1.4;
+        }
+        .qb-item-price {
+          font-size: 13px;
+          font-weight: 600;
+          color: #6b6560;
+          flex-shrink: 0;
+          font-variant-numeric: tabular-nums;
+        }
+        .qb-line-item.selected .qb-item-price { color: #3d7a5c; }
+
+        .qb-section-label {
+          padding: 8px 18px 4px;
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: #6b6560;
+          background: #fdfcfa;
+          border-bottom: 1px solid #e2dcd5;
+        }
+
+        /* ── Sidebar ── */
+        .qb-sidebar {
+          background: #1c1c1c;
+          color: #fff;
+          display: flex;
+          flex-direction: column;
+          position: sticky;
+          top: 0;
+          height: calc(100vh - 64px);
+        }
+        .qb-sidebar-inner {
+          flex: 1;
+          overflow-y: auto;
+          padding: 28px 24px 0;
+        }
+        .qb-sidebar h2 {
+          font-family: 'Playfair Display', serif;
+          font-size: 18px;
+          font-weight: 500;
+          margin: 0 0 20px;
+          padding-bottom: 16px;
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .qb-summary-category { margin-bottom: 16px; }
+        .qb-summary-cat-name {
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.4);
+          margin-bottom: 6px;
+        }
+        .qb-summary-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 4px 0;
+        }
+        .qb-summary-item-name {
+          font-size: 12.5px;
+          color: rgba(255,255,255,0.8);
+          line-height: 1.4;
+        }
+        .qb-summary-item-price {
+          font-size: 12.5px;
+          font-weight: 600;
+          color: rgba(255,255,255,0.9);
+          flex-shrink: 0;
+          font-variant-numeric: tabular-nums;
+        }
+        .qb-empty-state {
+          text-align: center;
+          padding: 40px 0;
+          color: rgba(255,255,255,0.3);
+          font-size: 13px;
+          line-height: 1.6;
+        }
+        .qb-empty-icon { font-size: 28px; margin-bottom: 8px; }
+
+        /* Footer */
+        .qb-totals-footer {
+          padding: 20px 24px;
+          border-top: 1px solid rgba(255,255,255,0.12);
+          background: rgba(0,0,0,0.2);
+        }
+        .qb-totals-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 5px 0;
+        }
+        .qb-totals-label {
+          font-size: 12px;
+          color: rgba(255,255,255,0.5);
+        }
+        .qb-totals-value {
+          font-size: 12px;
+          color: rgba(255,255,255,0.7);
+          font-variant-numeric: tabular-nums;
+        }
+        .qb-totals-divider {
+          border: none;
+          border-top: 1px solid rgba(255,255,255,0.12);
+          margin: 10px 0;
+        }
+        .qb-totals-grand {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+          margin-bottom: 16px;
+        }
+        .qb-totals-grand-label {
+          font-family: 'Playfair Display', serif;
+          font-size: 16px;
+        }
+        .qb-totals-grand-value {
+          font-family: 'Playfair Display', serif;
+          font-size: 26px;
+          font-weight: 700;
+          color: #fff;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .qb-markup-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 8px;
+        }
+        .qb-markup-label {
+          font-size: 11px;
+          color: rgba(255,255,255,0.4);
+          flex: 1;
+        }
+        .qb-markup-input {
+          width: 60px;
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.15);
+          border-radius: 4px;
+          padding: 4px 8px;
+          color: #fff;
+          font-size: 12px;
+          font-family: 'DM Sans', sans-serif;
+          text-align: right;
+          outline: none;
+        }
+        .qb-markup-pct { font-size: 11px; color: rgba(255,255,255,0.4); }
+
+        .qb-btn-create {
+          width: 100%;
+          background: #8b6f47;
+          color: #fff;
+          border: none;
+          padding: 13px;
+          border-radius: 8px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background 0.15s;
+          letter-spacing: 0.02em;
+          margin-bottom: 10px;
+        }
+        .qb-btn-create:hover { background: #7a5f38; }
+        .qb-btn-create:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .qb-btn-reset {
+          width: 100%;
+          background: transparent;
+          color: rgba(255,255,255,0.35);
+          border: 1px solid rgba(255,255,255,0.12);
+          padding: 9px;
+          border-radius: 8px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+        .qb-btn-reset:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.3); }
+
+        /* Customer search dropdown */
+        .qb-dropdown {
+          position: absolute;
+          z-index: 50;
+          width: 100%;
+          margin-top: 4px;
+          background: #fff;
+          border: 1px solid #e2dcd5;
+          border-radius: 8px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+          max-height: 240px;
+          overflow-y: auto;
+        }
+        .qb-dropdown-item {
+          width: 100%;
+          text-align: left;
+          padding: 10px 14px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          transition: background 0.1s;
+          border-bottom: 1px solid #f4f0eb;
+          font-family: 'DM Sans', sans-serif;
+        }
+        .qb-dropdown-item:hover { background: #f4f0eb; }
+        .qb-dropdown-item:last-child { border-bottom: none; }
+        .qb-dropdown-create {
+          width: 100%;
+          text-align: left;
+          padding: 10px 14px;
+          border: none;
+          border-top: 1px solid #e2dcd5;
+          background: none;
+          cursor: pointer;
+          transition: background 0.1s;
+          color: #8b6f47;
+          font-weight: 600;
+          font-family: 'DM Sans', sans-serif;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+        }
+        .qb-dropdown-create:hover { background: #f0e8dc; }
+
+        .qb-new-customer-form {
+          background: #faf8f5;
+          border: 1px solid #e2dcd5;
+          border-radius: 8px;
+          padding: 14px;
+          margin-top: 8px;
+        }
+        .qb-new-customer-form .qb-form-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+        .qb-new-customer-form .qb-form-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 10px;
+        }
+        .qb-new-customer-form .qb-form-title {
+          font-size: 13px;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .qb-small-btn {
+          background: #3d7a5c;
+          color: #fff;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+        .qb-small-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .qb-ghost-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 4px;
+          color: #6b6560;
+          display: flex;
+          align-items: center;
+        }
+        .qb-ghost-btn:hover { color: #1c1c1c; }
+      `}</style>
+
+      <div className="qb-shell">
+        {/* ── Left: Configurator ── */}
+        <div className="qb-configurator">
+          <div className="qb-title">Build a Quote</div>
+          <p className="qb-sub">Click to select services. The final price will be sent to the client — not the line items.</p>
+
+          {/* Client row */}
+          <div className="qb-client-row">
             {selectedCustomer ? (
-              <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
-                <div>
-                  <p className="font-medium text-sm">{selectedCustomer.name}</p>
-                  <p className="text-xs text-muted-foreground">
+              <div className="qb-client-selected" style={{ flex: 1 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{selectedCustomer.name}</div>
+                  <div style={{ fontSize: 12, color: "#6b6560" }}>
                     {[selectedCustomer.email, selectedCustomer.phone].filter(Boolean).join(" · ")}
-                  </p>
-                  {selectedCustomer.address && (
-                    <p className="text-xs text-muted-foreground">{selectedCustomer.address}</p>
-                  )}
+                  </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleClearCustomer}>
-                  <X className="h-4 w-4" />
-                </Button>
+                <button className="qb-ghost-btn" onClick={handleClearCustomer}>
+                  <X style={{ width: 16, height: 16 }} />
+                </button>
               </div>
             ) : (
-              <div ref={customerSearchRef} className="relative">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
+              <div ref={customerSearchRef} style={{ flex: 1, position: "relative" }}>
+                <div style={{ position: "relative" }}>
+                  <Search
+                    style={{
+                      position: "absolute",
+                      left: 12,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      width: 16,
+                      height: 16,
+                      color: "#aaa",
+                    }}
+                  />
+                  <input
+                    className="qb-input qb-input-search"
                     placeholder="Search customers..."
                     value={customerSearch}
                     onChange={(e) => {
@@ -364,234 +902,189 @@ export function QuoteBuilder() {
                       setShowNewCustomerForm(false);
                     }}
                     onFocus={() => setShowCustomerDropdown(true)}
-                    className="pl-9"
                   />
                 </div>
                 {showCustomerDropdown && !showNewCustomerForm && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filteredCustomers.length > 0 ? (
-                      filteredCustomers.map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => handleSelectCustomer(c)}
-                          className="w-full text-left px-3 py-2 hover:bg-muted/50 transition-colors border-b last:border-0"
-                        >
-                          <p className="text-sm font-medium">{c.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {[c.email, c.phone].filter(Boolean).join(" · ")}
-                          </p>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-                        No customers found
-                      </div>
-                    )}
+                  <div className="qb-dropdown">
+                    {filteredCustomers.length > 0
+                      ? filteredCustomers.map((c) => (
+                          <button key={c.id} className="qb-dropdown-item" onClick={() => handleSelectCustomer(c)}>
+                            <div style={{ fontWeight: 500, fontSize: 13 }}>{c.name}</div>
+                            <div style={{ fontSize: 11, color: "#6b6560" }}>
+                              {[c.email, c.phone].filter(Boolean).join(" · ")}
+                            </div>
+                          </button>
+                        ))
+                      : (
+                        <div style={{ padding: "16px", textAlign: "center", fontSize: 13, color: "#6b6560" }}>
+                          No customers found
+                        </div>
+                      )}
                     <button
+                      className="qb-dropdown-create"
                       onClick={() => {
                         setShowNewCustomerForm(true);
                         setShowCustomerDropdown(false);
                         setNewCustomerName(customerSearch);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center gap-2 text-blue-600 border-t"
                     >
-                      <UserPlus className="h-4 w-4" />
-                      <span className="text-sm font-medium">Create New Customer</span>
+                      <UserPlus style={{ width: 14, height: 14 }} />
+                      Create New Customer
+                    </button>
+                  </div>
+                )}
+                {showNewCustomerForm && (
+                  <div className="qb-new-customer-form">
+                    <div className="qb-form-header">
+                      <span className="qb-form-title">
+                        <UserPlus style={{ width: 14, height: 14 }} /> New Customer
+                      </span>
+                      <button className="qb-ghost-btn" onClick={() => setShowNewCustomerForm(false)}>
+                        <X style={{ width: 14, height: 14 }} />
+                      </button>
+                    </div>
+                    <div className="qb-form-grid">
+                      <input className="qb-input" placeholder="Name *" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} />
+                      <input className="qb-input" placeholder="Email *" type="email" value={newCustomerEmail} onChange={(e) => setNewCustomerEmail(e.target.value)} />
+                      <input className="qb-input" placeholder="Phone" value={newCustomerPhone} onChange={(e) => setNewCustomerPhone(e.target.value)} />
+                      <input className="qb-input" placeholder="Address" value={newCustomerAddress} onChange={(e) => setNewCustomerAddress(e.target.value)} />
+                    </div>
+                    <button className="qb-small-btn" onClick={handleCreateNewCustomer} disabled={createCustomerMutation.isPending}>
+                      {createCustomerMutation.isPending ? (
+                        <><Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} /> Creating...</>
+                      ) : (
+                        <><Check style={{ width: 14, height: 14 }} /> Create &amp; Select</>
+                      )}
                     </button>
                   </div>
                 )}
               </div>
             )}
-
-            {/* New Customer Form */}
-            {showNewCustomerForm && !selectedCustomer && (
-              <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium flex items-center gap-1">
-                    <UserPlus className="h-4 w-4" /> New Customer
-                  </p>
-                  <Button variant="ghost" size="sm" onClick={() => setShowNewCustomerForm(false)}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    placeholder="Name *"
-                    value={newCustomerName}
-                    onChange={(e) => setNewCustomerName(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Email *"
-                    type="email"
-                    value={newCustomerEmail}
-                    onChange={(e) => setNewCustomerEmail(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Phone"
-                    value={newCustomerPhone}
-                    onChange={(e) => setNewCustomerPhone(e.target.value)}
-                  />
-                  <Input
-                    placeholder="Address"
-                    value={newCustomerAddress}
-                    onChange={(e) => setNewCustomerAddress(e.target.value)}
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  onClick={handleCreateNewCustomer}
-                  disabled={createCustomerMutation.isPending}
-                  className="w-full"
-                >
-                  {createCustomerMutation.isPending ? (
-                    <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Creating...</>
-                  ) : (
-                    <><Check className="h-3 w-3 mr-1" />Create & Select</>
-                  )}
-                </Button>
-              </div>
-            )}
-
-            <Input
-              placeholder="Project Address (optional)"
+            <input
+              className="qb-input"
+              placeholder="Property address..."
               value={projectAddress}
               onChange={(e) => setProjectAddress(e.target.value)}
             />
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Catalog Categories */}
-        {catalog.filter((c) => c.is_active === "yes").map((cat) => (
-          <Card key={cat.id} className="overflow-hidden">
-            <CardHeader
-              className="pb-2 cursor-pointer select-none"
-              onClick={() => toggleCategory(cat.id)}
-            >
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  {cat.icon && (
-                    <span
-                      className="inline-flex items-center justify-center w-8 h-8 rounded-md text-lg"
-                      style={{ backgroundColor: cat.icon_bg || "#f3f4f6" }}
-                    >
-                      {cat.icon}
-                    </span>
+          {/* Categories */}
+          {catalog
+            .filter((c) => c.is_active === "yes")
+            .map((cat) => {
+              const isOpen = expandedCategories[cat.id];
+              const meta = catSelectedMap[cat.id];
+              return (
+                <div key={cat.id} className="qb-category">
+                  <div className="qb-cat-header" onClick={() => toggleCategory(cat.id)}>
+                    <div className="qb-cat-left">
+                      <div className="qb-cat-icon" style={{ backgroundColor: getCategoryBg(cat.name, cat.icon_bg) }}>
+                        {cat.icon || "•"}
+                      </div>
+                      <div className="qb-cat-info">
+                        <h3>{cat.name}</h3>
+                        {cat.description && <p>{cat.description}</p>}
+                      </div>
+                    </div>
+                    <div className="qb-cat-meta">
+                      {meta && <div className="qb-cat-selected">{meta.count} selected</div>}
+                      {meta && <div className="qb-cat-total">{fmt(meta.total)}</div>}
+                    </div>
+                    <span className={`qb-cat-chevron ${isOpen ? "open" : ""}`}>▼</span>
+                  </div>
+                  {isOpen && (
+                    <div className="qb-cat-body">
+                      {cat.items
+                        .filter((item) => item.is_active === "yes")
+                        .map((item) => (
+                          <CatalogLineItem
+                            key={item.id}
+                            item={item}
+                            selectedItems={selectedItems}
+                            exclusiveSelections={exclusiveSelections}
+                            onToggle={toggleItem}
+                            onSelectExclusive={selectExclusive}
+                          />
+                        ))}
+                    </div>
                   )}
-                  {cat.name}
-                </CardTitle>
-                {expandedCategories[cat.id] ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-            </CardHeader>
-            {expandedCategories[cat.id] && (
-              <CardContent className="pt-0 space-y-1">
-                {cat.items
-                  .filter((item) => item.is_active === "yes")
-                  .map((item) => (
-                    <CatalogItem
-                      key={item.id}
-                      item={item}
-                      selectedItems={selectedItems}
-                      exclusiveSelections={exclusiveSelections}
-                      onToggle={toggleItem}
-                      onSelectExclusive={selectExclusive}
-                    />
-                  ))}
-              </CardContent>
-            )}
-          </Card>
-        ))}
-      </div>
+                </div>
+              );
+            })}
+        </div>
 
-      {/* ── Right: Quote Summary (Client-Facing View) ─────────────── */}
-      <div className="w-80 shrink-0 overflow-y-auto pb-6">
-        <Card className="sticky top-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Client Quote Preview
-            </CardTitle>
-            {/* Markup control — staff only, small and subtle */}
-            <div className="flex items-center gap-1 mt-1">
-              <span className="text-xs text-muted-foreground">Markup</span>
-              <Input
+        {/* ── Right: Dark Sidebar ── */}
+        <div className="qb-sidebar">
+          <div className="qb-sidebar-inner">
+            <h2>Quote Summary</h2>
+            {categoryBreakdowns.length === 0 ? (
+              <div className="qb-empty-state">
+                <div className="qb-empty-icon">✦</div>
+                Select services on the left to build the quote
+              </div>
+            ) : (
+              categoryBreakdowns.map((b) => (
+                <div key={b.category.id} className="qb-summary-category">
+                  <div className="qb-summary-cat-name">{b.category.name}</div>
+                  {b.items.map((item, idx) => (
+                    <div key={idx} className="qb-summary-item">
+                      <span className="qb-summary-item-name">{item.name}</span>
+                      <span className="qb-summary-item-price">{fmt(item.clientPrice)}</span>
+                    </div>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="qb-totals-footer">
+            <div className="qb-markup-row">
+              <span className="qb-markup-label">Materials markup / buffer</span>
+              <input
                 type="number"
+                className="qb-markup-input"
                 value={markupPercent}
                 onChange={(e) => setMarkupPercent(Number(e.target.value) || 0)}
-                className="w-14 h-6 text-xs text-center"
                 min={0}
                 max={100}
+                step={5}
               />
-              <span className="text-xs text-muted-foreground">%</span>
+              <span className="qb-markup-pct">%</span>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {selectedCustomer && (
-              <div className="text-sm">
-                <p className="font-medium">{selectedCustomer.name}</p>
-                {projectAddress && <p className="text-muted-foreground text-xs">{projectAddress}</p>}
-              </div>
-            )}
-
-            {categoryBreakdowns.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                Select services from the catalog to build your quote.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {categoryBreakdowns.map((b) => (
-                  <div key={b.category.id}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium flex items-center gap-1">
-                        {b.category.icon && <span className="text-xs">{b.category.icon}</span>}
-                        {b.category.name}
-                      </span>
-                      <span className="text-sm font-mono">${fmt(b.clientTotal)}</span>
-                    </div>
-                    <div className="ml-4 mt-1 space-y-0.5">
-                      {b.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-xs text-muted-foreground">
-                          <span className="truncate mr-2">{item.name}</span>
-                          <span className="font-mono shrink-0">${fmt(item.clientPrice)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                <Separator />
-
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total</span>
-                  <span className="font-mono">${fmt(grandTotal)}</span>
-                </div>
-              </div>
-            )}
-
-            <Button
-              className="w-full"
-              size="lg"
+            <div className="qb-totals-row">
+              <span className="qb-totals-label">Labor subtotal</span>
+              <span className="qb-totals-value">{fmt(costSubtotal)}</span>
+            </div>
+            <div className="qb-totals-row">
+              <span className="qb-totals-label">Markup / buffer</span>
+              <span className="qb-totals-value">{markupAmount > 0 ? fmt(markupAmount) : "$0"}</span>
+            </div>
+            <hr className="qb-totals-divider" />
+            <div className="qb-totals-grand">
+              <span className="qb-totals-grand-label">Client Quote</span>
+              <span className="qb-totals-grand-value">{fmt(grandTotal)}</span>
+            </div>
+            <button
+              className="qb-btn-create"
               onClick={handleCreateEstimate}
               disabled={createEstimateMutation.isPending || createLineItemMutation.isPending || !selectedCustomer || grandTotal <= 0}
             >
-              {(createEstimateMutation.isPending || createLineItemMutation.isPending) ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</>
-              ) : (
-                <><FileText className="h-4 w-4 mr-2" />Create Estimate</>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+              {createEstimateMutation.isPending || createLineItemMutation.isPending
+                ? "Creating..."
+                : "Create Estimate →"}
+            </button>
+            <button className="qb-btn-reset" onClick={handleClearAll}>
+              Clear All
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-// ── Catalog Item Renderer ──────────────────────
-function CatalogItem({
+// ── Line Item Renderer ──────────────────────
+function CatalogLineItem({
   item,
   selectedItems,
   exclusiveSelections,
@@ -605,89 +1098,73 @@ function CatalogItem({
   onSelectExclusive: (groupId: number, childId: number) => void;
 }) {
   const price = parseFloat(item.price || "0");
+  const fmt = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
 
   // Group header with children
   if (item.is_group === "yes" && item.children && item.children.length > 0) {
     const isExclusive = item.is_exclusive === "yes";
     return (
-      <div className="ml-1 mt-2">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+      <>
+        <div className="qb-section-label">
           {item.name}
-          {isExclusive && (
-            <Badge variant="outline" className="ml-2 text-[10px] py-0">Pick One</Badge>
-          )}
-        </p>
-        <div className="space-y-0.5 ml-3">
-          {item.children
-            .filter((child) => child.is_active === "yes")
-            .map((child) => {
-              const childPrice = parseFloat(child.price || "0");
-              if (isExclusive) {
-                const isSelected = exclusiveSelections[item.id] === child.id;
-                return (
-                  <label
-                    key={child.id}
-                    className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors ${
-                      isSelected ? "bg-blue-50" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name={`exclusive-${item.id}`}
-                      checked={isSelected}
-                      onChange={() => onSelectExclusive(item.id, child.id)}
-                      className="accent-blue-600"
-                    />
-                    <span className="flex-1 text-sm">{child.name}</span>
-                    <span className="text-sm font-mono text-muted-foreground">
-                      ${parseFloat(child.price || "0").toLocaleString()}
-                    </span>
-                  </label>
-                );
-              } else {
-                return (
-                  <label
-                    key={child.id}
-                    className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors ${
-                      selectedItems[child.id] ? "bg-blue-50" : "hover:bg-muted/50"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!selectedItems[child.id]}
-                      onChange={() => onToggle(child.id)}
-                      className="accent-blue-600"
-                    />
-                    <span className="flex-1 text-sm">{child.name}</span>
-                    <span className="text-sm font-mono text-muted-foreground">
-                      ${childPrice.toLocaleString()}
-                    </span>
-                  </label>
-                );
-              }
-            })}
+          {item.description ? ` — ${item.description}` : ""}
+          {isExclusive ? " (choose one)" : ""}
         </div>
-      </div>
+        {item.children
+          .filter((child) => child.is_active === "yes")
+          .map((child) => {
+            const childPrice = parseFloat(child.price || "0");
+            if (isExclusive) {
+              const isSel = exclusiveSelections[item.id] === child.id;
+              return (
+                <div
+                  key={child.id}
+                  className={`qb-line-item is-option${isSel ? " selected" : ""}`}
+                  onClick={() => onSelectExclusive(item.id, child.id)}
+                >
+                  <div className="qb-radio">
+                    <div className="qb-radio-dot" />
+                  </div>
+                  <div className="qb-item-info">
+                    <div className="qb-item-name">{child.name}</div>
+                  </div>
+                  <div className="qb-item-price">{fmt(childPrice)}</div>
+                </div>
+              );
+            } else {
+              const isSel = !!selectedItems[child.id];
+              return (
+                <div
+                  key={child.id}
+                  className={`qb-line-item is-option${isSel ? " selected" : ""}`}
+                  onClick={() => onToggle(child.id)}
+                >
+                  <div className="qb-checkbox">{isSel ? "✓" : ""}</div>
+                  <div className="qb-item-info">
+                    <div className="qb-item-name">{child.name}</div>
+                  </div>
+                  <div className="qb-item-price">{fmt(childPrice)}</div>
+                </div>
+              );
+            }
+          })}
+      </>
     );
   }
 
   // Regular top-level item
+  const isSel = !!selectedItems[item.id];
   return (
-    <label
-      className={`flex items-center gap-2 py-1.5 px-2 rounded cursor-pointer transition-colors ${
-        selectedItems[item.id] ? "bg-blue-50" : "hover:bg-muted/50"
-      }`}
+    <div
+      className={`qb-line-item${isSel ? " selected" : ""}`}
+      onClick={() => onToggle(item.id)}
     >
-      <input
-        type="checkbox"
-        checked={!!selectedItems[item.id]}
-        onChange={() => onToggle(item.id)}
-        className="accent-blue-600"
-      />
-      <span className="flex-1 text-sm">{item.name}</span>
-      <span className="text-sm font-mono text-muted-foreground">
-        ${price.toLocaleString()}
-      </span>
-    </label>
+      <div className="qb-checkbox">{isSel ? "✓" : ""}</div>
+      <div className="qb-item-info">
+        <div className="qb-item-name">{item.name}</div>
+        {item.description && <div className="qb-item-desc">{item.description}</div>}
+      </div>
+      <div className="qb-item-price">{price > 0 ? fmt(price) : ""}</div>
+    </div>
   );
 }
