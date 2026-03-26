@@ -13,6 +13,7 @@ import type { ProjectWithCustomer, Contract } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
   active: "bg-green-100 text-green-800",
+  in_progress: "bg-blue-100 text-blue-800",
   on_hold: "bg-yellow-100 text-yellow-800",
   completed: "bg-blue-100 text-blue-800",
   cancelled: "bg-gray-100 text-gray-800",
@@ -20,6 +21,7 @@ const statusColors: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   active: "Active",
+  in_progress: "In Progress",
   on_hold: "On Hold",
   completed: "Completed",
   cancelled: "Cancelled",
