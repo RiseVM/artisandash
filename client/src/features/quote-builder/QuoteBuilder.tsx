@@ -52,6 +52,30 @@ export function QuoteBuilder() {
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newCustomerAddress, setNewCustomerAddress] = useState("");
   const customerSearchRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+
+  // Break out of Layout's container (max-w-6xl, p-10) by adding override class to parent
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    // The parent is Layout's <div class="container max-w-6xl mx-auto p-4 md:p-10">
+    const container = el.parentElement;
+    if (container) {
+      container.classList.add("qb-shell-parent");
+      // Also override the <main> overflow so the shell controls its own scroll
+      const main = container.parentElement;
+      if (main && main.tagName === "MAIN") {
+        main.style.overflow = "hidden";
+      }
+    }
+    return () => {
+      if (container) container.classList.remove("qb-shell-parent");
+      const main = container?.parentElement;
+      if (main && main.tagName === "MAIN") {
+        main.style.overflow = "";
+      }
+    };
+  }, []);
 
   const [projectAddress, setProjectAddress] = useState("");
   const [markupPercent, setMarkupPercent] = useState(15);
@@ -356,22 +380,23 @@ export function QuoteBuilder() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
+        /* Override the Layout container to remove max-width & padding for this page */
+        .qb-shell-parent {
+          max-width: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          width: 100% !important;
+        }
         .qb-shell {
           display: flex;
           height: 100vh;
           overflow: hidden;
-          /* Break out of Layout container (p-10 = 2.5rem, max-w-6xl, mx-auto) */
-          margin: -2.5rem;
-          /* Full width of <main> = viewport minus the 256px sidebar nav */
-          width: calc(100vw - 16rem);
-          max-width: none;
+          width: 100%;
           font-family: 'DM Sans', sans-serif;
           color: #1c1c1c;
         }
         @media (max-width: 768px) {
           .qb-shell {
-            margin: -1rem;
-            width: 100vw;
             flex-direction: column;
             height: auto;
           }
@@ -875,7 +900,7 @@ export function QuoteBuilder() {
         .qb-ghost-btn:hover { color: #1c1c1c; }
       `}</style>
 
-      <div className="qb-shell">
+      <div ref={shellRef} className="qb-shell">
         {/* ── Left: Configurator ── */}
         <div className="qb-configurator">
           <div className="qb-title">Build a Quote</div>
