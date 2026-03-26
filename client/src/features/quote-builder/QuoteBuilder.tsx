@@ -360,17 +360,18 @@ export function QuoteBuilder() {
           display: flex;
           height: 100vh;
           overflow: hidden;
-          /* Break out of Layout container padding & max-width */
-          margin: -1rem -1rem -1rem -1rem;
-          margin: -2.5rem -2.5rem;
-          width: calc(100% + 5rem);
+          /* Break out of Layout container (p-10 = 2.5rem, max-w-6xl, mx-auto) */
+          margin: -2.5rem;
+          /* Full width of <main> = viewport minus the 256px sidebar nav */
+          width: calc(100vw - 16rem);
+          max-width: none;
           font-family: 'DM Sans', sans-serif;
           color: #1c1c1c;
         }
         @media (max-width: 768px) {
           .qb-shell {
             margin: -1rem;
-            width: calc(100% + 2rem);
+            width: 100vw;
             flex-direction: column;
             height: auto;
           }
@@ -605,7 +606,8 @@ export function QuoteBuilder() {
 
         /* ── Sidebar ── */
         .qb-sidebar {
-          width: 340px;
+          width: 380px;
+          min-width: 320px;
           flex-shrink: 0;
           background: #1c1c1c;
           color: #fff;
@@ -616,6 +618,7 @@ export function QuoteBuilder() {
         @media (max-width: 768px) {
           .qb-sidebar {
             width: 100%;
+            min-width: unset;
             height: auto;
             max-height: 50vh;
           }
