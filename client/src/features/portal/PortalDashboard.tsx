@@ -2,12 +2,13 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { PortalLayout } from "./PortalLayout";
+import { usePortalAuth } from "./hooks";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { FolderKanban, ChevronRight, Loader2, Calendar, Download, FileText } from "lucide-react";
+import { FolderKanban, ChevronRight, Loader2, Calendar, Download, FileText, AlertCircle } from "lucide-react";
 import type { ProjectWithCustomer, Contract } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
@@ -26,9 +27,10 @@ const statusLabels: Record<string, string> = {
 
 export function PortalDashboard() {
   const [, setLocation] = useLocation();
+  const { user } = usePortalAuth();
   const [activeTab, setActiveTab] = useState("projects");
 
-  const { data: projects = [], isLoading: projectsLoading } = useQuery<ProjectWithCustomer[]>({
+  const { data: projects = [], isLoading: projectsLoading, isError: projectsError } = useQuery<ProjectWithCustomer[]>({
     queryKey: ["/api/portal/projects"],
     queryFn: async () => {
       const res = await fetch("/api/portal/projects", { credentials: "include" });
@@ -37,7 +39,7 @@ export function PortalDashboard() {
     },
   });
 
-  const { data: contracts = [], isLoading: contractsLoading } = useQuery<Contract[]>({
+  const { data: contracts = [], isLoading: contractsLoading, isError: contractsError } = useQuery<Contract[]>({
     queryKey: ["/api/portal/contracts"],
     queryFn: async () => {
       const res = await fetch("/api/portal/contracts", { credentials: "include" });
@@ -59,8 +61,11 @@ export function PortalDashboard() {
   return (
     <PortalLayout>
       <div className="space-y-6">
+        {/* Welcome greeting */}
         <div>
-          <h1 className="text-2xl font-bold">Your Account</h1>
+          <h1 className="text-2xl font-bold">
+            Welcome{user?.customer?.name ? `, ${user.customer.name}` : ""}
+          </h1>
           <p className="text-muted-foreground">View your projects and contracts</p>
         </div>
 
@@ -75,13 +80,21 @@ export function PortalDashboard() {
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
+            ) : projectsError ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <AlertCircle className="h-12 w-12 mx-auto text-red-400 mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Something went wrong</h3>
+                  <p className="text-muted-foreground">Please refresh the page to try again.</p>
+                </CardContent>
+              </Card>
             ) : projects.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <FolderKanban className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">No Projects Yet</h3>
                   <p className="text-muted-foreground">
-                    You don't have any projects associated with your account yet.
+                    Your projects will appear here once your Artisan Tile project is created.
                   </p>
                 </CardContent>
               </Card>
@@ -95,25 +108,25 @@ export function PortalDashboard() {
                   >
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between">
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <CardTitle className="flex items-center gap-2">
-                            <FolderKanban className="h-5 w-5 text-muted-foreground" />
-                            {project.name}
+                            <FolderKanban className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                            <span className="truncate">{project.name}</span>
                           </CardTitle>
                           {project.description && (
-                            <CardDescription className="mt-1">
+                            <CardDescription className="mt-1 truncate">
                               {project.description}
                             </CardDescription>
                           )}
                         </div>
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <Badge className={statusColors[project.status]}>
-                            {statusLabels[project.status]}
+                          <Badge className={statusColors[project.status] || "bg-gray-100 text-gray-800"}>
+                            {statusLabels[project.status] || project.status}
                           </Badge>
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <Calendar className="h-3 w-3" />
@@ -123,9 +136,9 @@ export function PortalDashboard() {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-muted-foreground">Progress</span>
-                            <span className="font-medium">{project.overall_progress}%</span>
+                            <span className="font-medium">{project.overall_progress || 0}%</span>
                           </div>
-                          <Progress value={project.overall_progress} className="h-2" />
+                          <Progress value={project.overall_progress || 0} className="h-2" />
                         </div>
                       </div>
                     </CardContent>
@@ -140,13 +153,21 @@ export function PortalDashboard() {
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
+            ) : contractsError ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <AlertCircle className="h-12 w-12 mx-auto text-red-400 mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Something went wrong</h3>
+                  <p className="text-muted-foreground">Please refresh the page to try again.</p>
+                </CardContent>
+              </Card>
             ) : contracts.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">No Contracts Yet</h3>
                   <p className="text-muted-foreground">
-                    You don't have any signed contracts yet.
+                    Your signed contracts will appear here.
                   </p>
                 </CardContent>
               </Card>

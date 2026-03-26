@@ -232,6 +232,20 @@ export const portalStorage = {
     return result;
   },
 
+  async rejectChangeOrder(id: number, rejectionReason: string): Promise<ChangeOrder | undefined> {
+    const [result] = await db
+      .update(changeOrders)
+      .set({
+        status: "rejected",
+        rejection_reason: rejectionReason,
+        decided_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where(eq(changeOrders.id, id))
+      .returning();
+    return result;
+  },
+
   // ── PROJECT DELIVERIES (CLIENT VIEW) ────────
 
   async getClientProjectDeliveries(projectId: number): Promise<ProjectDeliveryWithPhase[]> {

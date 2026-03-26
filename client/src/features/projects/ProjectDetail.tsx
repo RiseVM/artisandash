@@ -15,6 +15,7 @@ import {
   useChangeOrders,
 } from "./hooks";
 import { useAuth } from "@/features/auth/hooks";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +59,9 @@ import {
   Loader2,
   User,
   Calendar,
+  Globe,
+  ExternalLink,
+  MessageCircle,
   CheckCircle,
   Circle,
   Clock,
@@ -107,6 +111,29 @@ export function ProjectDetail() {
 
   const { data: project, isLoading } = useProject(projectId);
   const { data: changeOrders = [] } = useChangeOrders(projectId);
+
+  // Portal access for the project's customer
+  const { data: portalAccess } = useQuery<any>({
+    queryKey: ["/api/client-portal-access/customer", project?.customer_id],
+    queryFn: async () => {
+      const res = await fetch(`/api/client-portal-access/customer/${project?.customer_id}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!project?.customer_id,
+  });
+
+  // Unread messages from client
+  const { data: unreadMessages } = useQuery<{ count: number }>({
+    queryKey: ["/api/portal/projects", projectId, "messages", "unread-admin"],
+    queryFn: async () => {
+      const res = await fetch(`/api/portal/projects/${projectId}/messages/unread-count`, { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      return res.json();
+    },
+    enabled: !!projectId && !!portalAccess,
+  });
+
   const updateProjectMutation = useUpdateProject();
   const deleteProjectMutation = useDeleteProject();
   const createPhaseMutation = useCreatePhase();
@@ -468,6 +495,39 @@ export function ProjectDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Client Portal Info */}
+      {portalAccess && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <Globe className="h-5 w-5 text-blue-600" />
+                <div>
+                  <p className="text-sm font-medium">Client Portal Active</p>
+                  <p className="text-xs text-muted-foreground">{portalAccess.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {unreadMessages?.count ? (
+                  <Badge variant="destructive" className="gap-1">
+                    <MessageCircle className="h-3 w-3" />
+                    {unreadMessages.count} unread
+                  </Badge>
+                ) : null}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(`/portal/project/${projectId}`, "_blank")}
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  View as Client
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Phases */}
       <Card>
