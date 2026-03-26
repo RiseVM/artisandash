@@ -39,10 +39,9 @@ export function PortalLayout({ children }: PortalLayoutProps) {
             {/* Logo */}
             <button
               onClick={() => setLocation("/portal")}
-              className="flex flex-col items-start hover:opacity-80 transition-opacity"
+              className="hover:opacity-80 transition-opacity"
             >
-              <span className="text-lg font-bold tracking-wider text-slate-900 leading-tight">ARTISAN</span>
-              <span className="text-[9px] tracking-[0.2em] text-slate-500 uppercase leading-tight">Tile Kitchen & Bath</span>
+              <img src="/logo.jpg" alt="Artisan Tile Kitchen & Bath" className="h-10" />
             </button>
 
             {/* Desktop nav */}

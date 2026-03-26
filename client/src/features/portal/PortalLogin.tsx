@@ -89,8 +89,7 @@ export function PortalLogin() {
       <div className="w-full max-w-md">
         {/* Artisan Tile Branding */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-wider text-slate-900">ARTISAN</h1>
-          <p className="text-xs tracking-[0.3em] text-slate-500 uppercase mt-1">Tile Kitchen & Bath</p>
+          <img src="/logo.jpg" alt="Artisan Tile Kitchen & Bath" className="h-16 mx-auto" />
         </div>
 
         <Card>
