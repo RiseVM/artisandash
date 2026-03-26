@@ -274,7 +274,7 @@ export const portalStorage = {
       .where(
         and(
           eq(projectFiles.project_id, projectId),
-          eq(projectFiles.is_client_visible, "yes"),
+          eq(projectFiles.client_visible, "yes"),
         ),
       )
       .orderBy(desc(projectFiles.created_at));
