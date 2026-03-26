@@ -211,13 +211,12 @@ export function Customers() {
   };
 
   const handleSendInvite = async () => {
-    if (!portalAccess || !newPortalPassword) return;
+    if (!portalAccess) return;
     try {
       await api.post(
         `/api/client-portal-access/${portalAccess.id}/send-invite`,
-        { password: newPortalPassword },
+        {},
       );
-      setNewPortalPassword("");
       toast({
         title: "Invite Sent",
         description: "Portal invite email sent to client.",
@@ -236,12 +235,12 @@ export function Customers() {
     try {
       await api.post(
         `/api/client-portal-access/${portalAccess.id}/reset-password`,
-        { new_password: newPortalPassword, send_email: true },
+        { new_password: newPortalPassword, send_email: false },
       );
       setNewPortalPassword("");
       toast({
-        title: "Password Reset",
-        description: "New password email sent to client.",
+        title: "Password Updated",
+        description: "New password saved successfully.",
       });
     } catch (err: any) {
       toast({
@@ -567,53 +566,45 @@ export function Customers() {
                     </span>{" "}
                     <span className="font-medium">{portalAccess.email}</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSendInvite}
+                  >
+                    <Mail className="h-4 w-4 mr-1" />
+                    Resend Invite
+                  </Button>
+                  <div className="flex gap-2 items-center">
+                    <div className="relative flex-1 max-w-xs">
+                      <Input
+                        className="h-8 pr-8"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="New password"
+                        value={newPortalPassword}
+                        onChange={(e) => setNewPortalPassword(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-0 top-0 h-8 w-8 p-0"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleSendInvite}
+                      onClick={handleResetPassword}
                       disabled={!newPortalPassword}
-                      title={
-                        !newPortalPassword
-                          ? "Enter a password first"
-                          : "Send invite with new password"
-                      }
                     >
-                      <Mail className="h-4 w-4 mr-1" />
-                      Resend Invite
+                      Save Password
                     </Button>
-                    <div className="flex gap-1">
-                      <div className="relative">
-                        <Input
-                          className="w-36 h-8 pr-8"
-                          type={showPassword ? "text" : "password"}
-                          placeholder="New password"
-                          value={newPortalPassword}
-                          onChange={(e) => setNewPortalPassword(e.target.value)}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="absolute right-0 top-0 h-8 w-8 p-0"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? (
-                            <EyeOff className="h-4 w-4" />
-                          ) : (
-                            <Eye className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleResetPassword}
-                        disabled={!newPortalPassword}
-                      >
-                        <Key className="h-4 w-4" />
-                      </Button>
-                    </div>
                   </div>
                 </div>
               ) : showCreatePortal ? (

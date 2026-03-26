@@ -54,29 +54,6 @@ export function QuoteBuilder() {
   const customerSearchRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
 
-  // Break out of Layout's container (max-w-6xl, p-10) by adding override class to parent
-  useEffect(() => {
-    const el = shellRef.current;
-    if (!el) return;
-    // The parent is Layout's <div class="container max-w-6xl mx-auto p-4 md:p-10">
-    const container = el.parentElement;
-    if (container) {
-      container.classList.add("qb-shell-parent");
-      // Also override the <main> overflow so the shell controls its own scroll
-      const main = container.parentElement;
-      if (main && main.tagName === "MAIN") {
-        main.style.overflow = "hidden";
-      }
-    }
-    return () => {
-      if (container) container.classList.remove("qb-shell-parent");
-      const main = container?.parentElement;
-      if (main && main.tagName === "MAIN") {
-        main.style.overflow = "";
-      }
-    };
-  }, []);
-
   const [projectAddress, setProjectAddress] = useState("");
   const [markupPercent, setMarkupPercent] = useState(15);
   const [selectedItems, setSelectedItems] = useState<SelectedItems>({});
@@ -380,34 +357,18 @@ export function QuoteBuilder() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-        /* Override the Layout container to remove max-width & padding for this page */
-        .qb-shell-parent {
-          max-width: none !important;
-          padding: 0 !important;
-          margin: 0 !important;
-          width: 100% !important;
-        }
-        .qb-shell {
+        /* Flex outer wrapper — escapes layout padding completely */
+        .qb-outer {
           display: flex;
-          height: 100vh;
-          overflow: hidden;
-          width: 100%;
           font-family: 'DM Sans', sans-serif;
         }
         @media (max-width: 768px) {
-          .qb-shell {
+          .qb-outer {
             flex-direction: column;
             height: auto;
           }
         }
 
-        /* ── Left panel: uses app theme tokens ── */
-        .qb-configurator {
-          flex: 1;
-          padding: 32px;
-          overflow-y: auto;
-          background: hsl(var(--background));
-        }
 
         .qb-title {
           font-family: 'Playfair Display', serif;
@@ -631,37 +592,15 @@ export function QuoteBuilder() {
           border-bottom: 1px solid hsl(var(--border));
         }
 
-        /* ── Right sidebar: dark panel (kept as-is) ── */
-        .qb-sidebar {
-          width: 380px;
-          min-width: 320px;
-          flex-shrink: 0;
-          background: #111827;
-          color: #fff;
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-        }
-        @media (max-width: 768px) {
-          .qb-sidebar {
-            width: 100%;
-            min-width: unset;
-            height: auto;
-            max-height: 50vh;
-          }
-        }
-        .qb-sidebar-inner {
-          flex: 1;
-          overflow-y: auto;
-          padding: 28px 24px 0;
-        }
-        .qb-sidebar h2 {
+        /* Right sidebar heading */
+        .qb-sidebar-title {
           font-family: 'Playfair Display', serif;
           font-size: 18px;
           font-weight: 500;
           margin: 0 0 20px;
           padding-bottom: 16px;
           border-bottom: 1px solid rgba(255,255,255,0.1);
+          color: #fff;
         }
         .qb-summary-category { margin-bottom: 16px; }
         .qb-summary-cat-name {
@@ -700,13 +639,7 @@ export function QuoteBuilder() {
         }
         .qb-empty-icon { font-size: 28px; margin-bottom: 8px; }
 
-        /* Footer */
-        .qb-totals-footer {
-          padding: 20px 24px;
-          border-top: 1px solid rgba(255,255,255,0.12);
-          background: rgba(0,0,0,0.2);
-          flex-shrink: 0;
-        }
+        /* Footer - totals section */
         .qb-totals-row {
           display: flex;
           justify-content: space-between;
@@ -904,9 +837,9 @@ export function QuoteBuilder() {
         .qb-ghost-btn:hover { color: hsl(var(--foreground)); }
       `}</style>
 
-      <div ref={shellRef} className="qb-shell">
-        {/* ── Left: Configurator ── */}
-        <div className="qb-configurator">
+      <div ref={shellRef} className="-m-4 md:-m-10 flex" style={{ height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
+        {/* ── Left: Configurator — scrollable, standard bg ── */}
+        <div className="flex-1 overflow-y-auto bg-background p-8">
           <div className="qb-title">Build a Quote</div>
           <p className="qb-sub">Click to select services. The final price will be sent to the client — not the line items.</p>
 
@@ -1059,10 +992,10 @@ export function QuoteBuilder() {
             })}
         </div>
 
-        {/* ── Right: Dark Sidebar ── */}
-        <div className="qb-sidebar">
-          <div className="qb-sidebar-inner">
-            <h2>Quote Summary</h2>
+        {/* ── Right: Dark Sidebar — full height, touches right edge ── */}
+        <div style={{ width: '380px', flexShrink: 0, background: '#111827', display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '28px 24px 0' }}>
+            <h2 className="qb-sidebar-title">Quote Summary</h2>
             {categoryBreakdowns.length === 0 ? (
               <div className="qb-empty-state">
                 <div className="qb-empty-icon">✦</div>
@@ -1083,7 +1016,7 @@ export function QuoteBuilder() {
             )}
           </div>
 
-          <div className="qb-totals-footer">
+          <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
             <div className="qb-markup-row">
               <span className="qb-markup-label">Materials markup / buffer</span>
               <input

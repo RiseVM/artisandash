@@ -58,6 +58,7 @@ const statusColors: Record<string, string> = {
   on_hold: "bg-yellow-100 text-yellow-800",
   completed: "bg-blue-100 text-blue-800",
   cancelled: "bg-gray-100 text-gray-800",
+  in_progress: "bg-blue-100 text-blue-800",
 };
 
 const statusLabels: Record<string, string> = {
@@ -65,6 +66,7 @@ const statusLabels: Record<string, string> = {
   on_hold: "On Hold",
   completed: "Completed",
   cancelled: "Cancelled",
+  in_progress: "In Progress",
 };
 
 const phaseStatusIcons: Record<string, React.ReactNode> = {
@@ -214,6 +216,7 @@ export function PortalProject() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/portal/projects", projectId, "change-orders"] });
       setApproveChangeOrder(null);
+      clearCanvas();
       toast({ title: "Change order approved", description: "Your approval has been recorded." });
     },
     onError: (err: any) => {
@@ -466,7 +469,6 @@ export function PortalProject() {
 
           {/* ── Tab 1: Overview ─────────────────── */}
           <TabsContent value="overview" className="space-y-4 mt-4">
-            <h2 className="text-lg font-semibold">Project Phases</h2>
             {project.phases.length === 0 ? (
               <Card>
                 <CardContent className="py-8 text-center">
@@ -475,70 +477,171 @@ export function PortalProject() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-3">
-                {project.phases.map((phase, index) => (
-                  <Card key={phase.id}>
-                    <Collapsible open={expandedPhases.has(phase.id)} onOpenChange={() => togglePhase(phase.id)}>
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors p-3 sm:p-4">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              {expandedPhases.has(phase.id) ? (
-                                <ChevronDown className="h-4 w-4 shrink-0" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 shrink-0" />
-                              )}
-                              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-muted text-xs font-medium shrink-0">
-                                {index + 1}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="font-medium text-sm sm:text-base truncate">{phase.name}</p>
-                                {phase.description && (
-                                  <p className="text-xs text-muted-foreground truncate">{phase.description}</p>
-                                )}
+              <>
+                {/* Progress Summary */}
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-medium">
+                        Your project is {project.progress || 0}% complete
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Currently in: {project.phases.find((p) => p.status === "in_progress")?.name || "Not started"}
+                      </p>
+                    </div>
+                    <Progress value={project.progress || 0} className="h-2" />
+                  </div>
+
+                  {/* Completed Phases Summary */}
+                  {(() => {
+                    const completedPhases = project.phases.filter((p) => p.client_visible === "yes" && p.status === "completed");
+                    return completedPhases.length > 0 ? (
+                      <Collapsible defaultOpen={false}>
+                        <CollapsibleTrigger className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                          <CheckCircle2 className="h-3 w-3 text-green-500" />
+                          ✓ {completedPhases.length} phase{completedPhases.length !== 1 ? "s" : ""} completed
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-2">
+                          <div className="space-y-1">
+                            {completedPhases.map((phase) => (
+                              <div key={phase.id} className="text-xs text-muted-foreground flex items-center gap-2">
+                                <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                                <span>{phase.name}</span>
                               </div>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              {phaseStatusIcons[phase.status]}
-                              <span className="text-xs text-muted-foreground hidden sm:inline">
-                                {phaseStatusLabels[phase.status]}
-                              </span>
-                              <div className="flex items-center gap-1 min-w-[70px]">
-                                <Progress value={phase.progress} className="h-2 w-12 sm:w-16" />
-                                <span className="text-xs text-muted-foreground w-8 text-right">{phase.progress}%</span>
-                              </div>
-                            </div>
+                            ))}
                           </div>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 pb-3">
-                          {phase.tasks.length === 0 ? (
-                            <p className="text-sm text-muted-foreground py-2">No tasks in this phase.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {phase.tasks.map((task) => (
-                                <div key={task.id} className="flex items-center gap-3 p-2 sm:p-3 rounded-lg border bg-background">
-                                  {task.status === "completed" ? (
-                                    <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                                  ) : task.status === "in_progress" ? (
-                                    <Clock className="h-4 w-4 text-blue-500 shrink-0" />
-                                  ) : (
-                                    <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
-                                  )}
-                                  <span className={cn("text-sm flex-1", task.status === "completed" && "line-through text-muted-foreground")}>
-                                    {task.name}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ) : null;
+                  })()}
+                </div>
+
+                {/* Current/Active Phase Card */}
+                {(() => {
+                  const activePhase = project.phases.find((p) => p.client_visible === "yes" && p.status === "in_progress");
+                  const clientVisiblePhases = project.phases.filter((p) => p.client_visible === "yes");
+                  const firstPhase = clientVisiblePhases.length > 0 ? clientVisiblePhases[0] : null;
+                  const currentPhase = activePhase || (project.phases.some((p) => p.status === "in_progress") ? null : firstPhase);
+
+                  if (!currentPhase) {
+                    return (
+                      <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+                        <CardContent className="py-8 text-center">
+                          <p className="text-lg font-semibold text-green-800">🎉 All phases complete!</p>
+                          <p className="text-sm text-green-700 mt-1">Great work on finishing your project.</p>
                         </CardContent>
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </Card>
-                ))}
-              </div>
+                      </Card>
+                    );
+                  }
+
+                  const clientVisibleTasks = currentPhase.tasks.filter((t) => t.client_visible === "yes");
+
+                  return (
+                    <Card className={cn(activePhase ? "border-l-4 border-l-blue-500 bg-blue-50/30" : "")}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {phaseStatusIcons[currentPhase.status]}
+                              <CardTitle className="text-base">{currentPhase.name}</CardTitle>
+                            </div>
+                            {currentPhase.description && (
+                              <CardDescription className="text-xs">{currentPhase.description}</CardDescription>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-xs text-muted-foreground">{currentPhase.progress || 0}% complete</p>
+                            <Progress value={currentPhase.progress || 0} className="h-1 w-20 mt-1" />
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {/* Tasks */}
+                        {clientVisibleTasks.length > 0 && (
+                          <div className="space-y-2">
+                            {clientVisibleTasks.map((task) => (
+                              <div key={task.id} className="flex items-center gap-2 text-sm">
+                                {task.status === "completed" ? (
+                                  <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                                ) : (
+                                  <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
+                                )}
+                                <span className={cn(task.status === "completed" && "line-through text-muted-foreground")}>
+                                  {task.name}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Estimated End Date */}
+                        {currentPhase.estimated_end_date && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>Estimated completion: {format(new Date(currentPhase.estimated_end_date), "MMM d, yyyy")}</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
+
+                {/* Next Phase Preview */}
+                {(() => {
+                  const activePhaseIndex = project.phases.findIndex(
+                    (p) => p.client_visible === "yes" && p.status === "in_progress"
+                  );
+                  const clientVisiblePhases = project.phases.filter((p) => p.client_visible === "yes");
+                  const nextPhase =
+                    activePhaseIndex >= 0
+                      ? clientVisiblePhases[clientVisiblePhases.findIndex((p) => p.id === project.phases[activePhaseIndex].id) + 1]
+                      : null;
+
+                  if (!nextPhase && activePhaseIndex < 0) {
+                    // Project hasn't started, show first phase as "Up Next"
+                    const firstPhase = clientVisiblePhases[0];
+                    return firstPhase ? (
+                      <Card className="bg-muted/30">
+                        <CardContent className="py-3 px-4">
+                          <p className="text-sm font-medium mb-1">Up next:</p>
+                          <p className="text-base font-semibold">{firstPhase.name}</p>
+                        </CardContent>
+                      </Card>
+                    ) : null;
+                  }
+
+                  return nextPhase ? (
+                    <Card className="bg-muted/30">
+                      <CardContent className="py-3 px-4">
+                        <p className="text-sm font-medium mb-1">Up next:</p>
+                        <p className="text-base font-semibold">{nextPhase.name}</p>
+                      </CardContent>
+                    </Card>
+                  ) : null;
+                })()}
+
+                {/* More Phases Ahead */}
+                {(() => {
+                  const activePhaseIndex = project.phases.findIndex(
+                    (p) => p.client_visible === "yes" && p.status === "in_progress"
+                  );
+                  const clientVisiblePhases = project.phases.filter((p) => p.client_visible === "yes");
+                  const nextPhaseIndex =
+                    activePhaseIndex >= 0
+                      ? clientVisiblePhases.findIndex((p) => p.id === project.phases[activePhaseIndex].id) + 1
+                      : 0;
+                  const phasesAfterNext = clientVisiblePhases.length - nextPhaseIndex - 1;
+
+                  if (phasesAfterNext > 0) {
+                    return (
+                      <p className="text-xs text-muted-foreground text-center">
+                        {phasesAfterNext} more phase{phasesAfterNext !== 1 ? "s" : ""} ahead
+                      </p>
+                    );
+                  }
+                  return null;
+                })()}
+              </>
             )}
           </TabsContent>
 
