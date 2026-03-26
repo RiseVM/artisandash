@@ -393,7 +393,6 @@ export function QuoteBuilder() {
           overflow: hidden;
           width: 100%;
           font-family: 'DM Sans', sans-serif;
-          color: #1c1c1c;
         }
         @media (max-width: 768px) {
           .qb-shell {
@@ -402,11 +401,12 @@ export function QuoteBuilder() {
           }
         }
 
+        /* ── Left panel: uses app theme tokens ── */
         .qb-configurator {
           flex: 1;
           padding: 32px;
           overflow-y: auto;
-          background: transparent;
+          background: hsl(var(--background));
         }
 
         .qb-title {
@@ -414,10 +414,10 @@ export function QuoteBuilder() {
           font-size: 28px;
           font-weight: 700;
           margin-bottom: 4px;
-          color: #1c1c1c;
+          color: hsl(var(--foreground));
         }
         .qb-sub {
-          color: #6b6560;
+          color: hsl(var(--muted-foreground));
           font-size: 13px;
           margin-bottom: 28px;
         }
@@ -427,13 +427,13 @@ export function QuoteBuilder() {
           gap: 12px;
           margin-bottom: 28px;
           padding-bottom: 28px;
-          border-bottom: 1px solid #e2dcd5;
+          border-bottom: 1px solid hsl(var(--border));
         }
         .qb-client-selected {
           display: flex;
           align-items: center;
           gap: 12px;
-          background: #e8f3ed;
+          background: hsl(var(--accent));
           border-radius: 8px;
           padding: 10px 14px;
           flex: 1;
@@ -441,25 +441,25 @@ export function QuoteBuilder() {
         .qb-input {
           flex: 1;
           padding: 10px 14px;
-          border: 1px solid #e2dcd5;
+          border: 1px solid hsl(var(--border));
           border-radius: 6px;
           font-family: 'DM Sans', sans-serif;
           font-size: 14px;
-          background: #faf8f5;
-          color: #1c1c1c;
+          background: hsl(var(--card));
+          color: hsl(var(--foreground));
           outline: none;
           transition: border-color 0.15s;
         }
-        .qb-input:focus { border-color: #8b6f47; }
-        .qb-input::placeholder { color: #aaa; }
+        .qb-input:focus { border-color: hsl(var(--primary)); }
+        .qb-input::placeholder { color: hsl(var(--muted-foreground)); }
         .qb-input-search {
           padding-left: 36px;
         }
 
         .qb-category {
           margin-bottom: 20px;
-          background: #faf8f5;
-          border: 1px solid #e2dcd5;
+          background: hsl(var(--card));
+          border: 1px solid hsl(var(--border));
           border-radius: 10px;
           overflow: hidden;
         }
@@ -471,11 +471,11 @@ export function QuoteBuilder() {
           padding: 14px 18px;
           cursor: pointer;
           user-select: none;
-          border-bottom: 1px solid #e2dcd5;
+          border-bottom: 1px solid hsl(var(--border));
           gap: 12px;
           transition: background 0.1s;
         }
-        .qb-cat-header:hover { background: #f4f0eb; }
+        .qb-cat-header:hover { background: hsl(var(--muted)); }
 
         .qb-cat-left {
           display: flex;
@@ -497,10 +497,11 @@ export function QuoteBuilder() {
           font-size: 14px;
           font-weight: 600;
           margin: 0;
+          color: hsl(var(--foreground));
         }
         .qb-cat-info p {
           font-size: 12px;
-          color: #6b6560;
+          color: hsl(var(--muted-foreground));
           margin: 1px 0 0;
         }
         .qb-cat-meta {
@@ -509,7 +510,7 @@ export function QuoteBuilder() {
         }
         .qb-cat-selected {
           font-size: 11px;
-          color: #8b6f47;
+          color: hsl(var(--primary));
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.06em;
@@ -517,10 +518,10 @@ export function QuoteBuilder() {
         .qb-cat-total {
           font-size: 13px;
           font-weight: 600;
-          color: #3d7a5c;
+          color: #16a34a;
         }
         .qb-cat-chevron {
-          color: #6b6560;
+          color: hsl(var(--muted-foreground));
           font-size: 12px;
           transition: transform 0.2s;
           flex-shrink: 0;
@@ -531,7 +532,7 @@ export function QuoteBuilder() {
           padding: 4px 0;
         }
 
-        /* Line items */
+        /* Line items — standard theme hover/selection */
         .qb-line-item {
           display: flex;
           align-items: flex-start;
@@ -539,23 +540,23 @@ export function QuoteBuilder() {
           padding: 11px 18px;
           cursor: pointer;
           transition: background 0.1s;
-          border-bottom: 1px solid #e2dcd5;
+          border-bottom: 1px solid hsl(var(--border));
         }
         .qb-line-item:last-child { border-bottom: none; }
-        .qb-line-item:hover { background: #f4f0eb; }
-        .qb-line-item.selected { background: #e8f3ed; }
-        .qb-line-item.selected:hover { background: #daeee4; }
+        .qb-line-item:hover { background: hsl(var(--muted)); }
+        .qb-line-item.selected { background: hsl(var(--accent)); }
+        .qb-line-item.selected:hover { background: hsl(var(--accent)); }
 
         .qb-line-item.is-option {
           padding-left: 40px;
-          background: #fdfcfa;
+          background: hsl(var(--card));
         }
-        .qb-line-item.is-option.selected { background: #e8f3ed; }
+        .qb-line-item.is-option.selected { background: hsl(var(--accent)); }
 
         .qb-checkbox {
           width: 18px;
           height: 18px;
-          border: 2px solid #ccc;
+          border: 2px solid hsl(var(--border));
           border-radius: 4px;
           flex-shrink: 0;
           margin-top: 1px;
@@ -563,21 +564,21 @@ export function QuoteBuilder() {
           align-items: center;
           justify-content: center;
           transition: all 0.15s;
-          background: #fff;
+          background: hsl(var(--card));
           font-size: 11px;
           font-weight: 700;
           color: transparent;
         }
         .qb-line-item.selected .qb-checkbox {
-          background: #3d7a5c;
-          border-color: #3d7a5c;
-          color: #fff;
+          background: hsl(var(--primary));
+          border-color: hsl(var(--primary));
+          color: hsl(var(--primary-foreground));
         }
 
         .qb-radio {
           width: 18px;
           height: 18px;
-          border: 2px solid #ccc;
+          border: 2px solid hsl(var(--border));
           border-radius: 50%;
           flex-shrink: 0;
           margin-top: 1px;
@@ -585,9 +586,9 @@ export function QuoteBuilder() {
           align-items: center;
           justify-content: center;
           transition: all 0.15s;
-          background: #fff;
+          background: hsl(var(--card));
         }
-        .qb-line-item.selected .qb-radio { border-color: #3d7a5c; }
+        .qb-line-item.selected .qb-radio { border-color: hsl(var(--primary)); }
         .qb-radio-dot {
           width: 8px;
           height: 8px;
@@ -595,28 +596,29 @@ export function QuoteBuilder() {
           background: transparent;
           transition: background 0.15s;
         }
-        .qb-line-item.selected .qb-radio-dot { background: #3d7a5c; }
+        .qb-line-item.selected .qb-radio-dot { background: hsl(var(--primary)); }
 
         .qb-item-info { flex: 1; }
         .qb-item-name {
           font-size: 13.5px;
           font-weight: 500;
           line-height: 1.3;
+          color: hsl(var(--foreground));
         }
         .qb-item-desc {
           font-size: 12px;
-          color: #6b6560;
+          color: hsl(var(--muted-foreground));
           margin-top: 2px;
           line-height: 1.4;
         }
         .qb-item-price {
           font-size: 13px;
           font-weight: 600;
-          color: #6b6560;
+          color: hsl(var(--muted-foreground));
           flex-shrink: 0;
           font-variant-numeric: tabular-nums;
         }
-        .qb-line-item.selected .qb-item-price { color: #3d7a5c; }
+        .qb-line-item.selected .qb-item-price { color: #16a34a; }
 
         .qb-section-label {
           padding: 8px 18px 4px;
@@ -624,17 +626,17 @@ export function QuoteBuilder() {
           font-weight: 700;
           letter-spacing: 0.1em;
           text-transform: uppercase;
-          color: #6b6560;
-          background: #fdfcfa;
-          border-bottom: 1px solid #e2dcd5;
+          color: hsl(var(--muted-foreground));
+          background: hsl(var(--muted));
+          border-bottom: 1px solid hsl(var(--border));
         }
 
-        /* ── Sidebar ── */
+        /* ── Right sidebar: dark panel (kept as-is) ── */
         .qb-sidebar {
           width: 380px;
           min-width: 320px;
           flex-shrink: 0;
-          background: #1c1c1c;
+          background: #111827;
           color: #fff;
           display: flex;
           flex-direction: column;
@@ -770,8 +772,8 @@ export function QuoteBuilder() {
 
         .qb-btn-create {
           width: 100%;
-          background: #8b6f47;
-          color: #fff;
+          background: hsl(var(--primary));
+          color: hsl(var(--primary-foreground));
           border: none;
           padding: 13px;
           border-radius: 8px;
@@ -779,11 +781,11 @@ export function QuoteBuilder() {
           font-size: 14px;
           font-weight: 600;
           cursor: pointer;
-          transition: background 0.15s;
+          transition: opacity 0.15s;
           letter-spacing: 0.02em;
           margin-bottom: 10px;
         }
-        .qb-btn-create:hover { background: #7a5f38; }
+        .qb-btn-create:hover { opacity: 0.9; }
         .qb-btn-create:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .qb-btn-reset {
@@ -800,14 +802,14 @@ export function QuoteBuilder() {
         }
         .qb-btn-reset:hover { color: rgba(255,255,255,0.7); border-color: rgba(255,255,255,0.3); }
 
-        /* Customer search dropdown */
+        /* Customer search dropdown — theme tokens */
         .qb-dropdown {
           position: absolute;
           z-index: 50;
           width: 100%;
           margin-top: 4px;
-          background: #fff;
-          border: 1px solid #e2dcd5;
+          background: hsl(var(--card));
+          border: 1px solid hsl(var(--border));
           border-radius: 8px;
           box-shadow: 0 8px 24px rgba(0,0,0,0.1);
           max-height: 240px;
@@ -821,21 +823,22 @@ export function QuoteBuilder() {
           background: none;
           cursor: pointer;
           transition: background 0.1s;
-          border-bottom: 1px solid #f4f0eb;
+          border-bottom: 1px solid hsl(var(--border));
           font-family: 'DM Sans', sans-serif;
+          color: hsl(var(--foreground));
         }
-        .qb-dropdown-item:hover { background: #f4f0eb; }
+        .qb-dropdown-item:hover { background: hsl(var(--muted)); }
         .qb-dropdown-item:last-child { border-bottom: none; }
         .qb-dropdown-create {
           width: 100%;
           text-align: left;
           padding: 10px 14px;
           border: none;
-          border-top: 1px solid #e2dcd5;
+          border-top: 1px solid hsl(var(--border));
           background: none;
           cursor: pointer;
           transition: background 0.1s;
-          color: #8b6f47;
+          color: hsl(var(--primary));
           font-weight: 600;
           font-family: 'DM Sans', sans-serif;
           display: flex;
@@ -843,11 +846,11 @@ export function QuoteBuilder() {
           gap: 8px;
           font-size: 13px;
         }
-        .qb-dropdown-create:hover { background: #f0e8dc; }
+        .qb-dropdown-create:hover { background: hsl(var(--muted)); }
 
         .qb-new-customer-form {
-          background: #faf8f5;
-          border: 1px solid #e2dcd5;
+          background: hsl(var(--muted));
+          border: 1px solid hsl(var(--border));
           border-radius: 8px;
           padding: 14px;
           margin-top: 8px;
@@ -870,10 +873,11 @@ export function QuoteBuilder() {
           display: flex;
           align-items: center;
           gap: 6px;
+          color: hsl(var(--foreground));
         }
         .qb-small-btn {
-          background: #3d7a5c;
-          color: #fff;
+          background: hsl(var(--primary));
+          color: hsl(var(--primary-foreground));
           border: none;
           padding: 8px 16px;
           border-radius: 6px;
@@ -893,11 +897,11 @@ export function QuoteBuilder() {
           border: none;
           cursor: pointer;
           padding: 4px;
-          color: #6b6560;
+          color: hsl(var(--muted-foreground));
           display: flex;
           align-items: center;
         }
-        .qb-ghost-btn:hover { color: #1c1c1c; }
+        .qb-ghost-btn:hover { color: hsl(var(--foreground)); }
       `}</style>
 
       <div ref={shellRef} className="qb-shell">
