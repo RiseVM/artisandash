@@ -357,24 +357,30 @@ export function QuoteBuilder() {
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
         .qb-shell {
-          display: grid;
-          grid-template-columns: 1fr 340px;
-          gap: 0;
-          min-height: calc(100vh - 64px);
+          display: flex;
+          height: 100vh;
+          overflow: hidden;
+          /* Break out of Layout container padding & max-width */
           margin: -1rem -1rem -1rem -1rem;
-          /* Break out of Layout container padding */
-          margin: -1.5rem -2.5rem;
+          margin: -2.5rem -2.5rem;
+          width: calc(100% + 5rem);
           font-family: 'DM Sans', sans-serif;
           color: #1c1c1c;
         }
         @media (max-width: 768px) {
-          .qb-shell { margin: -1rem; }
+          .qb-shell {
+            margin: -1rem;
+            width: calc(100% + 2rem);
+            flex-direction: column;
+            height: auto;
+          }
         }
 
         .qb-configurator {
+          flex: 1;
           padding: 32px;
           overflow-y: auto;
-          background: #f4f0eb;
+          background: transparent;
         }
 
         .qb-title {
@@ -599,13 +605,20 @@ export function QuoteBuilder() {
 
         /* ── Sidebar ── */
         .qb-sidebar {
+          width: 340px;
+          flex-shrink: 0;
           background: #1c1c1c;
           color: #fff;
           display: flex;
           flex-direction: column;
-          position: sticky;
-          top: 0;
-          height: calc(100vh - 64px);
+          height: 100%;
+        }
+        @media (max-width: 768px) {
+          .qb-sidebar {
+            width: 100%;
+            height: auto;
+            max-height: 50vh;
+          }
         }
         .qb-sidebar-inner {
           flex: 1;
@@ -662,6 +675,7 @@ export function QuoteBuilder() {
           padding: 20px 24px;
           border-top: 1px solid rgba(255,255,255,0.12);
           background: rgba(0,0,0,0.2);
+          flex-shrink: 0;
         }
         .qb-totals-row {
           display: flex;
