@@ -1016,7 +1016,7 @@ export function QuoteBuilder() {
             )}
           </div>
 
-          <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
+          <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0, background: 'rgba(0,0,0,0.2)' }}>
             <div className="qb-markup-row">
               <span className="qb-markup-label">Materials markup / buffer</span>
               <input
