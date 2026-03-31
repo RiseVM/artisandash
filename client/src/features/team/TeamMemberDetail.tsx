@@ -47,7 +47,7 @@ const PHASES: { label: string; description: string; sections: string[] }[] = [
   {
     label: "Phase 2: Company Orientation",
     description: "First 3 days",
-    sections: ["Introduction to the Company", "Facility Tour", "How We Work"],
+    sections: ["Introduction to the Company", "Administrative Procedures", "Facility Tour", "How We Work"],
   },
   {
     label: "Phase 3: Policies & Standards",

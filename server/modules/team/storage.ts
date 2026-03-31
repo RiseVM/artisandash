@@ -17,52 +17,72 @@ import {
 // Based on ATK&B new hire documents, HR/legal/payroll items stripped.
 const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
   // ═══ PHASE 1: New Hire Preparation (before start date) ═══
+  // Source: Checklist-New-Hire-Preparation.docx — Admin Services section
 
   // Workspace & Equipment
   { section: "Workspace & Equipment", item_text: "Office/workspace assigned" },
   { section: "Workspace & Equipment", item_text: "Office/workspace furniture ordered" },
-  { section: "Workspace & Equipment", item_text: "Basic office supplies stocked" },
+  { section: "Workspace & Equipment", item_text: "Basic office supplies ordered" },
   { section: "Workspace & Equipment", item_text: "Phone/extension assigned" },
-  { section: "Workspace & Equipment", item_text: "Keys/building access provided" },
+  { section: "Workspace & Equipment", item_text: "Keys for office/building assigned" },
   { section: "Workspace & Equipment", item_text: "Name badge created" },
-  { section: "Workspace & Equipment", item_text: "Cell phone assigned (if applicable)" },
-  { section: "Workspace & Equipment", item_text: "Business cards ordered (if applicable)" },
+  { section: "Workspace & Equipment", item_text: "Cell phone assigned" },
+  { section: "Workspace & Equipment", item_text: "Business cards ordered" },
 
-  // Systems & Access
-  { section: "Systems & Access", item_text: "Computer/laptop assigned" },
+  // Systems & Access — Source: Preparation doc — Information Technology section
+  { section: "Systems & Access", item_text: "Computer/Laptop assigned" },
   { section: "Systems & Access", item_text: "Necessary software installed" },
-  { section: "Systems & Access", item_text: "Monitor/keyboard/mouse set up" },
-  { section: "Systems & Access", item_text: "Printer/copier access set up" },
-  { section: "Systems & Access", item_text: "Network access and passwords created" },
+  { section: "Systems & Access", item_text: "Monitor/Keyboard/Mouse assigned" },
+  { section: "Systems & Access", item_text: "Printer/Fax/Copier access created" },
+  { section: "Systems & Access", item_text: "Network access/passwords created" },
   { section: "Systems & Access", item_text: "Email account created" },
   { section: "Systems & Access", item_text: "Artisan Dash account created and access confirmed" },
 
-  // Day One Preparation
+  // Day One Preparation — Source: Preparation doc — Human Resources (operational items only)
   { section: "Day One Preparation", item_text: "Start date confirmed" },
   { section: "Day One Preparation", item_text: "New hire orientation scheduled" },
-  { section: "Day One Preparation", item_text: "Buddy or point-of-contact assigned" },
-  { section: "Day One Preparation", item_text: "New hire announcement shared with team" },
+  { section: "Day One Preparation", item_text: "New hire paperwork packet prepared" },
+  { section: "Day One Preparation", item_text: "Buddy assigned" },
+  { section: "Day One Preparation", item_text: "New hire announcement written" },
   { section: "Day One Preparation", item_text: "Workspace ready for first day" },
 
   // ═══ PHASE 2: Company Orientation (first 3 days) ═══
+  // Source: Checklist-New-Hire-Orientation.docx
 
   // Introduction to the Company
-  { section: "Introduction to the Company", item_text: "Company overview and history" },
-  { section: "Introduction to the Company", item_text: "Company culture and values" },
+  { section: "Introduction to the Company", item_text: "Company overview" },
+  { section: "Introduction to the Company", item_text: "Company culture" },
   { section: "Introduction to the Company", item_text: "Organization mission" },
-  { section: "Introduction to the Company", item_text: "Organizational chart reviewed" },
-  { section: "Introduction to the Company", item_text: "Meet the team — introductions to all staff" },
+  { section: "Introduction to the Company", item_text: "Corporate literature/video" },
+  { section: "Introduction to the Company", item_text: "Organizational chart" },
 
-  // Facility Tour
+  // Administrative Procedures — Source: Orientation doc
+  { section: "Administrative Procedures", item_text: "Office/desk/workstation" },
+  { section: "Administrative Procedures", item_text: "Computer username and password" },
+  { section: "Administrative Procedures", item_text: "E-mail" },
+  { section: "Administrative Procedures", item_text: "Keys/access card" },
+  { section: "Administrative Procedures", item_text: "ID badge" },
+  { section: "Administrative Procedures", item_text: "Mail (incoming and outgoing)" },
+  { section: "Administrative Procedures", item_text: "Business cards" },
+  { section: "Administrative Procedures", item_text: "Purchase requests" },
+  { section: "Administrative Procedures", item_text: "Telephones" },
+  { section: "Administrative Procedures", item_text: "Conference rooms" },
+  { section: "Administrative Procedures", item_text: "Expense reports" },
+
+  // Facility Tour — Source: Orientation doc — Introductions and Tours
+  { section: "Facility Tour", item_text: "Department staff and key personnel" },
   { section: "Facility Tour", item_text: "Restrooms" },
-  { section: "Facility Tour", item_text: "Break room and kitchen" },
-  { section: "Facility Tour", item_text: "Office supplies and where to find them" },
-  { section: "Facility Tour", item_text: "Copy center (printers, fax, scanner)" },
-  { section: "Facility Tour", item_text: "Bulletin board and communications board" },
+  { section: "Facility Tour", item_text: "Mailroom" },
+  { section: "Facility Tour", item_text: "Copy center: printers, fax machines, scanner" },
+  { section: "Facility Tour", item_text: "Bulletin board" },
   { section: "Facility Tour", item_text: "Parking" },
-  { section: "Facility Tour", item_text: "Emergency exits and evacuation plan" },
+  { section: "Facility Tour", item_text: "Office supplies" },
+  { section: "Facility Tour", item_text: "Break room" },
+  { section: "Facility Tour", item_text: "Coffee/vending machines" },
+  { section: "Facility Tour", item_text: "Watercoolers" },
+  { section: "Facility Tour", item_text: "Emergency exits" },
 
-  // How We Work
+  // How We Work — ATK&B custom (not from documents)
   { section: "How We Work", item_text: "Daily workflow and communication norms" },
   { section: "How We Work", item_text: "How projects are managed (Artisan Dash walkthrough)" },
   { section: "How We Work", item_text: "How to handle client calls and inquiries" },
@@ -71,20 +91,24 @@ const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
   { section: "How We Work", item_text: "Who to go to for what (internal contacts)" },
 
   // ═══ PHASE 3: Policies & Standards (first week) ═══
+  // Source: Orientation doc — Key Policy Review
 
   // Workplace Policies
-  { section: "Workplace Policies", item_text: "Dress code and presentation standards" },
-  { section: "Workplace Policies", item_text: "Confidentiality and client privacy" },
-  { section: "Workplace Policies", item_text: "Security procedures" },
+  { section: "Workplace Policies", item_text: "Anti-harassment/discrimination" },
+  { section: "Workplace Policies", item_text: "Vacation and sick leave" },
+  { section: "Workplace Policies", item_text: "FMLA/leaves of absence and paid leave" },
+  { section: "Workplace Policies", item_text: "Overtime" },
+  { section: "Workplace Policies", item_text: "Dress code" },
   { section: "Workplace Policies", item_text: "Personal conduct standards" },
-  { section: "Workplace Policies", item_text: "Email and phone usage policy" },
+  { section: "Workplace Policies", item_text: "Progressive discipline" },
+  { section: "Workplace Policies", item_text: "Security" },
+  { section: "Workplace Policies", item_text: "Confidentiality" },
 
-  // Safety & Procedures
-  { section: "Safety & Procedures", item_text: "Safety procedures overview" },
-  { section: "Safety & Procedures", item_text: "How to report an issue or injury" },
+  // Safety & Procedures — Source: Orientation doc — Key Policy Review (safety items)
+  { section: "Safety & Procedures", item_text: "Safety" },
+  { section: "Safety & Procedures", item_text: "Injury reporting" },
   { section: "Safety & Procedures", item_text: "Emergency procedures and fire safety" },
-  { section: "Safety & Procedures", item_text: "Expense reporting process" },
-  { section: "Safety & Procedures", item_text: "Purchase request process" },
+  { section: "Safety & Procedures", item_text: "E-mail and Internet usage" },
 ];
 
 export const teamStorage = {
