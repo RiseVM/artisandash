@@ -415,8 +415,9 @@ export function PortalProject() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start gap-3 sm:gap-4">
-          <Button variant="ghost" size="icon" className="shrink-0 mt-1" onClick={() => setLocation("/portal")}>
-            <ArrowLeft className="h-4 w-4" />
+          <Button variant="outline" size="sm" className="shrink-0 mt-1" onClick={() => setLocation("/portal")}>
+            <ArrowLeft className="h-4 w-4 mr-1.5" />
+            Dashboard
           </Button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-1">
