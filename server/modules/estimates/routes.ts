@@ -61,7 +61,24 @@ export function registerEstimateRoutes(app: Express) {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid estimate ID" });
 
-      const data = insertEstimateSchema.partial().parse(req.body);
+      const data: any = insertEstimateSchema.partial().parse(req.body);
+
+      // Record timestamps on status transitions
+      if (data.status) {
+        const existing = await storage.getEstimateBasic(id);
+        if (existing && existing.status !== data.status) {
+          if (data.status === "sent" && !existing.sent_at) {
+            data.sent_at = new Date();
+          }
+          if (data.status === "approved" && !existing.approved_at) {
+            data.approved_at = new Date();
+          }
+          if (data.status === "expired" && !existing.expired_at) {
+            data.expired_at = new Date();
+          }
+        }
+      }
+
       const estimate = await storage.updateEstimate(id, data);
       if (!estimate) return res.status(404).json({ error: "Estimate not found" });
 

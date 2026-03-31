@@ -1220,6 +1220,10 @@ export const estimates = pgTable("estimates", {
   // Dates
   issue_date: text("issue_date"),
   expiry_date: text("expiry_date"),
+  valid_until: text("valid_until"),
+  sent_at: timestamp("sent_at"),
+  approved_at: timestamp("approved_at"),
+  expired_at: timestamp("expired_at"),
 
   // Totals (recalculated from line items)
   subtotal: numeric("subtotal", { precision: 12, scale: 2 }).default("0").notNull(),
@@ -1317,6 +1321,9 @@ export const entityNotes = pgTable("entity_notes", {
   // Content
   content: text("content").notNull(),
   note_type: text("note_type").default("general").notNull(), // general | follow_up | warning | important
+
+  // Visibility
+  is_internal: text("is_internal").default("no").notNull(), // yes | no — if yes, never shown to client
 
   // Pin support
   is_pinned: text("is_pinned").default("no").notNull(), // yes | no

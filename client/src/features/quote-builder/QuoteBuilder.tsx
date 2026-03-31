@@ -256,6 +256,7 @@ export function QuoteBuilder() {
         ? `${selectedCustomer.name} — ${projectAddress.trim()}`
         : selectedCustomer.name;
 
+      // SECURITY: markup notes are always internal — never shown to client
       const internalNotes = `Markup: ${markupPercent}%\nCost Subtotal: $${costSubtotal.toLocaleString()}\n\nCost Breakdown:\n${categoryBreakdowns.map((b) => `${b.category.name}: $${b.costTotal.toLocaleString()}\n${b.items.map((i) => `  - ${i.name}: $${i.costPrice.toLocaleString()} → $${i.clientPrice.toLocaleString()}`).join("\n")}`).join("\n\n")}`;
 
       const estimate = await createEstimateMutation.mutateAsync({

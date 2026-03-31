@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -35,12 +36,15 @@ import {
   Clock,
   AlertCircle,
   MessageSquare,
+  ShieldAlert,
 } from "lucide-react";
 import type { EntityNoteWithUser, EntityNote } from "@shared/schema";
 
 interface NotesPanelProps {
   entityType: "project" | "customer" | "estimate" | "checkout";
   entityId: number;
+  /** If true, the "Internal note" checkbox defaults to checked for new notes */
+  defaultInternal?: boolean;
 }
 
 const noteTypeIcons: Record<string, React.ReactNode> = {
@@ -64,7 +68,7 @@ const noteTypeLabels: Record<string, string> = {
   important: "Important",
 };
 
-export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
+export function NotesPanel({ entityType, entityId, defaultInternal = false }: NotesPanelProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const queryKey = ["notes", entityType, entityId];
@@ -95,14 +99,20 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
   const [deleteNote, setDeleteNote] = useState<EntityNoteWithUser | null>(null);
   const [newContent, setNewContent] = useState("");
   const [newType, setNewType] = useState("general");
+  const [newIsInternal, setNewIsInternal] = useState(defaultInternal);
   const [editContent, setEditContent] = useState("");
 
   const handleAdd = async () => {
     if (!newContent.trim()) return;
     try {
-      await createMutation.mutateAsync({ content: newContent, note_type: newType });
+      await createMutation.mutateAsync({
+        content: newContent,
+        note_type: newType,
+        is_internal: newIsInternal ? "yes" : "no",
+      });
       setNewContent("");
       setNewType("general");
+      setNewIsInternal(defaultInternal);
       setIsAdding(false);
       toast({ title: "Note Added" });
     } catch (err: any) {
@@ -161,7 +171,7 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
         {/* Add Note Form */}
         {isAdding && (
           <div className="mb-4 space-y-3 p-3 border rounded-lg bg-muted/30">
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <Select value={newType} onValueChange={setNewType}>
                 <SelectTrigger className="w-32">
                   <SelectValue />
@@ -173,6 +183,17 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
                   <SelectItem value="important">Important</SelectItem>
                 </SelectContent>
               </Select>
+              <div className="flex items-center gap-2 ml-auto">
+                <Checkbox
+                  id="is-internal"
+                  checked={newIsInternal}
+                  onCheckedChange={(checked) => setNewIsInternal(!!checked)}
+                />
+                <label htmlFor="is-internal" className="text-xs font-medium text-orange-600 cursor-pointer flex items-center gap-1">
+                  <ShieldAlert className="h-3 w-3" />
+                  Internal note (never shown to client)
+                </label>
+              </div>
             </div>
             <Textarea
               placeholder="Write a note..."
@@ -227,6 +248,12 @@ export function NotesPanel({ entityType, entityId }: NotesPanelProps) {
                           <span className="mr-1">{noteTypeIcons[note.note_type]}</span>
                           {noteTypeLabels[note.note_type]}
                         </Badge>
+                        {(note as any).is_internal === "yes" && (
+                          <Badge className="text-xs bg-orange-100 text-orange-700 border border-orange-300">
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                            Internal Only
+                          </Badge>
+                        )}
                         {note.is_pinned === "yes" && (
                           <Pin className="h-3 w-3 text-amber-500" />
                         )}

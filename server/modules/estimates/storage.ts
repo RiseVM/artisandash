@@ -74,6 +74,11 @@ export const storage = {
     };
   },
 
+  async getEstimateBasic(id: number): Promise<Estimate | undefined> {
+    const [row] = await db.select().from(estimates).where(eq(estimates.id, id));
+    return row;
+  },
+
   // ── Mutations ─────────────────────────────────
   async createEstimate(data: InsertEstimate): Promise<Estimate> {
     const [row] = await db.insert(estimates).values(data).returning();
