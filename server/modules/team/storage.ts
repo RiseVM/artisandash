@@ -16,38 +16,43 @@ import {
 // ── Default checklist items seeded for every new team member ──
 // Based on ATK&B new hire documents, HR/legal/payroll items stripped.
 const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
-  // ═══ PHASE 1: New Hire Preparation (before start date) ═══
-  // Source: Checklist-New-Hire-Preparation.docx — Admin Services section
+  // ═══ DOC 1: New Hire Preparation ═══
+  // Source: Checklist-New-Hire-Preparation.docx (done before start date)
 
-  // Workspace & Equipment
-  { section: "Workspace & Equipment", item_text: "Office/workspace assigned" },
-  { section: "Workspace & Equipment", item_text: "Office/workspace furniture ordered" },
-  { section: "Workspace & Equipment", item_text: "Basic office supplies ordered" },
-  { section: "Workspace & Equipment", item_text: "Phone/extension assigned" },
-  { section: "Workspace & Equipment", item_text: "Keys for office/building assigned" },
-  { section: "Workspace & Equipment", item_text: "Name badge created" },
-  { section: "Workspace & Equipment", item_text: "Cell phone assigned" },
-  { section: "Workspace & Equipment", item_text: "Business cards ordered" },
+  // Human Resources
+  { section: "Human Resources", item_text: "Resume received" },
+  { section: "Human Resources", item_text: "Application form completed" },
+  { section: "Human Resources", item_text: "References checked" },
+  { section: "Human Resources", item_text: "Drug test completed, if applicable" },
+  { section: "Human Resources", item_text: "Background check completed, if applicable" },
+  { section: "Human Resources", item_text: "Written job offer accepted" },
+  { section: "Human Resources", item_text: "Pre-placement physical passed, if applicable" },
+  { section: "Human Resources", item_text: "Start date confirmed" },
+  { section: "Human Resources", item_text: "New hire announcement written" },
+  { section: "Human Resources", item_text: "New hire orientation scheduled" },
+  { section: "Human Resources", item_text: "New hire paperwork packet prepared" },
+  { section: "Human Resources", item_text: "Buddy assigned" },
 
-  // Systems & Access — Source: Preparation doc — Information Technology section
-  { section: "Systems & Access", item_text: "Computer/Laptop assigned" },
-  { section: "Systems & Access", item_text: "Necessary software installed" },
-  { section: "Systems & Access", item_text: "Monitor/Keyboard/Mouse assigned" },
-  { section: "Systems & Access", item_text: "Printer/Fax/Copier access created" },
-  { section: "Systems & Access", item_text: "Network access/passwords created" },
-  { section: "Systems & Access", item_text: "Email account created" },
-  { section: "Systems & Access", item_text: "Artisan Dash account created and access confirmed" },
+  // Admin Services
+  { section: "Admin Services", item_text: "Office/workspace assigned" },
+  { section: "Admin Services", item_text: "Office/workspace furniture ordered" },
+  { section: "Admin Services", item_text: "Basic office supplies ordered" },
+  { section: "Admin Services", item_text: "Phone/extension assigned" },
+  { section: "Admin Services", item_text: "Keys for office/building assigned" },
+  { section: "Admin Services", item_text: "Name badge created" },
+  { section: "Admin Services", item_text: "Cell phone assigned" },
+  { section: "Admin Services", item_text: "Business cards ordered" },
 
-  // Day One Preparation — Source: Preparation doc — Human Resources (operational items only)
-  { section: "Day One Preparation", item_text: "Start date confirmed" },
-  { section: "Day One Preparation", item_text: "New hire orientation scheduled" },
-  { section: "Day One Preparation", item_text: "New hire paperwork packet prepared" },
-  { section: "Day One Preparation", item_text: "Buddy assigned" },
-  { section: "Day One Preparation", item_text: "New hire announcement written" },
-  { section: "Day One Preparation", item_text: "Workspace ready for first day" },
+  // Information Technology
+  { section: "Information Technology", item_text: "Computer/Laptop assigned" },
+  { section: "Information Technology", item_text: "Necessary software installed" },
+  { section: "Information Technology", item_text: "Monitor/Keyboard/Mouse assigned" },
+  { section: "Information Technology", item_text: "Printer/Fax/Copier access created" },
+  { section: "Information Technology", item_text: "Network access/passwords created" },
+  { section: "Information Technology", item_text: "Email account created" },
 
-  // ═══ PHASE 2: Company Orientation (first 3 days) ═══
-  // Source: Checklist-New-Hire-Orientation.docx
+  // ═══ DOC 2: New Hire Orientation ═══
+  // Source: Checklist-New-Hire-Orientation.docx (first 3 days)
 
   // Introduction to the Company
   { section: "Introduction to the Company", item_text: "Company overview" },
@@ -56,7 +61,22 @@ const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
   { section: "Introduction to the Company", item_text: "Corporate literature/video" },
   { section: "Introduction to the Company", item_text: "Organizational chart" },
 
-  // Administrative Procedures — Source: Orientation doc
+  // New-Employee Paperwork
+  { section: "New-Employee Paperwork", item_text: "W-4 and CT State tax forms" },
+  { section: "New-Employee Paperwork", item_text: "I-9 form" },
+  { section: "New-Employee Paperwork", item_text: "Employee handbook" },
+
+  // Benefits and Compensation
+  { section: "Benefits and Compensation", item_text: "Health, life, disability insurance" },
+  { section: "Benefits and Compensation", item_text: "Retirement benefits" },
+  { section: "Benefits and Compensation", item_text: "Dependent care FSA" },
+  { section: "Benefits and Compensation", item_text: "Educational assistance" },
+  { section: "Benefits and Compensation", item_text: "Employee assistance program" },
+  { section: "Benefits and Compensation", item_text: "Pay procedures" },
+  { section: "Benefits and Compensation", item_text: "Salary increase/performance review process" },
+  { section: "Benefits and Compensation", item_text: "Incentive/bonus programs" },
+
+  // Administrative Procedures
   { section: "Administrative Procedures", item_text: "Office/desk/workstation" },
   { section: "Administrative Procedures", item_text: "Computer username and password" },
   { section: "Administrative Procedures", item_text: "E-mail" },
@@ -69,46 +89,63 @@ const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
   { section: "Administrative Procedures", item_text: "Conference rooms" },
   { section: "Administrative Procedures", item_text: "Expense reports" },
 
-  // Facility Tour — Source: Orientation doc — Introductions and Tours
-  { section: "Facility Tour", item_text: "Department staff and key personnel" },
-  { section: "Facility Tour", item_text: "Restrooms" },
-  { section: "Facility Tour", item_text: "Mailroom" },
-  { section: "Facility Tour", item_text: "Copy center: printers, fax machines, scanner" },
-  { section: "Facility Tour", item_text: "Bulletin board" },
-  { section: "Facility Tour", item_text: "Parking" },
-  { section: "Facility Tour", item_text: "Office supplies" },
-  { section: "Facility Tour", item_text: "Break room" },
-  { section: "Facility Tour", item_text: "Coffee/vending machines" },
-  { section: "Facility Tour", item_text: "Watercoolers" },
-  { section: "Facility Tour", item_text: "Emergency exits" },
+  // Key Policy Review
+  { section: "Key Policy Review", item_text: "Anti-harassment/discrimination" },
+  { section: "Key Policy Review", item_text: "Vacation and sick leave" },
+  { section: "Key Policy Review", item_text: "FMLA/leaves of absence and paid leave" },
+  { section: "Key Policy Review", item_text: "Overtime" },
+  { section: "Key Policy Review", item_text: "Dress code" },
+  { section: "Key Policy Review", item_text: "Personal conduct standards" },
+  { section: "Key Policy Review", item_text: "Progressive discipline" },
+  { section: "Key Policy Review", item_text: "Security" },
+  { section: "Key Policy Review", item_text: "Confidentiality" },
+  { section: "Key Policy Review", item_text: "Safety" },
+  { section: "Key Policy Review", item_text: "Injury reporting" },
+  { section: "Key Policy Review", item_text: "Emergency procedures and fire safety" },
+  { section: "Key Policy Review", item_text: "E-mail and Internet usage" },
 
-  // How We Work — ATK&B custom (not from documents)
-  { section: "How We Work", item_text: "Daily workflow and communication norms" },
-  { section: "How We Work", item_text: "How projects are managed (Artisan Dash walkthrough)" },
-  { section: "How We Work", item_text: "How to handle client calls and inquiries" },
-  { section: "How We Work", item_text: "Customer interaction and presentation standards" },
-  { section: "How We Work", item_text: "Meeting schedules and check-in cadence" },
-  { section: "How We Work", item_text: "Who to go to for what (internal contacts)" },
+  // Introductions and Tours
+  { section: "Introductions and Tours", item_text: "Department staff and key personnel" },
+  { section: "Introductions and Tours", item_text: "Restrooms" },
+  { section: "Introductions and Tours", item_text: "Mailroom" },
+  { section: "Introductions and Tours", item_text: "Copy center: printers, fax machines, scanner" },
+  { section: "Introductions and Tours", item_text: "Bulletin board" },
+  { section: "Introductions and Tours", item_text: "Parking" },
+  { section: "Introductions and Tours", item_text: "Office supplies" },
+  { section: "Introductions and Tours", item_text: "Break room" },
+  { section: "Introductions and Tours", item_text: "Coffee/vending machines" },
+  { section: "Introductions and Tours", item_text: "Watercoolers" },
+  { section: "Introductions and Tours", item_text: "Emergency exits" },
 
-  // ═══ PHASE 3: Policies & Standards (first week) ═══
-  // Source: Orientation doc — Key Policy Review
+  // ═══ DOC 3: New Hire Paperwork ═══
+  // Source: Checklist-New-Hire-Paperwork.docx (received from employee)
 
-  // Workplace Policies
-  { section: "Workplace Policies", item_text: "Anti-harassment/discrimination" },
-  { section: "Workplace Policies", item_text: "Vacation and sick leave" },
-  { section: "Workplace Policies", item_text: "FMLA/leaves of absence and paid leave" },
-  { section: "Workplace Policies", item_text: "Overtime" },
-  { section: "Workplace Policies", item_text: "Dress code" },
-  { section: "Workplace Policies", item_text: "Personal conduct standards" },
-  { section: "Workplace Policies", item_text: "Progressive discipline" },
-  { section: "Workplace Policies", item_text: "Security" },
-  { section: "Workplace Policies", item_text: "Confidentiality" },
+  // Received from Employee
+  { section: "Received from Employee", item_text: "Completed Application form and resume" },
+  { section: "Received from Employee", item_text: "Authorizations for background check, physical & drug screen, if applicable" },
+  { section: "Received from Employee", item_text: "Offer letter" },
+  { section: "Received from Employee", item_text: "I-9 form" },
+  { section: "Received from Employee", item_text: "Federal tax withholding form" },
+  { section: "Received from Employee", item_text: "State tax withholding form" },
+  { section: "Received from Employee", item_text: "Direct deposit form" },
+  { section: "Received from Employee", item_text: "Employee policy manual acknowledgement" },
+  { section: "Received from Employee", item_text: "Employee handbook acknowledgement" },
+  { section: "Received from Employee", item_text: "Key/security policies acknowledgement" },
+  { section: "Received from Employee", item_text: "Employee personal information sheet and emergency contact form" },
+  { section: "Received from Employee", item_text: "Benefit enrollment forms" },
 
-  // Safety & Procedures — Source: Orientation doc — Key Policy Review (safety items)
-  { section: "Safety & Procedures", item_text: "Safety" },
-  { section: "Safety & Procedures", item_text: "Injury reporting" },
-  { section: "Safety & Procedures", item_text: "Emergency procedures and fire safety" },
-  { section: "Safety & Procedures", item_text: "E-mail and Internet usage" },
+  // HR New Hire Preparation
+  { section: "HR New Hire Preparation", item_text: "Personnel file created" },
+  { section: "HR New Hire Preparation", item_text: "Confidential medical file created" },
+  { section: "HR New Hire Preparation", item_text: "Reference checks completed and filed" },
+  { section: "HR New Hire Preparation", item_text: "Background check results received and reviewed, if applicable" },
+  { section: "HR New Hire Preparation", item_text: "Physical exam results received and reviewed, if applicable" },
+  { section: "HR New Hire Preparation", item_text: "Drug test received and reviewed, if applicable" },
+  { section: "HR New Hire Preparation", item_text: "I-9 documents reviewed" },
+  { section: "HR New Hire Preparation", item_text: "Payroll notice completed" },
+  { section: "HR New Hire Preparation", item_text: "Orientation documents filed" },
+  { section: "HR New Hire Preparation", item_text: "Employee information entered into payroll system" },
+  { section: "HR New Hire Preparation", item_text: "CT State new hire reporting completed" },
 ];
 
 export const teamStorage = {

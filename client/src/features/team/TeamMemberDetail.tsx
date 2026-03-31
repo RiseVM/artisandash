@@ -37,22 +37,29 @@ import {
 } from "lucide-react";
 import type { TeamSetupItem } from "@shared/schema";
 
-// Phases with their sub-sections, matching the ATK&B new hire documents
+// Each phase matches one of the 3 ATK&B new hire documents exactly
 const PHASES: { label: string; description: string; sections: string[] }[] = [
   {
-    label: "Phase 1: Preparation",
+    label: "New Hire Preparation",
     description: "Done before start date",
-    sections: ["Workspace & Equipment", "Systems & Access", "Day One Preparation"],
+    sections: ["Human Resources", "Admin Services", "Information Technology"],
   },
   {
-    label: "Phase 2: Company Orientation",
-    description: "First 3 days",
-    sections: ["Introduction to the Company", "Administrative Procedures", "Facility Tour", "How We Work"],
+    label: "New Hire Orientation",
+    description: "First 3 days after start date",
+    sections: [
+      "Introduction to the Company",
+      "New-Employee Paperwork",
+      "Benefits and Compensation",
+      "Administrative Procedures",
+      "Key Policy Review",
+      "Introductions and Tours",
+    ],
   },
   {
-    label: "Phase 3: Policies & Standards",
-    description: "First week",
-    sections: ["Workplace Policies", "Safety & Procedures"],
+    label: "New Hire Paperwork",
+    description: "Received from employee and HR processing",
+    sections: ["Received from Employee", "HR New Hire Preparation"],
   },
 ];
 
