@@ -15,6 +15,23 @@ declare module "http" {
 
 (async () => {
   try {
+    // --- Run pending schema migrations before anything else ---
+    const { pool: dbPool } = await import("../db/index");
+    const migrations = [
+      `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS valid_until text`,
+      `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS sent_at timestamp`,
+      `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS approved_at timestamp`,
+      `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS expired_at timestamp`,
+      `ALTER TABLE entity_notes ADD COLUMN IF NOT EXISTS is_internal text NOT NULL DEFAULT 'no'`,
+    ];
+    for (const sql of migrations) {
+      try { await dbPool.query(sql); } catch (e: any) {
+        // Column already exists or other non-fatal error — safe to ignore
+        if (!e.message?.includes("already exists")) console.warn("Migration warning:", e.message);
+      }
+    }
+    console.log("Schema migrations checked.");
+
     // --- dynamic imports so failures are caught ---
     const helmet = (await import("helmet")).default;
     const compression = (await import("compression")).default;
