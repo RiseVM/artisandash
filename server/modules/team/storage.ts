@@ -14,39 +14,77 @@ import {
 } from "@shared/schema";
 
 // ── Default checklist items seeded for every new team member ──
+// Based on ATK&B new hire documents, HR/legal/payroll items stripped.
 const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
+  // ═══ PHASE 1: New Hire Preparation (before start date) ═══
+
   // Workspace & Equipment
-  { section: "Workspace & Equipment", item_text: "Desk/workspace assigned and set up" },
-  { section: "Workspace & Equipment", item_text: "Computer or laptop assigned" },
-  { section: "Workspace & Equipment", item_text: "Monitor, keyboard, and mouse set up" },
-  { section: "Workspace & Equipment", item_text: "Phone/extension assigned" },
-  { section: "Workspace & Equipment", item_text: "Keys or building access provided" },
-  { section: "Workspace & Equipment", item_text: "Name badge created" },
-  { section: "Workspace & Equipment", item_text: "Business cards ordered (if applicable)" },
+  { section: "Workspace & Equipment", item_text: "Office/workspace assigned" },
+  { section: "Workspace & Equipment", item_text: "Office/workspace furniture ordered" },
   { section: "Workspace & Equipment", item_text: "Basic office supplies stocked" },
+  { section: "Workspace & Equipment", item_text: "Phone/extension assigned" },
+  { section: "Workspace & Equipment", item_text: "Keys/building access provided" },
+  { section: "Workspace & Equipment", item_text: "Name badge created" },
+  { section: "Workspace & Equipment", item_text: "Cell phone assigned (if applicable)" },
+  { section: "Workspace & Equipment", item_text: "Business cards ordered (if applicable)" },
+
   // Systems & Access
-  { section: "Systems & Access", item_text: "Email account created" },
-  { section: "Systems & Access", item_text: "Network/Wi-Fi access set up" },
+  { section: "Systems & Access", item_text: "Computer/laptop assigned" },
   { section: "Systems & Access", item_text: "Necessary software installed" },
-  { section: "Systems & Access", item_text: "Artisan Dash account created and access confirmed" },
+  { section: "Systems & Access", item_text: "Monitor/keyboard/mouse set up" },
   { section: "Systems & Access", item_text: "Printer/copier access set up" },
-  { section: "Systems & Access", item_text: "Shared drives or folders access granted" },
-  { section: "Systems & Access", item_text: "Any job-specific tools or apps set up" },
-  // Company Orientation
-  { section: "Company Orientation", item_text: "Company overview and history reviewed" },
-  { section: "Company Orientation", item_text: "Meet the team — introductions to all staff" },
-  { section: "Company Orientation", item_text: "Facility tour completed (office, supply areas, break room, parking, emergency exits)" },
-  { section: "Company Orientation", item_text: "Daily workflow and communication norms explained" },
-  { section: "Company Orientation", item_text: "Project management process walkthrough (how we use Artisan Dash)" },
-  { section: "Company Orientation", item_text: "Customer interaction standards reviewed" },
-  { section: "Company Orientation", item_text: "How to handle client calls and inquiries" },
-  // Policies & Standards
-  { section: "Policies & Standards", item_text: "Dress code and presentation standards reviewed" },
-  { section: "Policies & Standards", item_text: "Confidentiality and client privacy policy reviewed" },
-  { section: "Policies & Standards", item_text: "Safety procedures reviewed" },
-  { section: "Policies & Standards", item_text: "How to report an issue or injury" },
-  { section: "Policies & Standards", item_text: "Email and phone usage policy reviewed" },
-  { section: "Policies & Standards", item_text: "Quality standards for work output reviewed" },
+  { section: "Systems & Access", item_text: "Network access and passwords created" },
+  { section: "Systems & Access", item_text: "Email account created" },
+  { section: "Systems & Access", item_text: "Artisan Dash account created and access confirmed" },
+
+  // Day One Preparation
+  { section: "Day One Preparation", item_text: "Start date confirmed" },
+  { section: "Day One Preparation", item_text: "New hire orientation scheduled" },
+  { section: "Day One Preparation", item_text: "Buddy or point-of-contact assigned" },
+  { section: "Day One Preparation", item_text: "New hire announcement shared with team" },
+  { section: "Day One Preparation", item_text: "Workspace ready for first day" },
+
+  // ═══ PHASE 2: Company Orientation (first 3 days) ═══
+
+  // Introduction to the Company
+  { section: "Introduction to the Company", item_text: "Company overview and history" },
+  { section: "Introduction to the Company", item_text: "Company culture and values" },
+  { section: "Introduction to the Company", item_text: "Organization mission" },
+  { section: "Introduction to the Company", item_text: "Organizational chart reviewed" },
+  { section: "Introduction to the Company", item_text: "Meet the team — introductions to all staff" },
+
+  // Facility Tour
+  { section: "Facility Tour", item_text: "Restrooms" },
+  { section: "Facility Tour", item_text: "Break room and kitchen" },
+  { section: "Facility Tour", item_text: "Office supplies and where to find them" },
+  { section: "Facility Tour", item_text: "Copy center (printers, fax, scanner)" },
+  { section: "Facility Tour", item_text: "Bulletin board and communications board" },
+  { section: "Facility Tour", item_text: "Parking" },
+  { section: "Facility Tour", item_text: "Emergency exits and evacuation plan" },
+
+  // How We Work
+  { section: "How We Work", item_text: "Daily workflow and communication norms" },
+  { section: "How We Work", item_text: "How projects are managed (Artisan Dash walkthrough)" },
+  { section: "How We Work", item_text: "How to handle client calls and inquiries" },
+  { section: "How We Work", item_text: "Customer interaction and presentation standards" },
+  { section: "How We Work", item_text: "Meeting schedules and check-in cadence" },
+  { section: "How We Work", item_text: "Who to go to for what (internal contacts)" },
+
+  // ═══ PHASE 3: Policies & Standards (first week) ═══
+
+  // Workplace Policies
+  { section: "Workplace Policies", item_text: "Dress code and presentation standards" },
+  { section: "Workplace Policies", item_text: "Confidentiality and client privacy" },
+  { section: "Workplace Policies", item_text: "Security procedures" },
+  { section: "Workplace Policies", item_text: "Personal conduct standards" },
+  { section: "Workplace Policies", item_text: "Email and phone usage policy" },
+
+  // Safety & Procedures
+  { section: "Safety & Procedures", item_text: "Safety procedures overview" },
+  { section: "Safety & Procedures", item_text: "How to report an issue or injury" },
+  { section: "Safety & Procedures", item_text: "Emergency procedures and fire safety" },
+  { section: "Safety & Procedures", item_text: "Expense reporting process" },
+  { section: "Safety & Procedures", item_text: "Purchase request process" },
 ];
 
 export const teamStorage = {

@@ -26,11 +26,23 @@ import {
 } from "lucide-react";
 import type { TeamSetupItem } from "@shared/schema";
 
-const SECTION_ORDER = [
-  "Workspace & Equipment",
-  "Systems & Access",
-  "Company Orientation",
-  "Policies & Standards",
+// Phases with their sub-sections, matching the ATK&B new hire documents
+const PHASES: { label: string; description: string; sections: string[] }[] = [
+  {
+    label: "Phase 1: Preparation",
+    description: "Done before start date",
+    sections: ["Workspace & Equipment", "Systems & Access", "Day One Preparation"],
+  },
+  {
+    label: "Phase 2: Company Orientation",
+    description: "First 3 days",
+    sections: ["Introduction to the Company", "Facility Tour", "How We Work"],
+  },
+  {
+    label: "Phase 3: Policies & Standards",
+    description: "First week",
+    sections: ["Workplace Policies", "Safety & Procedures"],
+  },
 ];
 
 export function TeamMemberDetail() {
@@ -103,18 +115,11 @@ export function TeamMemberDetail() {
   const progressPercent = totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0;
   const allComplete = totalItems > 0 && checkedItems === totalItems;
 
-  // Group items by section in the defined order
+  // Group items by section
   const sectionMap = new Map<string, TeamSetupItem[]>();
-  for (const section of SECTION_ORDER) {
-    sectionMap.set(section, []);
-  }
   for (const item of items) {
-    const arr = sectionMap.get(item.section);
-    if (arr) arr.push(item);
-    else {
-      if (!sectionMap.has(item.section)) sectionMap.set(item.section, []);
-      sectionMap.get(item.section)!.push(item);
-    }
+    if (!sectionMap.has(item.section)) sectionMap.set(item.section, []);
+    sectionMap.get(item.section)!.push(item);
   }
 
   return (
@@ -223,50 +228,69 @@ export function TeamMemberDetail() {
         </Card>
       )}
 
-      {/* Section Cards */}
-      {Array.from(sectionMap.entries()).map(([section, sectionItems]) => {
-        if (sectionItems.length === 0) return null;
-        const sectionChecked = sectionItems.filter((i) => i.is_checked).length;
+      {/* Phase Cards */}
+      {PHASES.map((phase) => {
+        // Gather all items for this phase's sections
+        const phaseItems = phase.sections.flatMap((s) => sectionMap.get(s) || []);
+        if (phaseItems.length === 0) return null;
+        const phaseChecked = phaseItems.filter((i) => i.is_checked).length;
+
         return (
-          <Card key={section}>
+          <Card key={phase.label}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base">{section}</CardTitle>
+                <div>
+                  <CardTitle className="text-base">{phase.label}</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">{phase.description}</p>
+                </div>
                 <span className="text-xs text-muted-foreground">
-                  {sectionChecked}/{sectionItems.length} complete
+                  {phaseChecked}/{phaseItems.length} complete
                 </span>
               </div>
             </CardHeader>
-            <CardContent className="space-y-1">
-              {sectionItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start gap-3 py-2 px-2 rounded hover:bg-muted/50"
-                >
-                  <Checkbox
-                    checked={item.is_checked}
-                    onCheckedChange={() => handleToggleItem(item)}
-                    className="mt-0.5"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <span
-                      className={`text-sm ${
-                        item.is_checked ? "text-muted-foreground line-through" : ""
-                      }`}
-                    >
-                      {item.item_text}
-                    </span>
-                    {item.is_checked && item.checked_by_user_name && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        ✓ {item.checked_by_user_name}
-                        {item.checked_at && (
-                          <> — {new Date(item.checked_at).toLocaleDateString()}</>
-                        )}
-                      </div>
-                    )}
+            <CardContent className="space-y-4">
+              {phase.sections.map((sectionName) => {
+                const sectionItems = sectionMap.get(sectionName) || [];
+                if (sectionItems.length === 0) return null;
+                return (
+                  <div key={sectionName}>
+                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-2">
+                      {sectionName}
+                    </div>
+                    <div className="space-y-1">
+                      {sectionItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-start gap-3 py-2 px-2 rounded hover:bg-muted/50"
+                        >
+                          <Checkbox
+                            checked={item.is_checked}
+                            onCheckedChange={() => handleToggleItem(item)}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span
+                              className={`text-sm ${
+                                item.is_checked ? "text-muted-foreground line-through" : ""
+                              }`}
+                            >
+                              {item.item_text}
+                            </span>
+                            {item.is_checked && item.checked_by_user_name && (
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                ✓ {item.checked_by_user_name}
+                                {item.checked_at && (
+                                  <> — {new Date(item.checked_at).toLocaleDateString()}</>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         );
