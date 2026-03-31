@@ -19,6 +19,7 @@ import {
   MessageSquare,
   Wrench,
   Settings,
+  Users2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/hooks";
@@ -39,6 +40,7 @@ export function Sidebar() {
     { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },
+    { href: "/team", label: "Team Resources", icon: Users2 },
     { href: "/timesheets", label: "Timesheets", icon: Clock },
     { href: "/messages", label: "Messages", icon: MessageSquare },
   ];

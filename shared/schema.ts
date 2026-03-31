@@ -1486,3 +1486,87 @@ export type ServiceCatalogCategoryWithItems = ServiceCatalogCategory & {
 export type ServiceCatalogItemWithChildren = ServiceCatalogItem & {
   children?: ServiceCatalogItem[];
 };
+
+// ============================================
+// TEAM RESOURCES
+// ============================================
+
+// Team Members — new member setup tracker
+export const teamMembers = pgTable("team_members", {
+  id: serial("id").primaryKey(),
+  employee_name: text("employee_name").notNull(),
+  job_title: text("job_title"),
+  manager_name: text("manager_name"),
+  start_date: text("start_date"),
+  status: text("status").default("in_progress").notNull(), // in_progress | complete
+  completion_signature: text("completion_signature"),
+  completed_by_name: text("completed_by_name"),
+  completed_at: timestamp("completed_at"),
+  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  created_by_user_name: varchar("created_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Team Setup Items — checklist items per team member
+export const teamSetupItems = pgTable("team_setup_items", {
+  id: serial("id").primaryKey(),
+  team_member_id: integer("team_member_id").references(() => teamMembers.id, { onDelete: "cascade" }).notNull(),
+  section: text("section").notNull(),
+  item_text: text("item_text").notNull(),
+  is_checked: boolean("is_checked").default(false).notNull(),
+  checked_by_user_name: varchar("checked_by_user_name"),
+  checked_at: timestamp("checked_at"),
+  display_order: integer("display_order").default(0).notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_team_setup_items_member_id").on(table.team_member_id),
+]);
+
+// Team Resources — document/resource library
+export const teamResources = pgTable("team_resources", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  category: text("category").notNull(), // setup | sop | policy | standards | other
+  description: text("description"),
+  file_name: text("file_name"),
+  file_url: text("file_url"),
+  external_url: text("external_url"),
+  uploaded_by_user_id: varchar("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  uploaded_by_user_name: varchar("uploaded_by_user_name"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Insert schemas
+export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertTeamSetupItemSchema = createInsertSchema(teamSetupItems).omit({
+  id: true,
+  created_at: true,
+});
+
+export const insertTeamResourceSchema = createInsertSchema(teamResources).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+// Types
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+export type TeamMember = typeof teamMembers.$inferSelect;
+
+export type InsertTeamSetupItem = z.infer<typeof insertTeamSetupItemSchema>;
+export type TeamSetupItem = typeof teamSetupItems.$inferSelect;
+
+export type InsertTeamResource = z.infer<typeof insertTeamResourceSchema>;
+export type TeamResource = typeof teamResources.$inferSelect;
+
+// View types
+export type TeamMemberWithItems = TeamMember & {
+  items: TeamSetupItem[];
+};

@@ -61,6 +61,10 @@ import { Messages } from "@/features/messages/Messages";
 import { QuoteBuilder } from "@/features/quote-builder/QuoteBuilder";
 import { CatalogSettings } from "@/features/admin/CatalogSettings";
 
+// Phase 11: Team Resources
+import { TeamResources } from "@/features/team/TeamResources";
+import { TeamMemberDetail } from "@/features/team/TeamMemberDetail";
+
 // Placeholder component shown until feature modules are built
 function Placeholder({ name }: { name: string }) {
   return (
@@ -202,6 +206,14 @@ function AdminRouter() {
         {/* Catalog Settings (Admin) */}
         <Route path="/settings/catalog">
           <CatalogSettings />
+        </Route>
+
+        {/* Team Resources */}
+        <Route path="/team/setup/:id">
+          <TeamMemberDetail />
+        </Route>
+        <Route path="/team">
+          <TeamResources />
         </Route>
 
         {/* Timesheets */}

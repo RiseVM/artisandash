@@ -23,6 +23,47 @@ declare module "http" {
       `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS approved_at timestamp`,
       `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS expired_at timestamp`,
       `ALTER TABLE entity_notes ADD COLUMN IF NOT EXISTS is_internal text NOT NULL DEFAULT 'no'`,
+      // Team Resources tables
+      `CREATE TABLE IF NOT EXISTS team_members (
+        id SERIAL PRIMARY KEY,
+        employee_name TEXT NOT NULL,
+        job_title TEXT,
+        manager_name TEXT,
+        start_date TEXT,
+        status TEXT NOT NULL DEFAULT 'in_progress',
+        completion_signature TEXT,
+        completed_by_name TEXT,
+        completed_at TIMESTAMP,
+        created_by_user_id VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        created_by_user_name VARCHAR,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )`,
+      `CREATE TABLE IF NOT EXISTS team_setup_items (
+        id SERIAL PRIMARY KEY,
+        team_member_id INTEGER NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+        section TEXT NOT NULL,
+        item_text TEXT NOT NULL,
+        is_checked BOOLEAN NOT NULL DEFAULT FALSE,
+        checked_by_user_name VARCHAR,
+        checked_at TIMESTAMP,
+        display_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS "IDX_team_setup_items_member_id" ON team_setup_items(team_member_id)`,
+      `CREATE TABLE IF NOT EXISTS team_resources (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        category TEXT NOT NULL,
+        description TEXT,
+        file_name TEXT,
+        file_url TEXT,
+        external_url TEXT,
+        uploaded_by_user_id VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_by_user_name VARCHAR,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )`,
     ];
     for (const sql of migrations) {
       try { await dbPool.query(sql); } catch (e: any) {
@@ -168,6 +209,10 @@ declare module "http" {
     // Phase 10: service catalog
     const { registerCatalogRoutes } = await import("./modules/catalog/routes");
     registerCatalogRoutes(app);
+
+    // Phase 11: team resources
+    const { registerTeamRoutes } = await import("./modules/team/routes");
+    registerTeamRoutes(app);
 
     // Health check
     app.get("/api/health", (_req, res) => {
