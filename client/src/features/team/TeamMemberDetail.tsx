@@ -11,7 +11,7 @@ import { useAuth } from "@/features/auth/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +34,7 @@ import {
   Plus,
   Check,
   X,
+  PartyPopper,
 } from "lucide-react";
 import type { TeamSetupItem } from "@shared/schema";
 
@@ -66,6 +67,34 @@ const PHASES: { label: string; description: string; sections: string[] }[] = [
     ],
   },
 ];
+
+// ── SVG Progress Ring ──────────────────────────
+function ProgressRing({ size = 48, stroke = 4, value, total }: { size?: number; stroke?: number; value: number; total: number }) {
+  const pct = total > 0 ? value / total : 0;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - pct);
+  const isComplete = total > 0 && value === total;
+
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        {/* Track */}
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted/30" />
+        {/* Fill */}
+        <circle
+          cx={size / 2} cy={size / 2} r={radius} fill="none"
+          stroke="currentColor" strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={offset}
+          className={`transition-all duration-500 ${isComplete ? "text-green-500" : "text-primary"}`}
+        />
+      </svg>
+      <span className={`absolute text-[10px] font-semibold ${isComplete ? "text-green-600" : "text-muted-foreground"}`}>
+        {value}/{total}
+      </span>
+    </div>
+  );
+}
 
 export function TeamMemberDetail() {
   const [, params] = useRoute("/team/setup/:id");
@@ -199,88 +228,92 @@ export function TeamMemberDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-        <div className="flex items-center gap-4 flex-1">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/team")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold">{member.employee_name}</h1>
-              <Badge
-                className={
-                  member.status === "complete"
-                    ? "bg-green-100 text-green-800"
-                    : "bg-yellow-100 text-yellow-800"
-                }
-              >
-                {member.status === "complete" ? "Complete" : "In Progress"}
-              </Badge>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
-              {member.job_title && (
-                <span className="flex items-center gap-1">
-                  <Briefcase className="h-3 w-3" />
-                  {member.job_title}
-                </span>
-              )}
-              {member.start_date && (
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  Start: {member.start_date}
-                </span>
-              )}
-              {member.manager_name && (
-                <span className="flex items-center gap-1">
-                  <User className="h-3 w-3" />
-                  Manager: {member.manager_name}
-                </span>
-              )}
+      {/* ── Hero Header Card ─────────────────────── */}
+      <Card className="overflow-hidden">
+        <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-5 pt-5 pb-4">
+          <div className="flex items-start gap-4">
+            <Button variant="ghost" size="icon" className="shrink-0 -ml-1 -mt-1" onClick={() => setLocation("/team")}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl font-bold tracking-tight">{member.employee_name}</h1>
+                <Badge
+                  className={
+                    member.status === "complete"
+                      ? "bg-green-100 text-green-800 border-green-200"
+                      : "bg-blue-100 text-blue-800 border-blue-200"
+                  }
+                >
+                  {member.status === "complete" ? "Complete" : "In Progress"}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-muted-foreground">
+                {member.job_title && (
+                  <span className="flex items-center gap-1.5">
+                    <Briefcase className="h-3.5 w-3.5" />
+                    {member.job_title}
+                  </span>
+                )}
+                {member.start_date && (
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    Start: {member.start_date}
+                  </span>
+                )}
+                {member.manager_name && (
+                  <span className="flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5" />
+                    Manager: {member.manager_name}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Progress Bar */}
-      <Card>
-        <CardContent className="pt-5">
-          <div className="flex items-center justify-between mb-2">
+        {/* Full-width progress bar */}
+        <div className="px-5 py-3 border-t bg-white dark:bg-background">
+          <div className="flex items-center justify-between mb-1.5">
             <span className="text-sm font-medium">Overall Progress</span>
-            <span className="text-sm text-muted-foreground">
-              {checkedItems}/{totalItems} items ({progressPercent}%)
+            <span className="text-sm font-semibold">
+              {checkedItems} of {totalItems} items complete ({progressPercent}%)
             </span>
           </div>
-          <div className="w-full bg-muted rounded-full h-3">
+          <div className="w-full bg-muted rounded-full h-2.5">
             <div
-              className={`h-3 rounded-full transition-all ${
+              className={`h-2.5 rounded-full transition-all duration-500 ${
                 allComplete ? "bg-green-500" : "bg-primary"
               }`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-        </CardContent>
+        </div>
       </Card>
 
-      {/* All Complete Banner */}
+      {/* ── Celebration Banner (all phases complete) ── */}
       {allComplete && member.status !== "complete" && (
-        <Card className="border-green-300 bg-green-50">
-          <CardContent className="pt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <span className="text-sm font-medium text-green-800">
-                All setup items complete! Mark this team member as fully onboarded?
-              </span>
+        <Card className="border-green-300 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30">
+          <CardContent className="py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <PartyPopper className="h-6 w-6 text-green-600" />
+              <div>
+                <p className="font-semibold text-green-800 dark:text-green-300">
+                  {member.employee_name} is fully onboarded!
+                </p>
+                <p className="text-sm text-green-700 dark:text-green-400">
+                  All setup items are complete. Ready to mark as done.
+                </p>
+              </div>
             </div>
             <Button
-              size="sm"
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white"
               onClick={() => {
                 setCompletedByName(user?.email?.split("@")[0] || "");
                 setIsCompleteOpen(true);
               }}
             >
-              Complete Setup
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Mark as Complete
             </Button>
           </CardContent>
         </Card>
@@ -288,10 +321,10 @@ export function TeamMemberDetail() {
 
       {/* Completed info */}
       {member.status === "complete" && member.completed_by_name && (
-        <Card className="border-green-300 bg-green-50">
-          <CardContent className="pt-5">
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="py-4">
             <div className="flex items-center gap-2 text-sm text-green-800">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
               <span>
                 Setup completed by <strong>{member.completed_by_name}</strong>
                 {member.completed_at && (
@@ -303,40 +336,75 @@ export function TeamMemberDetail() {
         </Card>
       )}
 
-      {/* Phase Cards */}
-      {PHASES.map((phase) => {
-        // Gather all items for this phase's sections
+      {/* ── Phase Cards ──────────────────────────── */}
+      {PHASES.map((phase, phaseIndex) => {
         const phaseItems = phase.sections.flatMap((s) => sectionMap.get(s) || []);
         if (phaseItems.length === 0) return null;
         const phaseChecked = phaseItems.filter((i) => i.is_checked).length;
+        const phaseComplete = phaseItems.length > 0 && phaseChecked === phaseItems.length;
 
         return (
-          <Card key={phase.label}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">{phase.label}</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">{phase.description}</p>
+          <Card key={phase.label} className="overflow-hidden">
+            {/* Phase Header */}
+            <div
+              className={`px-5 py-4 flex items-center gap-4 transition-colors ${
+                phaseComplete
+                  ? "bg-green-50 dark:bg-green-950/20 border-b border-green-200"
+                  : "bg-slate-50/80 dark:bg-slate-900/50 border-b"
+              }`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2.5 mb-1">
+                  <span className="inline-flex items-center justify-center h-6 px-2.5 rounded-full bg-muted text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Phase {phaseIndex + 1}
+                  </span>
+                  {phaseComplete && (
+                    <Badge className="bg-green-100 text-green-700 border-green-200 text-xs">
+                      <Check className="h-3 w-3 mr-1" />
+                      Complete
+                    </Badge>
+                  )}
                 </div>
-                <span className="text-xs text-muted-foreground">
-                  {phaseChecked}/{phaseItems.length} complete
-                </span>
+                <h2 className="text-lg font-semibold">{phase.label}</h2>
+                <p className="text-sm text-muted-foreground">{phase.description}</p>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              <ProgressRing value={phaseChecked} total={phaseItems.length} />
+            </div>
+
+            {/* Phase complete banner inside card */}
+            {phaseComplete && (
+              <div className="px-5 py-2.5 bg-green-50 dark:bg-green-950/10 border-b border-green-100 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <span className="text-sm font-medium text-green-700 dark:text-green-400">Phase complete!</span>
+              </div>
+            )}
+
+            {/* Sections */}
+            <CardContent className="pt-4 pb-2 space-y-5">
               {phase.sections.map((sectionName) => {
                 const sectionItems = sectionMap.get(sectionName) || [];
                 if (sectionItems.length === 0) return null;
+                const sectionChecked = sectionItems.filter((i) => i.is_checked).length;
+
                 return (
                   <div key={sectionName}>
-                    <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 px-2">
-                      {sectionName}
+                    {/* Section heading with divider */}
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                        {sectionName}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/70 whitespace-nowrap">
+                        ({sectionChecked}/{sectionItems.length})
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
                     </div>
-                    <div className="space-y-1">
+
+                    {/* Item rows */}
+                    <div className="space-y-0.5">
                       {sectionItems.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-start gap-3 py-2 px-2 rounded hover:bg-muted/50 group"
+                          className="flex items-start gap-3 py-1.5 px-2 rounded-md hover:bg-muted/40 group transition-colors"
                         >
                           <Checkbox
                             checked={item.is_checked}
@@ -364,52 +432,35 @@ export function TeamMemberDetail() {
                                 </Button>
                               </div>
                             ) : (
-                              <>
-                                <span
-                                  className={`text-sm ${
-                                    item.is_checked ? "text-muted-foreground line-through" : ""
-                                  }`}
-                                >
+                              <div className="flex items-baseline justify-between gap-2">
+                                <span className={`text-sm ${item.is_checked ? "text-muted-foreground line-through" : ""}`}>
                                   {item.item_text}
                                 </span>
                                 {item.is_checked && item.checked_by_user_name && (
-                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                  <span className="text-[11px] text-muted-foreground/70 whitespace-nowrap shrink-0">
                                     ✓ {item.checked_by_user_name}
-                                    {item.checked_at && (
-                                      <> — {new Date(item.checked_at).toLocaleDateString()}</>
-                                    )}
-                                  </div>
+                                    {item.checked_at && <> · {new Date(item.checked_at).toLocaleDateString()}</>}
+                                  </span>
                                 )}
-                              </>
+                              </div>
                             )}
                           </div>
                           {editingItemId !== item.id && (
-                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6"
-                                onClick={() => handleStartEdit(item)}
-                                title="Edit item"
-                              >
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleStartEdit(item)} title="Edit item">
                                 <Pencil className="h-3 w-3 text-muted-foreground" />
                               </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-6 w-6"
-                                onClick={() => handleDeleteItem(item)}
-                                title="Delete item"
-                              >
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleDeleteItem(item)} title="Delete item">
                                 <Trash2 className="h-3 w-3 text-destructive" />
                               </Button>
                             </div>
                           )}
                         </div>
                       ))}
-                      {/* Add new item */}
+
+                      {/* Add item */}
                       {addingSection === sectionName ? (
-                        <div className="flex items-center gap-2 py-2 px-2">
+                        <div className="flex items-center gap-2 py-1.5 px-2">
                           <Input
                             value={newItemText}
                             onChange={(e) => setNewItemText(e.target.value)}
@@ -446,7 +497,7 @@ export function TeamMemberDetail() {
         );
       })}
 
-      {/* Complete Setup Dialog */}
+      {/* ── Complete Setup Dialog ─────────────────── */}
       <Dialog open={isCompleteOpen} onOpenChange={setIsCompleteOpen}>
         <DialogContent>
           <DialogHeader>

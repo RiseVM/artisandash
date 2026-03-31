@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocation } from "wouter";
 import {
   useTeamMembers,
@@ -45,20 +45,34 @@ import {
   Plus,
   Loader2,
   Trash2,
-  Eye,
   ExternalLink,
   FileDown,
+  FileText,
   BookOpen,
   Link as LinkIcon,
   Upload,
+  Save,
+  Search,
+  ChevronRight,
+  ClipboardList,
+  Shield,
+  Star,
+  FolderOpen,
+  Settings2,
 } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { Save } from "lucide-react";
 import type { TeamMember, TeamResource } from "@shared/schema";
 
 type TeamMemberWithProgress = TeamMember & { total_items: number; checked_items: number };
 
 const categoryLabels: Record<string, string> = {
+  setup: "Setup Documents",
+  sop: "Standard Operating Procedures",
+  policy: "Policies",
+  standards: "Standards",
+  other: "Other Resources",
+};
+
+const categoryShort: Record<string, string> = {
   setup: "Setup",
   sop: "SOPs",
   policy: "Policies",
@@ -66,7 +80,23 @@ const categoryLabels: Record<string, string> = {
   other: "Other",
 };
 
+const categoryIcons: Record<string, React.ReactNode> = {
+  setup: <ClipboardList className="h-5 w-5" />,
+  sop: <Settings2 className="h-5 w-5" />,
+  policy: <Shield className="h-5 w-5" />,
+  standards: <Star className="h-5 w-5" />,
+  other: <FolderOpen className="h-5 w-5" />,
+};
+
 const categoryColors: Record<string, string> = {
+  setup: "text-blue-600",
+  sop: "text-green-600",
+  policy: "text-orange-600",
+  standards: "text-purple-600",
+  other: "text-gray-600",
+};
+
+const categoryBadgeColors: Record<string, string> = {
   setup: "bg-blue-100 text-blue-800",
   sop: "bg-green-100 text-green-800",
   policy: "bg-orange-100 text-orange-800",
@@ -122,7 +152,7 @@ export function TeamResources() {
 }
 
 // ============================================
-// MEMBERS TAB
+// MEMBERS TAB — Card-based list
 // ============================================
 function MembersTab() {
   const [, setLocation] = useLocation();
@@ -191,33 +221,88 @@ function MembersTab() {
       {members.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No team members yet. Add someone to start their onboarding checklist.
+            <Users2 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+            No team members added yet. Add your first one above.
           </CardContent>
         </Card>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left p-3 font-medium">Name</th>
-                <th className="text-left p-3 font-medium hidden sm:table-cell">Job Title</th>
-                <th className="text-left p-3 font-medium hidden md:table-cell">Start Date</th>
-                <th className="text-left p-3 font-medium">Progress</th>
-                <th className="text-left p-3 font-medium">Status</th>
-                <th className="text-right p-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <MemberRow
-                  key={m.id}
-                  member={m}
-                  onView={() => setLocation(`/team/setup/${m.id}`)}
-                  onDelete={() => setDeleteTarget(m)}
-                />
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-3">
+          {members.map((m) => {
+            const total = m.total_items || 0;
+            const checked = m.checked_items || 0;
+            const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+            const isComplete = m.status === "complete";
+            const isReady = !isComplete && pct === 100;
+
+            return (
+              <Card
+                key={m.id}
+                className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => setLocation(`/team/setup/${m.id}`)}
+              >
+                <div className="flex">
+                  {/* Left accent bar */}
+                  <div className={`w-1.5 shrink-0 ${isComplete ? "bg-green-500" : isReady ? "bg-blue-500" : "bg-blue-300"}`} />
+                  <CardContent className="flex-1 py-4 px-5">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold truncate">{m.employee_name}</span>
+                          {m.job_title && (
+                            <span className="text-sm text-muted-foreground hidden sm:inline">— {m.job_title}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          {m.start_date && <span>Start: {m.start_date}</span>}
+                          <span>{checked}/{total} items</span>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="mt-2 w-full bg-muted rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-500 ${
+                              isComplete ? "bg-green-500" : "bg-primary"
+                            }`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0">
+                        <Badge
+                          className={
+                            isComplete
+                              ? "bg-green-100 text-green-800"
+                              : isReady
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-yellow-100 text-yellow-800"
+                          }
+                        >
+                          {isComplete ? "Complete" : isReady ? "Ready" : `${pct}%`}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="hidden sm:flex"
+                          onClick={(e) => { e.stopPropagation(); setLocation(`/team/setup/${m.id}`); }}
+                        >
+                          Open
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(m); }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -302,76 +387,19 @@ function MembersTab() {
   );
 }
 
-function MemberRow({
-  member,
-  onView,
-  onDelete,
-}: {
-  member: TeamMemberWithProgress;
-  onView: () => void;
-  onDelete: () => void;
-}) {
-  const total = member.total_items || 0;
-  const checked = member.checked_items || 0;
-  const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
-
-  return (
-    <tr className="border-t hover:bg-muted/30 cursor-pointer" onClick={onView}>
-      <td className="p-3 font-medium">{member.employee_name}</td>
-      <td className="p-3 text-muted-foreground hidden sm:table-cell">{member.job_title || "—"}</td>
-      <td className="p-3 text-muted-foreground hidden md:table-cell">{member.start_date || "—"}</td>
-      <td className="p-3">
-        <div className="flex items-center gap-2 min-w-[120px]">
-          <Progress value={pct} className="h-2 flex-1" />
-          <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
-            {checked}/{total} ({pct}%)
-          </span>
-        </div>
-      </td>
-      <td className="p-3">
-        <Badge
-          className={
-            member.status === "complete"
-              ? "bg-green-100 text-green-800"
-              : pct === 100
-                ? "bg-blue-100 text-blue-800"
-                : "bg-yellow-100 text-yellow-800"
-          }
-        >
-          {member.status === "complete" ? "Complete" : pct === 100 ? "Ready to Complete" : "In Progress"}
-        </Badge>
-      </td>
-      <td className="p-3 text-right">
-        <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onView(); }}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-destructive hover:text-destructive"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
 // ============================================
-// RESOURCES TAB
+// RESOURCES TAB — Category-first knowledge hub
 // ============================================
 function ResourcesTab() {
   const { toast } = useToast();
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const { data: resources = [], isLoading } = useTeamResources(categoryFilter);
+  // Fetch ALL resources (no category filter — we group client-side)
+  const { data: resources = [], isLoading } = useTeamResources("all");
   const createMutation = useCreateTeamResource();
   const deleteMutation = useDeleteTeamResource();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TeamResource | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [resourceType, setResourceType] = useState<"link" | "file">("link");
   const [form, setForm] = useState({
     title: "",
@@ -380,6 +408,28 @@ function ResourcesTab() {
     external_url: "",
     file_name: "",
   });
+
+  // Group resources by category, filtered by search
+  const { grouped, categoryOrder } = useMemo(() => {
+    const filtered = searchQuery.trim()
+      ? resources.filter(
+          (r) =>
+            r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (r.description && r.description.toLowerCase().includes(searchQuery.toLowerCase()))
+        )
+      : resources;
+
+    const map = new Map<string, TeamResource[]>();
+    for (const r of filtered) {
+      const cat = r.category || "other";
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat)!.push(r);
+    }
+
+    // Order: setup, sop, policy, standards, other
+    const order = ["setup", "sop", "policy", "standards", "other"].filter((c) => map.has(c));
+    return { grouped: map, categoryOrder: order };
+  }, [resources, searchQuery]);
 
   const handleCreate = async () => {
     if (!form.title.trim()) return;
@@ -410,7 +460,18 @@ function ResourcesTab() {
     }
   };
 
-  const categories = ["all", "setup", "sop", "policy", "standards", "other"];
+  const scrollToSection = (cat: string) => {
+    const el = document.getElementById(`section-${cat}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const getResourceIcon = (r: TeamResource) => {
+    if (r.external_url) return <ExternalLink className="h-5 w-5 text-blue-500 shrink-0" />;
+    const name = r.file_url || r.title || "";
+    if (name.match(/\.(pdf)$/i)) return <FileText className="h-5 w-5 text-red-500 shrink-0" />;
+    if (name.match(/\.(doc|docx)$/i)) return <FileText className="h-5 w-5 text-blue-600 shrink-0" />;
+    return <FileDown className="h-5 w-5 text-muted-foreground shrink-0" />;
+  };
 
   if (isLoading) {
     return (
@@ -422,83 +483,105 @@ function ResourcesTab() {
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Category pills */}
-        <div className="flex flex-wrap gap-2">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setCategoryFilter(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                categoryFilter === cat
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              {cat === "all" ? "All" : categoryLabels[cat] || cat}
-            </button>
-          ))}
+      {/* Top bar: search + add */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search resources..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
         </div>
-        <Button onClick={() => setIsAddOpen(true)}>
+        <Button onClick={() => setIsAddOpen(true)} className="shrink-0">
           <Plus className="h-4 w-4 mr-2" />
           Add Resource
         </Button>
       </div>
 
-      {resources.length === 0 ? (
+      {/* Quick-jump category pills */}
+      {categoryOrder.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {categoryOrder.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => scrollToSection(cat)}
+              className="px-3 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+            >
+              {categoryShort[cat] || cat} ({grouped.get(cat)?.length || 0})
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Category sections */}
+      {categoryOrder.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            <BookOpen className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-            No {categoryFilter !== "all" ? (categoryLabels[categoryFilter]?.toLowerCase() || categoryFilter) : ""} resources yet. Add one above.
+            <BookOpen className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+            {searchQuery ? "No resources match your search." : "No resources yet. Add your first one above."}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {resources.map((r) => (
-            <Card key={r.id} className="flex flex-col">
-              <CardContent className="pt-5 flex-1 flex flex-col">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="font-semibold text-sm leading-tight">{r.title}</h3>
-                  <Badge className={`shrink-0 text-xs ${categoryColors[r.category] || categoryColors.other}`}>
-                    {categoryLabels[r.category] || r.category}
-                  </Badge>
+        <div className="space-y-8">
+          {categoryOrder.map((cat) => {
+            const catResources = grouped.get(cat) || [];
+            return (
+              <div key={cat} id={`section-${cat}`}>
+                {/* Section header */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className={categoryColors[cat] || "text-gray-600"}>
+                    {categoryIcons[cat] || <FolderOpen className="h-5 w-5" />}
+                  </span>
+                  <h3 className="text-lg font-semibold">{categoryLabels[cat] || cat}</h3>
+                  <span className="text-sm text-muted-foreground">({catResources.length} resource{catResources.length !== 1 ? "s" : ""})</span>
+                  <div className="h-px flex-1 bg-border" />
                 </div>
-                {r.description && (
-                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{r.description}</p>
-                )}
-                <div className="mt-auto pt-3 border-t flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    {r.uploaded_by_user_name && (
-                      <span>by {r.uploaded_by_user_name.split("@")[0]}</span>
-                    )}
-                    {r.created_at && (
-                      <span> · {new Date(r.created_at).toLocaleDateString()}</span>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    {(r.external_url || r.file_url) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => window.open(r.external_url || r.file_url || "", "_blank")}
-                      >
-                        {r.external_url ? <ExternalLink className="h-3.5 w-3.5" /> : <FileDown className="h-3.5 w-3.5" />}
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => setDeleteTarget(r)}
+
+                {/* Resource rows */}
+                <div className="space-y-2">
+                  {catResources.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center gap-4 p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+                      {getResourceIcon(r)}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{r.title}</p>
+                        {r.description && (
+                          <p className="text-xs text-muted-foreground truncate">{r.description}</p>
+                        )}
+                        <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                          {r.uploaded_by_user_name && <>by {r.uploaded_by_user_name.split("@")[0]}</>}
+                          {r.created_at && <> · {new Date(r.created_at).toLocaleDateString()}</>}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {(r.external_url || r.file_url) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => window.open(r.external_url || r.file_url || "", "_blank")}
+                          >
+                            {r.external_url ? "Open" : "Download"}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteTarget(r)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 
