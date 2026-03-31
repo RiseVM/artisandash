@@ -1,18 +1,10 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useEstimates, useCreateEstimate, useDeleteEstimate } from "./hooks";
-import { useAuth } from "@/features/auth/hooks";
+import { useEstimates, useDeleteEstimate } from "./hooks";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -30,23 +22,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Plus,
   PlusCircle,
   Search,
   FileText,
   Loader2,
   Trash2,
+  Pencil,
   User,
   Calendar,
   DollarSign,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { apiQuery } from "@/lib/api";
-import type { Customer, EstimateWithCustomer } from "@shared/schema";
+import type { EstimateWithCustomer } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
   draft: "bg-gray-100 text-gray-800",
@@ -70,22 +58,11 @@ export function Estimates() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { data: estimates = [], isLoading } = useEstimates();
-  const { data: customers = [] } = useQuery({
-    queryKey: ["customers"],
-    queryFn: () => apiQuery<Customer[]>("/api/customers"),
-  });
-  const createMutation = useCreateEstimate();
   const deleteMutation = useDeleteEstimate();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deleteEstimate, setDeleteEstimate] = useState<EstimateWithCustomer | null>(null);
-  const [newEstimate, setNewEstimate] = useState({
-    customer_id: 0,
-    title: "",
-    description: "",
-  });
 
   const filtered = estimates.filter((est) => {
     const matchesSearch =
@@ -96,29 +73,12 @@ export function Estimates() {
     return matchesSearch && matchesStatus;
   });
 
-  const handleCreate = async () => {
-    if (!newEstimate.customer_id || !newEstimate.title.trim()) return;
-    try {
-      const created = await createMutation.mutateAsync({
-        customer_id: newEstimate.customer_id,
-        title: newEstimate.title,
-        description: newEstimate.description || null,
-        issue_date: new Date().toISOString().split("T")[0],
-      });
-      setIsCreateOpen(false);
-      setNewEstimate({ customer_id: 0, title: "", description: "" });
-      toast({ title: "Estimate Created", description: `${created.estimate_number}` });
-    } catch (err: any) {
-      toast({ title: "Error", description: err?.message || "Failed to create estimate.", variant: "destructive" });
-    }
-  };
-
   const handleDelete = async () => {
     if (!deleteEstimate) return;
     try {
       await deleteMutation.mutateAsync(deleteEstimate.id);
       setDeleteEstimate(null);
-      toast({ title: "Estimate Deleted" });
+      toast({ title: "Quote Deleted" });
     } catch (err: any) {
       toast({ title: "Error", description: err?.message || "Failed to delete.", variant: "destructive" });
     }
@@ -139,22 +99,16 @@ export function Estimates() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" />
-            Estimates
+            Quotes
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {estimates.length} total estimate{estimates.length !== 1 ? "s" : ""}
+            {estimates.length} total quote{estimates.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setLocation("/quote-builder")}>
-            <PlusCircle className="h-4 w-4 mr-2" />
-            New Quote
-          </Button>
-          <Button variant="outline" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Quick Estimate
-          </Button>
-        </div>
+        <Button onClick={() => setLocation("/quote-builder")}>
+          <PlusCircle className="h-4 w-4 mr-2" />
+          New Quote
+        </Button>
       </div>
 
       {/* Filters */}
@@ -162,7 +116,7 @@ export function Estimates() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search estimates..."
+            placeholder="Search quotes..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -184,13 +138,13 @@ export function Estimates() {
         </Select>
       </div>
 
-      {/* Estimates List */}
+      {/* Quotes List */}
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             {search || statusFilter !== "all"
-              ? "No estimates match your filters."
-              : "No estimates yet. Create your first estimate to get started."}
+              ? "No quotes match your filters."
+              : "No quotes yet. Create your first quote to get started."}
           </CardContent>
         </Card>
       ) : (
@@ -224,13 +178,24 @@ export function Estimates() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <div className="text-right">
                       <div className="flex items-center gap-1 text-lg font-bold">
                         <DollarSign className="h-4 w-4" />
                         {parseFloat(est.total).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                       </div>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLocation(`/quote-builder/${est.id}`);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -250,66 +215,11 @@ export function Estimates() {
         </div>
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New Estimate</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Customer</Label>
-              <Select
-                value={newEstimate.customer_id ? String(newEstimate.customer_id) : ""}
-                onValueChange={(val) => setNewEstimate({ ...newEstimate, customer_id: parseInt(val) })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input
-                placeholder="e.g., Bathroom Renovation Quote"
-                value={newEstimate.title}
-                onChange={(e) => setNewEstimate({ ...newEstimate, title: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Description (optional)</Label>
-              <Textarea
-                placeholder="Brief description of the estimate..."
-                value={newEstimate.description}
-                onChange={(e) => setNewEstimate({ ...newEstimate, description: e.target.value })}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleCreate}
-              disabled={createMutation.isPending || !newEstimate.customer_id || !newEstimate.title.trim()}
-            >
-              {createMutation.isPending ? "Creating..." : "Create Estimate"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteEstimate} onOpenChange={(open) => !open && setDeleteEstimate(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Estimate?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Quote?</AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete "{deleteEstimate?.estimate_number} - {deleteEstimate?.title}" and all its line items.
             </AlertDialogDescription>

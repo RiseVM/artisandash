@@ -35,7 +35,7 @@ export function Sidebar() {
     { href: "/contracts", label: "Contracts", icon: ClipboardList },
     { href: "/projects", label: "Projects", icon: FolderKanban },
     { href: "/quote-builder", label: "Quote Builder", icon: Wrench },
-    { href: "/estimates", label: "Estimates", icon: Calculator },
+    { href: "/estimates", label: "Quotes", icon: Calculator },
     { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },

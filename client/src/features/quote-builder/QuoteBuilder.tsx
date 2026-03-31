@@ -1,7 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { useCatalog, useSeedCatalog } from "@/features/catalog/hooks";
-import { useCreateEstimate, useCreateEstimateLineItem } from "@/features/estimates/hooks";
+import {
+  useCreateEstimate,
+  useCreateEstimateLineItem,
+  useEstimate,
+  useUpdateEstimate,
+  useDeleteEstimateLineItem,
+} from "@/features/estimates/hooks";
 import { useCustomers, useCreateCustomer } from "@/features/customers/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Search, UserPlus, X, Check, Database } from "lucide-react";
@@ -34,13 +40,23 @@ function getCategoryBg(name: string, fallback?: string | null): string {
 
 export function QuoteBuilder() {
   const [, navigate] = useLocation();
+  const [, routeParams] = useRoute("/quote-builder/:id");
+  const editId = routeParams?.id ? parseInt(routeParams.id) : 0;
+  const isEditMode = !!editId;
+
   const { toast } = useToast();
   const { data: catalog = [], isLoading } = useCatalog();
   const { data: customers = [] } = useCustomers();
+  const { data: existingEstimate, isLoading: isLoadingEstimate } = useEstimate(editId);
   const seedMutation = useSeedCatalog();
   const createEstimateMutation = useCreateEstimate();
   const createLineItemMutation = useCreateEstimateLineItem();
+  const updateEstimateMutation = useUpdateEstimate();
+  const deleteLineItemMutation = useDeleteEstimateLineItem();
   const createCustomerMutation = useCreateCustomer();
+
+  // Track whether we've loaded the existing estimate data into local state
+  const [editDataLoaded, setEditDataLoaded] = useState(false);
 
   // Customer selection state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -85,6 +101,24 @@ export function QuoteBuilder() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Load existing estimate data into QuoteBuilder state when editing
+  useEffect(() => {
+    if (!isEditMode || !existingEstimate || editDataLoaded) return;
+    // Set customer
+    if (existingEstimate.customer) {
+      setSelectedCustomer(existingEstimate.customer);
+      if (existingEstimate.customer.address) {
+        setProjectAddress(existingEstimate.customer.address);
+      }
+    }
+    // Parse markup from internal notes if available
+    const markupMatch = existingEstimate.internal_notes?.match(/Markup:\s*(\d+)%/);
+    if (markupMatch) {
+      setMarkupPercent(parseInt(markupMatch[1]));
+    }
+    setEditDataLoaded(true);
+  }, [isEditMode, existingEstimate, editDataLoaded]);
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -241,12 +275,12 @@ export function QuoteBuilder() {
     };
   }, [catalog, selectedItems, exclusiveSelections, markupPercent]);
 
-  const handleCreateEstimate = async () => {
+  const handleSaveQuote = async () => {
     if (!selectedCustomer) {
       toast({ title: "Select or create a customer first", variant: "destructive" });
       return;
     }
-    if (grandTotal <= 0) {
+    if (grandTotal <= 0 && !isEditMode) {
       toast({ title: "Select at least one service", variant: "destructive" });
       return;
     }
@@ -257,38 +291,84 @@ export function QuoteBuilder() {
         : selectedCustomer.name;
 
       // SECURITY: markup notes are always internal — never shown to client
-      const internalNotes = `Markup: ${markupPercent}%\nCost Subtotal: $${costSubtotal.toLocaleString()}\n\nCost Breakdown:\n${categoryBreakdowns.map((b) => `${b.category.name}: $${b.costTotal.toLocaleString()}\n${b.items.map((i) => `  - ${i.name}: $${i.costPrice.toLocaleString()} → $${i.clientPrice.toLocaleString()}`).join("\n")}`).join("\n\n")}`;
+      const internalNotes = categoryBreakdowns.length > 0
+        ? `Markup: ${markupPercent}%\nCost Subtotal: $${costSubtotal.toLocaleString()}\n\nCost Breakdown:\n${categoryBreakdowns.map((b) => `${b.category.name}: $${b.costTotal.toLocaleString()}\n${b.items.map((i) => `  - ${i.name}: $${i.costPrice.toLocaleString()} → $${i.clientPrice.toLocaleString()}`).join("\n")}`).join("\n\n")}`
+        : (isEditMode ? existingEstimate?.internal_notes || "" : "");
 
-      const estimate = await createEstimateMutation.mutateAsync({
-        title,
-        customer_id: selectedCustomer.id,
-        total: grandTotal.toFixed(2),
-        subtotal: grandTotal.toFixed(2),
-        tax_rate: "0",
-        tax_amount: "0",
-        status: "draft",
-        internal_notes: internalNotes,
-      });
+      if (isEditMode) {
+        // ── Update existing quote ──
+        const updateData: Record<string, any> = {
+          title,
+          customer_id: selectedCustomer.id,
+          internal_notes: internalNotes,
+        };
 
-      const allItems = categoryBreakdowns.flatMap((b) => b.items);
-      for (let i = 0; i < allItems.length; i++) {
-        const item = allItems[i];
-        await createLineItemMutation.mutateAsync({
-          estimateId: estimate.id,
-          data: {
-            description: item.name,
-            section: item.section,
-            quantity: "1",
-            unit: "lot",
-            unit_price: item.clientPrice.toFixed(2),
-            total: item.clientPrice.toFixed(2),
-            display_order: i,
-          },
+        // Only update totals if new catalog items were selected
+        if (categoryBreakdowns.length > 0) {
+          updateData.total = grandTotal.toFixed(2);
+          updateData.subtotal = grandTotal.toFixed(2);
+
+          // Delete existing line items and replace with new ones
+          if (existingEstimate?.lineItems) {
+            for (const li of existingEstimate.lineItems) {
+              await deleteLineItemMutation.mutateAsync({ id: li.id, estimateId: editId });
+            }
+          }
+
+          const allItems = categoryBreakdowns.flatMap((b) => b.items);
+          for (let i = 0; i < allItems.length; i++) {
+            const item = allItems[i];
+            await createLineItemMutation.mutateAsync({
+              estimateId: editId,
+              data: {
+                description: item.name,
+                section: item.section,
+                quantity: "1",
+                unit: "lot",
+                unit_price: item.clientPrice.toFixed(2),
+                total: item.clientPrice.toFixed(2),
+                display_order: i,
+              },
+            });
+          }
+        }
+
+        await updateEstimateMutation.mutateAsync({ id: editId, data: updateData as any });
+        toast({ title: "Quote Updated", description: `${title} — $${grandTotal > 0 ? grandTotal.toLocaleString() : parseFloat(existingEstimate?.total || "0").toLocaleString()}` });
+        navigate(`/estimates/${editId}`);
+      } else {
+        // ── Create new quote ──
+        const estimate = await createEstimateMutation.mutateAsync({
+          title,
+          customer_id: selectedCustomer.id,
+          total: grandTotal.toFixed(2),
+          subtotal: grandTotal.toFixed(2),
+          tax_rate: "0",
+          tax_amount: "0",
+          status: "draft",
+          internal_notes: internalNotes,
         });
-      }
 
-      toast({ title: "Estimate Created", description: `${title} — $${grandTotal.toLocaleString()}` });
-      navigate(`/estimates/${estimate.id}`);
+        const allItems = categoryBreakdowns.flatMap((b) => b.items);
+        for (let i = 0; i < allItems.length; i++) {
+          const item = allItems[i];
+          await createLineItemMutation.mutateAsync({
+            estimateId: estimate.id,
+            data: {
+              description: item.name,
+              section: item.section,
+              quantity: "1",
+              unit: "lot",
+              unit_price: item.clientPrice.toFixed(2),
+              total: item.clientPrice.toFixed(2),
+              display_order: i,
+            },
+          });
+        }
+
+        toast({ title: "Quote Created", description: `${title} — $${grandTotal.toLocaleString()}` });
+        navigate(`/estimates/${estimate.id}`);
+      }
     } catch (err: any) {
       toast({ title: "Error", description: err?.message, variant: "destructive" });
     }
@@ -326,7 +406,7 @@ export function QuoteBuilder() {
     return m;
   }, [categoryBreakdowns]);
 
-  if (isLoading) {
+  if (isLoading || (isEditMode && isLoadingEstimate)) {
     return (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
         <Loader2 className="h-8 w-8 animate-spin" style={{ color: "#6b6560" }} />
@@ -842,7 +922,7 @@ export function QuoteBuilder() {
         {/* ── Left: Configurator — scrollable, standard bg ── */}
         <div className="flex-1 overflow-y-auto bg-background p-8">
           <button
-            onClick={() => navigate("/estimates")}
+            onClick={() => navigate(isEditMode ? `/estimates/${editId}` : "/estimates")}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -859,10 +939,14 @@ export function QuoteBuilder() {
             onMouseOver={(e) => (e.currentTarget.style.color = "hsl(var(--foreground))")}
             onMouseOut={(e) => (e.currentTarget.style.color = "hsl(var(--muted-foreground))")}
           >
-            ← All Estimates
+            ← All Quotes
           </button>
-          <div className="qb-title">Build a Quote</div>
-          <p className="qb-sub">Click to select services. The final price will be sent to the client — not the line items.</p>
+          <div className="qb-title">{isEditMode ? "Edit Quote" : "Build a Quote"}</div>
+          <p className="qb-sub">
+            {isEditMode
+              ? "Update the customer, address, or select new services to replace the existing line items."
+              : "Click to select services. The final price will be sent to the client — not the line items."}
+          </p>
 
           {/* Client row */}
           <div className="qb-client-row">
@@ -1066,12 +1150,15 @@ export function QuoteBuilder() {
             </div>
             <button
               className="qb-btn-create"
-              onClick={handleCreateEstimate}
-              disabled={createEstimateMutation.isPending || createLineItemMutation.isPending || !selectedCustomer || grandTotal <= 0}
+              onClick={handleSaveQuote}
+              disabled={
+                createEstimateMutation.isPending || createLineItemMutation.isPending || updateEstimateMutation.isPending ||
+                !selectedCustomer || (!isEditMode && grandTotal <= 0)
+              }
             >
-              {createEstimateMutation.isPending || createLineItemMutation.isPending
-                ? "Creating..."
-                : "Create Estimate →"}
+              {createEstimateMutation.isPending || createLineItemMutation.isPending || updateEstimateMutation.isPending
+                ? (isEditMode ? "Updating..." : "Creating...")
+                : (isEditMode ? "Update Quote →" : "Create Quote →")}
             </button>
             <button className="qb-btn-reset" onClick={handleClearAll}>
               Clear All

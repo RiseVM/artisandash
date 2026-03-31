@@ -52,7 +52,7 @@ import { RemoteSign } from "@/features/RemoteSign";
 import { MyTimesheets } from "@/features/timesheets/MyTimesheets";
 import { AdminTimesheets } from "@/features/timesheets/AdminTimesheets";
 
-// Phase 9: Estimates & Messages
+// Phase 9: Quotes & Messages
 import { Estimates } from "@/features/estimates/Estimates";
 import { EstimateBuilder } from "@/features/estimates/EstimateBuilder";
 import { Messages } from "@/features/messages/Messages";
@@ -178,7 +178,7 @@ function AdminRouter() {
           <ProjectDetail />
         </Route>
 
-        {/* Estimates */}
+        {/* Quotes */}
         <Route path="/estimates">
           <Estimates />
         </Route>
@@ -192,6 +192,9 @@ function AdminRouter() {
         </Route>
 
         {/* Quote Builder */}
+        <Route path="/quote-builder/:id">
+          <QuoteBuilder />
+        </Route>
         <Route path="/quote-builder">
           <QuoteBuilder />
         </Route>
