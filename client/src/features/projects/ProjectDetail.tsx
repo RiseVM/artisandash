@@ -175,8 +175,10 @@ export function ProjectDetail() {
 
   const canManageProjects = hasPermission("manage_projects");
 
-  // Scroll to top when project loads
+  // Scroll to top when project loads — target the <main> scroll container
   useEffect(() => {
+    const main = document.querySelector("main");
+    if (main) main.scrollTop = 0;
     window.scrollTo(0, 0);
   }, [projectId]);
 

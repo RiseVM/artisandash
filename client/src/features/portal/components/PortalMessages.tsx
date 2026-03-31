@@ -89,10 +89,11 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
   const { toast } = useToast();
 
   const [newMessage, setNewMessage] = useState({ subject: "", content: "" });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const viewport = scrollContainerRef.current?.closest("[data-radix-scroll-area-viewport]");
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, [messages]);
 
   useEffect(() => {
@@ -189,7 +190,7 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
                   </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} />
+              <div ref={scrollContainerRef} />
             </div>
           )}
         </ScrollArea>
