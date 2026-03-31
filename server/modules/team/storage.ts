@@ -14,10 +14,14 @@ import {
 } from "@shared/schema";
 
 // ── Default checklist items seeded for every new team member ──
-// Based on ATK&B new hire documents, HR/legal/payroll items stripped.
+// Organized into 3 phases:
+//   Phase 1: New Hire Preparation (SOP — done before start date)
+//   Phase 2: HR Paperwork & Compliance (collecting forms, legal, payroll)
+//   Phase 3: New Hire Orientation & Training (post-hire, getting up to speed)
 const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
-  // ═══ DOC 1: New Hire Preparation ═══
-  // Source: Checklist-New-Hire-Preparation.docx (done before start date)
+
+  // ═══ PHASE 1: New Hire Preparation (SOP) ═══
+  // Pre-hire setup tasks — everything that needs to happen before day one
 
   // Human Resources
   { section: "Human Resources", item_text: "Resume received" },
@@ -51,8 +55,48 @@ const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
   { section: "Information Technology", item_text: "Network access/passwords created" },
   { section: "Information Technology", item_text: "Email account created" },
 
-  // ═══ DOC 2: New Hire Orientation ═══
-  // Source: Checklist-New-Hire-Orientation.docx (first 3 days)
+  // ═══ PHASE 2: HR Paperwork & Compliance ═══
+  // Forms to collect from employee, tax/legal docs, handbook sign-off
+
+  // Tax & Payroll Forms
+  { section: "Tax & Payroll Forms", item_text: "W-4 Federal tax withholding form" },
+  { section: "Tax & Payroll Forms", item_text: "CT State tax withholding form (CT-W4)" },
+  { section: "Tax & Payroll Forms", item_text: "I-9 Employment Eligibility Verification" },
+  { section: "Tax & Payroll Forms", item_text: "Direct deposit authorization form" },
+  { section: "Tax & Payroll Forms", item_text: "Employee personal information sheet and emergency contact form" },
+
+  // Employee Agreements & Sign-offs
+  { section: "Employee Agreements", item_text: "Employee handbook received and signed" },
+  { section: "Employee Agreements", item_text: "Employee policy manual acknowledgement signed" },
+  { section: "Employee Agreements", item_text: "Key/security policies acknowledgement signed" },
+  { section: "Employee Agreements", item_text: "Confidentiality/NDA agreement signed" },
+  { section: "Employee Agreements", item_text: "Non-compete agreement signed, if applicable" },
+  { section: "Employee Agreements", item_text: "At-will employment acknowledgement signed" },
+  { section: "Employee Agreements", item_text: "Anti-harassment policy acknowledgement signed" },
+  { section: "Employee Agreements", item_text: "Safety policy acknowledgement signed" },
+
+  // Received from Employee
+  { section: "Received from Employee", item_text: "Completed application form and resume" },
+  { section: "Received from Employee", item_text: "Authorizations for background check, physical & drug screen, if applicable" },
+  { section: "Received from Employee", item_text: "Signed offer letter" },
+  { section: "Received from Employee", item_text: "Benefit enrollment forms" },
+  { section: "Received from Employee", item_text: "Photo ID copies for I-9 verification" },
+
+  // HR Processing
+  { section: "HR Processing", item_text: "Personnel file created" },
+  { section: "HR Processing", item_text: "Confidential medical file created" },
+  { section: "HR Processing", item_text: "Reference checks completed and filed" },
+  { section: "HR Processing", item_text: "Background check results received and reviewed, if applicable" },
+  { section: "HR Processing", item_text: "Physical exam results received and reviewed, if applicable" },
+  { section: "HR Processing", item_text: "Drug test received and reviewed, if applicable" },
+  { section: "HR Processing", item_text: "I-9 documents reviewed and filed" },
+  { section: "HR Processing", item_text: "Payroll notice completed" },
+  { section: "HR Processing", item_text: "Employee information entered into payroll system" },
+  { section: "HR Processing", item_text: "CT State new hire reporting completed" },
+  { section: "HR Processing", item_text: "Orientation documents filed" },
+
+  // ═══ PHASE 3: New Hire Orientation & Training ═══
+  // Post-hire: making sure they're trained and up to speed
 
   // Introduction to the Company
   { section: "Introduction to the Company", item_text: "Company overview" },
@@ -60,11 +104,6 @@ const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
   { section: "Introduction to the Company", item_text: "Organization mission" },
   { section: "Introduction to the Company", item_text: "Corporate literature/video" },
   { section: "Introduction to the Company", item_text: "Organizational chart" },
-
-  // New-Employee Paperwork
-  { section: "New-Employee Paperwork", item_text: "W-4 and CT State tax forms" },
-  { section: "New-Employee Paperwork", item_text: "I-9 form" },
-  { section: "New-Employee Paperwork", item_text: "Employee handbook" },
 
   // Benefits and Compensation
   { section: "Benefits and Compensation", item_text: "Health, life, disability insurance" },
@@ -116,36 +155,6 @@ const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
   { section: "Introductions and Tours", item_text: "Coffee/vending machines" },
   { section: "Introductions and Tours", item_text: "Watercoolers" },
   { section: "Introductions and Tours", item_text: "Emergency exits" },
-
-  // ═══ DOC 3: New Hire Paperwork ═══
-  // Source: Checklist-New-Hire-Paperwork.docx (received from employee)
-
-  // Received from Employee
-  { section: "Received from Employee", item_text: "Completed Application form and resume" },
-  { section: "Received from Employee", item_text: "Authorizations for background check, physical & drug screen, if applicable" },
-  { section: "Received from Employee", item_text: "Offer letter" },
-  { section: "Received from Employee", item_text: "I-9 form" },
-  { section: "Received from Employee", item_text: "Federal tax withholding form" },
-  { section: "Received from Employee", item_text: "State tax withholding form" },
-  { section: "Received from Employee", item_text: "Direct deposit form" },
-  { section: "Received from Employee", item_text: "Employee policy manual acknowledgement" },
-  { section: "Received from Employee", item_text: "Employee handbook acknowledgement" },
-  { section: "Received from Employee", item_text: "Key/security policies acknowledgement" },
-  { section: "Received from Employee", item_text: "Employee personal information sheet and emergency contact form" },
-  { section: "Received from Employee", item_text: "Benefit enrollment forms" },
-
-  // HR New Hire Preparation
-  { section: "HR New Hire Preparation", item_text: "Personnel file created" },
-  { section: "HR New Hire Preparation", item_text: "Confidential medical file created" },
-  { section: "HR New Hire Preparation", item_text: "Reference checks completed and filed" },
-  { section: "HR New Hire Preparation", item_text: "Background check results received and reviewed, if applicable" },
-  { section: "HR New Hire Preparation", item_text: "Physical exam results received and reviewed, if applicable" },
-  { section: "HR New Hire Preparation", item_text: "Drug test received and reviewed, if applicable" },
-  { section: "HR New Hire Preparation", item_text: "I-9 documents reviewed" },
-  { section: "HR New Hire Preparation", item_text: "Payroll notice completed" },
-  { section: "HR New Hire Preparation", item_text: "Orientation documents filed" },
-  { section: "HR New Hire Preparation", item_text: "Employee information entered into payroll system" },
-  { section: "HR New Hire Preparation", item_text: "CT State new hire reporting completed" },
 ];
 
 export const teamStorage = {

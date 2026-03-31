@@ -2,7 +2,7 @@ import { ReactNode, useState } from "react";
 import { useLocation } from "wouter";
 import { usePortalAuth } from "./hooks";
 import { Button } from "@/components/ui/button";
-import { LogOut, Menu, X, Loader2 } from "lucide-react";
+import { LogOut, Menu, X, Loader2, ArrowLeft, Eye } from "lucide-react";
 
 interface PortalLayoutProps {
   children: ReactNode;
@@ -31,8 +31,26 @@ export function PortalLayout({ children }: PortalLayoutProps) {
     return null;
   }
 
+  const isAdminPreview = (user as any)?.isAdminPreview === true;
+
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Admin Preview Banner */}
+      {isAdminPreview && (
+        <div className="bg-amber-500 text-white px-4 py-2 text-center text-sm font-medium flex items-center justify-center gap-2">
+          <Eye className="h-4 w-4" />
+          Admin Preview — You are viewing this as the client sees it
+          <Button
+            variant="secondary"
+            size="sm"
+            className="ml-4 h-7 text-xs"
+            onClick={() => window.close()}
+          >
+            <ArrowLeft className="h-3 w-3 mr-1" />
+            Close Preview
+          </Button>
+        </div>
+      )}
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">

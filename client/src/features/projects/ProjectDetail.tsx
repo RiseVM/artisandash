@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import {
@@ -62,6 +62,10 @@ import {
   Globe,
   ExternalLink,
   MessageCircle,
+  Phone,
+  Mail,
+  MapPin,
+  UserCheck,
   CheckCircle,
   Circle,
   Clock,
@@ -170,6 +174,11 @@ export function ProjectDetail() {
   });
 
   const canManageProjects = hasPermission("manage_projects");
+
+  // Scroll to top when project loads
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [projectId]);
 
   const togglePhaseExpanded = (phaseId: number) => {
     const newExpanded = new Set(expandedPhases);
@@ -469,27 +478,93 @@ export function ProjectDetail() {
         )}
       </div>
 
-      {/* Progress Overview */}
+      {/* Client & Project Summary */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Overall Progress</span>
-                <span className="text-sm font-bold">{project.overall_progress}%</span>
-              </div>
-              <Progress value={project.overall_progress} className="h-3" />
-            </div>
-            <div className="flex sm:flex-col gap-4 sm:gap-0 justify-around sm:justify-start">
-              <div className="text-center sm:text-right">
-                <div className="text-xl sm:text-2xl font-bold">{project.phases.length}</div>
-                <div className="text-sm text-muted-foreground">Phases</div>
-              </div>
-              <div className="text-center sm:text-right">
-                <div className="text-xl sm:text-2xl font-bold">
-                  {project.phases.reduce((sum, p) => sum + p.tasks.length, 0)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Client Details */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Client Details</h3>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="font-medium">{project.customer.name}</span>
                 </div>
-                <div className="text-sm text-muted-foreground">Tasks</div>
+                {project.customer.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <a href={`mailto:${project.customer.email}`} className="text-sm text-blue-600 hover:underline">{project.customer.email}</a>
+                  </div>
+                )}
+                {project.customer.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <a href={`tel:${project.customer.phone}`} className="text-sm text-blue-600 hover:underline">{project.customer.phone}</a>
+                  </div>
+                )}
+                {project.customer.address && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm">{project.customer.address}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Project Info */}
+            <div>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Project Info</h3>
+              <div className="space-y-2">
+                {project.created_by_user_name && (
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm">Assigned to <span className="font-medium">{project.created_by_user_name.split("@")[0]}</span></span>
+                  </div>
+                )}
+                {project.description && (
+                  <p className="text-sm text-muted-foreground">{project.description}</p>
+                )}
+                {(project.estimated_start_date || project.estimated_end_date) && (
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm">
+                      {project.estimated_start_date && `Start: ${project.estimated_start_date}`}
+                      {project.estimated_start_date && project.estimated_end_date && " · "}
+                      {project.estimated_end_date && `End: ${project.estimated_end_date}`}
+                    </span>
+                  </div>
+                )}
+                {(project.site_address || project.address_street) && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm">{project.site_address || [project.address_street, project.address_city, project.address_state, project.address_zip].filter(Boolean).join(", ")}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="mt-6 pt-4 border-t">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Overall Progress</span>
+                  <span className="text-sm font-bold">{project.overall_progress}%</span>
+                </div>
+                <Progress value={project.overall_progress} className="h-3" />
+              </div>
+              <div className="flex sm:flex-col gap-4 sm:gap-0 justify-around sm:justify-start">
+                <div className="text-center sm:text-right">
+                  <div className="text-xl sm:text-2xl font-bold">{project.phases.length}</div>
+                  <div className="text-sm text-muted-foreground">Phases</div>
+                </div>
+                <div className="text-center sm:text-right">
+                  <div className="text-xl sm:text-2xl font-bold">
+                    {project.phases.reduce((sum, p) => sum + p.tasks.length, 0)}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Tasks</div>
+                </div>
               </div>
             </div>
           </div>

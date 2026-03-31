@@ -116,6 +116,19 @@ export const portalStorage = {
 
   // ── CLIENT PROJECTS ────────────────────────────
 
+  async getAllProjects(): Promise<{ id: number }[]> {
+    return db.select({ id: projects.id }).from(projects);
+  },
+
+  async getProjectCustomerId(projectId: number): Promise<{ customer_id: number; customer_name: string | null } | null> {
+    const [result] = await db
+      .select({ customer_id: projects.customer_id, customer_name: customers.name })
+      .from(projects)
+      .innerJoin(customers, eq(projects.customer_id, customers.id))
+      .where(eq(projects.id, projectId));
+    return result || null;
+  },
+
   async getClientProjects(customerId: number): Promise<ProjectWithCustomer[]> {
     const projectList = await db
       .select()

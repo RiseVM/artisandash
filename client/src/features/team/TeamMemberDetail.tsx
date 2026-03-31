@@ -37,29 +37,33 @@ import {
 } from "lucide-react";
 import type { TeamSetupItem } from "@shared/schema";
 
-// Each phase matches one of the 3 ATK&B new hire documents exactly
+// Phase 1: SOP (pre-hire setup), Phase 2: HR (forms/compliance), Phase 3: Training (post-hire)
 const PHASES: { label: string; description: string; sections: string[] }[] = [
   {
     label: "New Hire Preparation",
-    description: "Done before start date",
+    description: "SOP — Everything before day one",
     sections: ["Human Resources", "Admin Services", "Information Technology"],
   },
   {
-    label: "New Hire Orientation",
-    description: "First 3 days after start date",
+    label: "HR Paperwork & Compliance",
+    description: "Tax forms, agreements, handbook sign-off, HR processing",
+    sections: [
+      "Tax & Payroll Forms",
+      "Employee Agreements",
+      "Received from Employee",
+      "HR Processing",
+    ],
+  },
+  {
+    label: "Orientation & Training",
+    description: "Post-hire — getting trained and up to speed",
     sections: [
       "Introduction to the Company",
-      "New-Employee Paperwork",
       "Benefits and Compensation",
       "Administrative Procedures",
       "Key Policy Review",
       "Introductions and Tours",
     ],
-  },
-  {
-    label: "New Hire Paperwork",
-    description: "Received from employee and HR processing",
-    sections: ["Received from Employee", "HR New Hire Preparation"],
   },
 ];
 
