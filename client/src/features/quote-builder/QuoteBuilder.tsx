@@ -76,6 +76,15 @@ export function QuoteBuilder() {
   const [exclusiveSelections, setExclusiveSelections] = useState<ExclusiveSelections>({});
   const [expandedCategories, setExpandedCategories] = useState<Record<number, boolean>>({});
 
+  // Custom (non-catalog) line items preserved from existing quote
+  const [customLineItems, setCustomLineItems] = useState<Array<{
+    description: string;
+    section: string;
+    unit_price: string;
+    quantity: string;
+    unit: string;
+  }>>([]);
+
   // Filter customers based on search
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return customers.slice(0, 10);
@@ -105,6 +114,9 @@ export function QuoteBuilder() {
   // Load existing estimate data into QuoteBuilder state when editing
   useEffect(() => {
     if (!isEditMode || !existingEstimate || editDataLoaded) return;
+    // Wait for catalog to load before mapping line items
+    if (catalog.length === 0) return;
+
     // Set customer
     if (existingEstimate.customer) {
       setSelectedCustomer(existingEstimate.customer);
@@ -117,8 +129,74 @@ export function QuoteBuilder() {
     if (markupMatch) {
       setMarkupPercent(parseInt(markupMatch[1]));
     }
+
+    // ── Reverse-map line items back to catalog selections ──
+    const lineItems = existingEstimate.lineItems || [];
+    const newSelectedItems: SelectedItems = {};
+    const newExclusiveSelections: ExclusiveSelections = {};
+    const unmatched: typeof customLineItems = [];
+
+    // Build lookup structures from catalog
+    // For exclusive groups: saved name is "GroupName: ChildName"
+    // For standalone/non-exclusive children: saved name is just the item name
+    const exclusiveMap = new Map<string, { groupId: number; childId: number }>();
+    const itemNameMap = new Map<string, number>(); // name → item/child id
+
+    for (const cat of catalog) {
+      if (cat.is_active !== "yes") continue;
+      for (const item of cat.items) {
+        if (item.is_active !== "yes") continue;
+        if (item.is_group === "yes") {
+          const children = item.children || [];
+          if (item.is_exclusive === "yes") {
+            for (const child of children) {
+              if (child.is_active !== "yes") continue;
+              const key = `${item.name}: ${child.name}`.trim().toLowerCase();
+              exclusiveMap.set(key, { groupId: item.id, childId: child.id });
+            }
+          } else {
+            for (const child of children) {
+              if (child.is_active !== "yes") continue;
+              itemNameMap.set(child.name.trim().toLowerCase(), child.id);
+            }
+          }
+        } else {
+          itemNameMap.set(item.name.trim().toLowerCase(), item.id);
+        }
+      }
+    }
+
+    for (const li of lineItems) {
+      const desc = li.description.trim().toLowerCase();
+      // Try exclusive group match first (format: "GroupName: ChildName")
+      const excMatch = exclusiveMap.get(desc);
+      if (excMatch) {
+        newExclusiveSelections[excMatch.groupId] = excMatch.childId;
+        continue;
+      }
+      // Try standalone / non-exclusive child match
+      const itemId = itemNameMap.get(desc);
+      if (itemId !== undefined) {
+        newSelectedItems[itemId] = true;
+        continue;
+      }
+      // No catalog match — preserve as custom line item
+      unmatched.push({
+        description: li.description,
+        section: li.section || "",
+        unit_price: li.unit_price,
+        quantity: li.quantity,
+        unit: li.unit || "lot",
+      });
+    }
+
+    setSelectedItems(newSelectedItems);
+    setExclusiveSelections(newExclusiveSelections);
+    if (unmatched.length > 0) {
+      setCustomLineItems(unmatched);
+    }
     setEditDataLoaded(true);
-  }, [isEditMode, existingEstimate, editDataLoaded]);
+  }, [isEditMode, existingEstimate, editDataLoaded, catalog]);
 
   const handleSelectCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -280,7 +358,9 @@ export function QuoteBuilder() {
       toast({ title: "Select or create a customer first", variant: "destructive" });
       return;
     }
-    if (grandTotal <= 0 && !isEditMode) {
+    const hasSelectedCatalogItems = grandTotal > 0;
+    const hasCustomItems = customLineItems.length > 0;
+    if (!hasSelectedCatalogItems && !hasCustomItems && !isEditMode) {
       toast({ title: "Select at least one service", variant: "destructive" });
       return;
     }
@@ -297,44 +377,63 @@ export function QuoteBuilder() {
 
       if (isEditMode) {
         // ── Update existing quote ──
+        // Delete existing line items — they will be recreated from current selections
+        if (existingEstimate?.lineItems) {
+          for (const li of existingEstimate.lineItems) {
+            await deleteLineItemMutation.mutateAsync({ id: li.id, estimateId: editId });
+          }
+        }
+
+        // Recreate line items from catalog selections
+        const allCatalogItems = categoryBreakdowns.flatMap((b) => b.items);
+        let displayOrder = 0;
+        for (const item of allCatalogItems) {
+          await createLineItemMutation.mutateAsync({
+            estimateId: editId,
+            data: {
+              description: item.name,
+              section: item.section,
+              quantity: "1",
+              unit: "lot",
+              unit_price: item.clientPrice.toFixed(2),
+              total: item.clientPrice.toFixed(2),
+              display_order: displayOrder++,
+            },
+          });
+        }
+
+        // Write custom (non-catalog) line items
+        for (const custom of customLineItems) {
+          const qty = parseFloat(custom.quantity) || 1;
+          const price = parseFloat(custom.unit_price) || 0;
+          await createLineItemMutation.mutateAsync({
+            estimateId: editId,
+            data: {
+              description: custom.description,
+              section: custom.section || null,
+              quantity: qty.toString(),
+              unit: custom.unit || "lot",
+              unit_price: price.toFixed(2),
+              total: (qty * price).toFixed(2),
+              display_order: displayOrder++,
+            },
+          });
+        }
+
+        // Compute new total including custom items
+        const customTotal = customLineItems.reduce((sum, c) => sum + (parseFloat(c.quantity) || 1) * (parseFloat(c.unit_price) || 0), 0);
+        const newTotal = grandTotal + customTotal;
+
         const updateData: Record<string, any> = {
           title,
           customer_id: selectedCustomer.id,
           internal_notes: internalNotes,
+          total: newTotal.toFixed(2),
+          subtotal: newTotal.toFixed(2),
         };
 
-        // Only update totals if new catalog items were selected
-        if (categoryBreakdowns.length > 0) {
-          updateData.total = grandTotal.toFixed(2);
-          updateData.subtotal = grandTotal.toFixed(2);
-
-          // Delete existing line items and replace with new ones
-          if (existingEstimate?.lineItems) {
-            for (const li of existingEstimate.lineItems) {
-              await deleteLineItemMutation.mutateAsync({ id: li.id, estimateId: editId });
-            }
-          }
-
-          const allItems = categoryBreakdowns.flatMap((b) => b.items);
-          for (let i = 0; i < allItems.length; i++) {
-            const item = allItems[i];
-            await createLineItemMutation.mutateAsync({
-              estimateId: editId,
-              data: {
-                description: item.name,
-                section: item.section,
-                quantity: "1",
-                unit: "lot",
-                unit_price: item.clientPrice.toFixed(2),
-                total: item.clientPrice.toFixed(2),
-                display_order: i,
-              },
-            });
-          }
-        }
-
         await updateEstimateMutation.mutateAsync({ id: editId, data: updateData as any });
-        toast({ title: "Quote Updated", description: `${title} — $${grandTotal > 0 ? grandTotal.toLocaleString() : parseFloat(existingEstimate?.total || "0").toLocaleString()}` });
+        toast({ title: "Quote Updated", description: `${title} — $${newTotal.toLocaleString()}` });
         navigate(`/estimates/${editId}`);
       } else {
         // ── Create new quote ──
@@ -390,6 +489,7 @@ export function QuoteBuilder() {
     setCustomerSearch("");
     setProjectAddress("");
     setMarkupPercent(15);
+    setCustomLineItems([]);
   };
 
   const fmt = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
@@ -1152,11 +1252,11 @@ export function QuoteBuilder() {
               className="qb-btn-create"
               onClick={handleSaveQuote}
               disabled={
-                createEstimateMutation.isPending || createLineItemMutation.isPending || updateEstimateMutation.isPending ||
-                !selectedCustomer || (!isEditMode && grandTotal <= 0)
+                createEstimateMutation.isPending || createLineItemMutation.isPending || updateEstimateMutation.isPending || deleteLineItemMutation.isPending ||
+                !selectedCustomer || (!isEditMode && grandTotal <= 0 && customLineItems.length === 0)
               }
             >
-              {createEstimateMutation.isPending || createLineItemMutation.isPending || updateEstimateMutation.isPending
+              {createEstimateMutation.isPending || createLineItemMutation.isPending || updateEstimateMutation.isPending || deleteLineItemMutation.isPending
                 ? (isEditMode ? "Updating..." : "Creating...")
                 : (isEditMode ? "Update Quote →" : "Create Quote →")}
             </button>
