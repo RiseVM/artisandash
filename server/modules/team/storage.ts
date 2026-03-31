@@ -155,6 +155,42 @@ export const teamStorage = {
     return updated;
   },
 
+  async updateSetupItemText(
+    id: number,
+    itemText: string,
+  ): Promise<TeamSetupItem | undefined> {
+    const [updated] = await db
+      .update(teamSetupItems)
+      .set({ item_text: itemText })
+      .where(eq(teamSetupItems.id, id))
+      .returning();
+    return updated;
+  },
+
+  async createSetupItem(data: {
+    team_member_id: number;
+    section: string;
+    item_text: string;
+    display_order?: number;
+  }): Promise<TeamSetupItem> {
+    const [item] = await db
+      .insert(teamSetupItems)
+      .values({
+        team_member_id: data.team_member_id,
+        section: data.section,
+        item_text: data.item_text,
+        is_checked: false,
+        display_order: data.display_order ?? 999,
+      })
+      .returning();
+    return item;
+  },
+
+  async deleteSetupItem(id: number): Promise<boolean> {
+    const result = await db.delete(teamSetupItems).where(eq(teamSetupItems.id, id)).returning();
+    return result.length > 0;
+  },
+
   // ── Team Resources ───────────────────────────
   async getTeamResources(category?: string): Promise<TeamResource[]> {
     if (category && category !== "all") {

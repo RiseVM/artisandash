@@ -64,6 +64,19 @@ declare module "http" {
         created_at TIMESTAMP NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMP NOT NULL DEFAULT NOW()
       )`,
+      // Seed default ATK&B template resources (idempotent — only inserts if title doesn't exist)
+      `INSERT INTO team_resources (title, category, description, file_name, file_url, uploaded_by_user_name)
+       SELECT 'New Hire Preparation Checklist', 'setup', 'ATK&B preparation checklist — workspace, equipment, and access setup before start date.', 'Checklist-New-Hire-Preparation.docx', '/templates/Checklist-New-Hire-Preparation.docx', 'System'
+       WHERE NOT EXISTS (SELECT 1 FROM team_resources WHERE title = 'New Hire Preparation Checklist')`,
+      `INSERT INTO team_resources (title, category, description, file_name, file_url, uploaded_by_user_name)
+       SELECT 'New Hire Orientation Checklist', 'setup', 'ATK&B orientation checklist — company overview, facility tour, and how-we-work training.', 'Checklist-New-Hire-Orientation.docx', '/templates/Checklist-New-Hire-Orientation.docx', 'System'
+       WHERE NOT EXISTS (SELECT 1 FROM team_resources WHERE title = 'New Hire Orientation Checklist')`,
+      `INSERT INTO team_resources (title, category, description, file_name, file_url, uploaded_by_user_name)
+       SELECT 'New Hire Paperwork Checklist', 'setup', 'ATK&B paperwork checklist — HR forms, policies, and documentation for new employees.', 'Checklist-New-Hire-Paperwork.docx', '/templates/Checklist-New-Hire-Paperwork.docx', 'System'
+       WHERE NOT EXISTS (SELECT 1 FROM team_resources WHERE title = 'New Hire Paperwork Checklist')`,
+      `INSERT INTO team_resources (title, category, description, file_name, file_url, uploaded_by_user_name)
+       SELECT 'Countertop & Backsplash Project Steps', 'sop', 'Procedures for countertop and backsplash projects — measurement, customer communication, and installation steps.', 'Countertop-Backsplash-Project-Steps.pdf', '/templates/Countertop-Backsplash-Project-Steps.pdf', 'System'
+       WHERE NOT EXISTS (SELECT 1 FROM team_resources WHERE title = 'Countertop & Backsplash Project Steps')`,
     ];
     for (const sql of migrations) {
       try { await dbPool.query(sql); } catch (e: any) {
@@ -213,6 +226,11 @@ declare module "http" {
     // Phase 11: team resources
     const { registerTeamRoutes } = await import("./modules/team/routes");
     registerTeamRoutes(app);
+
+    // Serve template files (docx downloads) — works in both dev and production
+    const templatePath = await import("path");
+    const templateDir = templatePath.default.resolve(process.cwd(), "public", "templates");
+    app.use("/templates", express.static(templateDir));
 
     // Health check
     app.get("/api/health", (_req, res) => {

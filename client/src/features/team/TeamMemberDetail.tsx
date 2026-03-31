@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import { useTeamMember, useUpdateTeamMember, useUpdateSetupItem } from "./hooks";
+import {
+  useTeamMember,
+  useUpdateTeamMember,
+  useUpdateSetupItem,
+  useCreateSetupItem,
+  useDeleteSetupItem,
+} from "./hooks";
 import { useAuth } from "@/features/auth/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -23,6 +29,11 @@ import {
   Calendar,
   Briefcase,
   User,
+  Pencil,
+  Trash2,
+  Plus,
+  Check,
+  X,
 } from "lucide-react";
 import type { TeamSetupItem } from "@shared/schema";
 
@@ -55,9 +66,19 @@ export function TeamMemberDetail() {
   const { data: member, isLoading } = useTeamMember(memberId);
   const updateMemberMutation = useUpdateTeamMember();
   const updateItemMutation = useUpdateSetupItem();
+  const createItemMutation = useCreateSetupItem();
+  const deleteItemMutation = useDeleteSetupItem();
 
   const [isCompleteOpen, setIsCompleteOpen] = useState(false);
   const [completedByName, setCompletedByName] = useState("");
+
+  // Inline editing state
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState("");
+
+  // Add new item state
+  const [addingSection, setAddingSection] = useState<string | null>(null);
+  const [newItemText, setNewItemText] = useState("");
 
   const handleToggleItem = async (item: TeamSetupItem) => {
     try {
@@ -85,6 +106,49 @@ export function TeamMemberDetail() {
       });
       setIsCompleteOpen(false);
       toast({ title: "Setup Complete!", description: `${member?.employee_name} is fully onboarded.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message, variant: "destructive" });
+    }
+  };
+
+  const handleStartEdit = (item: TeamSetupItem) => {
+    setEditingItemId(item.id);
+    setEditingText(item.item_text);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingItemId || !editingText.trim()) return;
+    try {
+      await updateItemMutation.mutateAsync({
+        id: editingItemId,
+        teamMemberId: memberId,
+        item_text: editingText.trim(),
+      });
+      setEditingItemId(null);
+      setEditingText("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteItem = async (item: TeamSetupItem) => {
+    try {
+      await deleteItemMutation.mutateAsync({ id: item.id, teamMemberId: memberId });
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.message, variant: "destructive" });
+    }
+  };
+
+  const handleAddItem = async (section: string) => {
+    if (!newItemText.trim()) return;
+    try {
+      await createItemMutation.mutateAsync({
+        teamMemberId: memberId,
+        section,
+        item_text: newItemText.trim(),
+      });
+      setAddingSection(null);
+      setNewItemText("");
     } catch (err: any) {
       toast({ title: "Error", description: err?.message, variant: "destructive" });
     }
@@ -261,7 +325,7 @@ export function TeamMemberDetail() {
                       {sectionItems.map((item) => (
                         <div
                           key={item.id}
-                          className="flex items-start gap-3 py-2 px-2 rounded hover:bg-muted/50"
+                          className="flex items-start gap-3 py-2 px-2 rounded hover:bg-muted/50 group"
                         >
                           <Checkbox
                             checked={item.is_checked}
@@ -269,24 +333,99 @@ export function TeamMemberDetail() {
                             className="mt-0.5"
                           />
                           <div className="flex-1 min-w-0">
-                            <span
-                              className={`text-sm ${
-                                item.is_checked ? "text-muted-foreground line-through" : ""
-                              }`}
-                            >
-                              {item.item_text}
-                            </span>
-                            {item.is_checked && item.checked_by_user_name && (
-                              <div className="text-xs text-muted-foreground mt-0.5">
-                                ✓ {item.checked_by_user_name}
-                                {item.checked_at && (
-                                  <> — {new Date(item.checked_at).toLocaleDateString()}</>
-                                )}
+                            {editingItemId === item.id ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={editingText}
+                                  onChange={(e) => setEditingText(e.target.value)}
+                                  className="h-7 text-sm"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleSaveEdit();
+                                    if (e.key === "Escape") { setEditingItemId(null); setEditingText(""); }
+                                  }}
+                                />
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleSaveEdit}>
+                                  <Check className="h-3.5 w-3.5 text-green-600" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setEditingItemId(null); setEditingText(""); }}>
+                                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
                               </div>
+                            ) : (
+                              <>
+                                <span
+                                  className={`text-sm ${
+                                    item.is_checked ? "text-muted-foreground line-through" : ""
+                                  }`}
+                                >
+                                  {item.item_text}
+                                </span>
+                                {item.is_checked && item.checked_by_user_name && (
+                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                    ✓ {item.checked_by_user_name}
+                                    {item.checked_at && (
+                                      <> — {new Date(item.checked_at).toLocaleDateString()}</>
+                                    )}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
+                          {editingItemId !== item.id && (
+                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6"
+                                onClick={() => handleStartEdit(item)}
+                                title="Edit item"
+                              >
+                                <Pencil className="h-3 w-3 text-muted-foreground" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-6 w-6"
+                                onClick={() => handleDeleteItem(item)}
+                                title="Delete item"
+                              >
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))}
+                      {/* Add new item */}
+                      {addingSection === sectionName ? (
+                        <div className="flex items-center gap-2 py-2 px-2">
+                          <Input
+                            value={newItemText}
+                            onChange={(e) => setNewItemText(e.target.value)}
+                            placeholder="New checklist item..."
+                            className="h-7 text-sm flex-1"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleAddItem(sectionName);
+                              if (e.key === "Escape") { setAddingSection(null); setNewItemText(""); }
+                            }}
+                          />
+                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleAddItem(sectionName)}>
+                            <Check className="h-3.5 w-3.5 text-green-600" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => { setAddingSection(null); setNewItemText(""); }}>
+                            <X className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <button
+                          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-1.5 px-2 transition-colors"
+                          onClick={() => { setAddingSection(sectionName); setNewItemText(""); }}
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add item
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

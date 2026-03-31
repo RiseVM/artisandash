@@ -71,12 +71,53 @@ export function useUpdateSetupItem() {
       teamMemberId,
       is_checked,
       checked_by_name,
+      item_text,
     }: {
       id: number;
       teamMemberId: number;
-      is_checked: boolean;
-      checked_by_name: string;
-    }) => api.patch<TeamSetupItem>(`/api/team/setup-items/${id}`, { is_checked, checked_by_name }),
+      is_checked?: boolean;
+      checked_by_name?: string;
+      item_text?: string;
+    }) => {
+      const body: Record<string, unknown> = {};
+      if (item_text !== undefined) body.item_text = item_text;
+      if (is_checked !== undefined) body.is_checked = is_checked;
+      if (checked_by_name !== undefined) body.checked_by_name = checked_by_name;
+      return api.patch<TeamSetupItem>(`/api/team/setup-items/${id}`, body);
+    },
+    onSuccess: (_, { teamMemberId }) => {
+      qc.invalidateQueries({ queryKey: ["team-members", teamMemberId] });
+    },
+  });
+}
+
+export function useCreateSetupItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      teamMemberId,
+      section,
+      item_text,
+    }: {
+      teamMemberId: number;
+      section: string;
+      item_text: string;
+    }) =>
+      api.post<TeamSetupItem>(`/api/team/members/${teamMemberId}/setup-items`, {
+        section,
+        item_text,
+      }),
+    onSuccess: (_, { teamMemberId }) => {
+      qc.invalidateQueries({ queryKey: ["team-members", teamMemberId] });
+    },
+  });
+}
+
+export function useDeleteSetupItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, teamMemberId }: { id: number; teamMemberId: number }) =>
+      api.delete(`/api/team/setup-items/${id}`),
     onSuccess: (_, { teamMemberId }) => {
       qc.invalidateQueries({ queryKey: ["team-members", teamMemberId] });
     },
