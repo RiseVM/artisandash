@@ -841,6 +841,26 @@ export function QuoteBuilder() {
       <div ref={shellRef} className="-m-4 md:-m-10 flex" style={{ height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
         {/* ── Left: Configurator — scrollable, standard bg ── */}
         <div className="flex-1 overflow-y-auto bg-background p-8">
+          <button
+            onClick={() => navigate("/estimates")}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px 0",
+              marginBottom: 8,
+              fontSize: 13,
+              color: "hsl(var(--muted-foreground))",
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.color = "hsl(var(--foreground))")}
+            onMouseOut={(e) => (e.currentTarget.style.color = "hsl(var(--muted-foreground))")}
+          >
+            ← All Estimates
+          </button>
           <div className="qb-title">Build a Quote</div>
           <p className="qb-sub">Click to select services. The final price will be sent to the client — not the line items.</p>
 

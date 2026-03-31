@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
+  PlusCircle,
   Search,
   FileText,
   Loader2,
@@ -144,10 +145,16 @@ export function Estimates() {
             {estimates.length} total estimate{estimates.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Estimate
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setLocation("/quote-builder")}>
+            <PlusCircle className="h-4 w-4 mr-2" />
+            New Quote
+          </Button>
+          <Button variant="outline" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Quick Estimate
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
