@@ -52,7 +52,11 @@ import {
   Link as LinkIcon,
   Upload,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Save } from "lucide-react";
 import type { TeamMember, TeamResource } from "@shared/schema";
+
+type TeamMemberWithProgress = TeamMember & { total_items: number; checked_items: number };
 
 const categoryLabels: Record<string, string> = {
   setup: "Setup",
@@ -123,7 +127,7 @@ export function TeamResources() {
 function MembersTab() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { data: members = [], isLoading } = useTeamMembers();
+  const { data: members = [], isLoading } = useTeamMembers() as { data: TeamMemberWithProgress[] | undefined; isLoading: boolean };
   const createMutation = useCreateTeamMember();
   const deleteMutation = useDeleteTeamMember();
 
@@ -136,7 +140,7 @@ function MembersTab() {
     start_date: "",
   });
 
-  const handleCreate = async () => {
+  const handleCreate = async (navigate: boolean) => {
     if (!form.employee_name.trim()) return;
     try {
       const member = await createMutation.mutateAsync({
@@ -148,7 +152,9 @@ function MembersTab() {
       setIsCreateOpen(false);
       setForm({ employee_name: "", job_title: "", manager_name: "", start_date: "" });
       toast({ title: "Team Member Added", description: form.employee_name });
-      setLocation(`/team/setup/${member.id}`);
+      if (navigate) {
+        setLocation(`/team/setup/${member.id}`);
+      }
     } catch (err: any) {
       toast({ title: "Error", description: err?.message, variant: "destructive" });
     }
@@ -255,10 +261,18 @@ function MembersTab() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={createMutation.isPending || !form.employee_name.trim()}>
-              {createMutation.isPending ? "Creating..." : "Add & Start Setup"}
+            <Button
+              variant="secondary"
+              onClick={() => handleCreate(false)}
+              disabled={createMutation.isPending || !form.employee_name.trim()}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {createMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+            <Button onClick={() => handleCreate(true)} disabled={createMutation.isPending || !form.employee_name.trim()}>
+              {createMutation.isPending ? "Creating..." : "Save & Start Setup"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -293,28 +307,38 @@ function MemberRow({
   onView,
   onDelete,
 }: {
-  member: TeamMember;
+  member: TeamMemberWithProgress;
   onView: () => void;
   onDelete: () => void;
 }) {
-  // We don't have items in list view — show status only
+  const total = member.total_items || 0;
+  const checked = member.checked_items || 0;
+  const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+
   return (
     <tr className="border-t hover:bg-muted/30 cursor-pointer" onClick={onView}>
       <td className="p-3 font-medium">{member.employee_name}</td>
       <td className="p-3 text-muted-foreground hidden sm:table-cell">{member.job_title || "—"}</td>
       <td className="p-3 text-muted-foreground hidden md:table-cell">{member.start_date || "—"}</td>
       <td className="p-3">
-        <span className="text-xs text-muted-foreground">View details</span>
+        <div className="flex items-center gap-2 min-w-[120px]">
+          <Progress value={pct} className="h-2 flex-1" />
+          <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+            {checked}/{total} ({pct}%)
+          </span>
+        </div>
       </td>
       <td className="p-3">
         <Badge
           className={
             member.status === "complete"
               ? "bg-green-100 text-green-800"
-              : "bg-yellow-100 text-yellow-800"
+              : pct === 100
+                ? "bg-blue-100 text-blue-800"
+                : "bg-yellow-100 text-yellow-800"
           }
         >
-          {member.status === "complete" ? "Complete" : "In Progress"}
+          {member.status === "complete" ? "Complete" : pct === 100 ? "Ready to Complete" : "In Progress"}
         </Badge>
       </td>
       <td className="p-3 text-right">

@@ -150,8 +150,26 @@ const DEFAULT_SETUP_ITEMS: { section: string; item_text: string }[] = [
 
 export const teamStorage = {
   // ── Team Members ─────────────────────────────
-  async getTeamMembers(): Promise<TeamMember[]> {
-    return db.select().from(teamMembers).orderBy(desc(teamMembers.created_at));
+  async getTeamMembers(): Promise<(TeamMember & { total_items: number; checked_items: number })[]> {
+    const members = await db.select().from(teamMembers).orderBy(desc(teamMembers.created_at));
+    // Fetch progress counts for all members in one query
+    if (members.length === 0) return [];
+    const { pool } = await import("../../../db/index");
+    const { rows: counts } = await pool.query(
+      `SELECT team_member_id,
+              COUNT(*)::int AS total_items,
+              COUNT(*) FILTER (WHERE is_checked = true)::int AS checked_items
+       FROM team_setup_items
+       WHERE team_member_id = ANY($1)
+       GROUP BY team_member_id`,
+      [members.map((m) => m.id)],
+    );
+    const countMap = new Map(counts.map((r: any) => [r.team_member_id, r]));
+    return members.map((m) => ({
+      ...m,
+      total_items: (countMap.get(m.id) as any)?.total_items ?? 0,
+      checked_items: (countMap.get(m.id) as any)?.checked_items ?? 0,
+    }));
   },
 
   async getTeamMember(id: number): Promise<TeamMemberWithItems | undefined> {
