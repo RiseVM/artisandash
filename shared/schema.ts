@@ -1238,6 +1238,12 @@ export const estimates = pgTable("estimates", {
   // Linked project (if converted)
   project_id: integer("project_id").references(() => projects.id, { onDelete: 'set null' }),
 
+  // QuickBooks integration
+  qb_sync_status: text("qb_sync_status").default("not_synced").notNull(), // not_synced | queued | synced | error
+  qb_invoice_id: text("qb_invoice_id"), // QuickBooks invoice ID once synced
+  qb_synced_at: timestamp("qb_synced_at"),
+  qb_error_message: text("qb_error_message"),
+
   // Metadata
   created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
   created_by_user_name: varchar("created_by_user_name"),

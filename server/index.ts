@@ -22,6 +22,11 @@ declare module "http" {
       `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS sent_at timestamp`,
       `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS approved_at timestamp`,
       `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS expired_at timestamp`,
+      // QuickBooks integration fields
+      `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS qb_sync_status text NOT NULL DEFAULT 'not_synced'`,
+      `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS qb_invoice_id text`,
+      `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS qb_synced_at timestamp`,
+      `ALTER TABLE estimates ADD COLUMN IF NOT EXISTS qb_error_message text`,
       `ALTER TABLE entity_notes ADD COLUMN IF NOT EXISTS is_internal text NOT NULL DEFAULT 'no'`,
       // Team Resources tables
       `CREATE TABLE IF NOT EXISTS team_members (

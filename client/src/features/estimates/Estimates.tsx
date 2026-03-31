@@ -54,6 +54,20 @@ const statusLabels: Record<string, string> = {
   converted: "Converted",
 };
 
+const qbStatusColors: Record<string, string> = {
+  not_synced: "bg-gray-100 text-gray-600",
+  queued: "bg-yellow-100 text-yellow-800",
+  synced: "bg-emerald-100 text-emerald-800",
+  error: "bg-red-100 text-red-800",
+};
+
+const qbStatusLabels: Record<string, string> = {
+  not_synced: "QB: Not Synced",
+  queued: "QB: Queued",
+  synced: "QB: Synced",
+  error: "QB: Error",
+};
+
 export function Estimates() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -165,6 +179,11 @@ export function Estimates() {
                       <Badge className={statusColors[est.status]}>
                         {statusLabels[est.status]}
                       </Badge>
+                      {(est as any).qb_sync_status && (est as any).qb_sync_status !== "not_synced" && (
+                        <Badge className={qbStatusColors[(est as any).qb_sync_status] || qbStatusColors.not_synced}>
+                          {qbStatusLabels[(est as any).qb_sync_status] || "QB: Unknown"}
+                        </Badge>
+                      )}
                     </div>
                     <h3 className="font-semibold mt-1 truncate">{est.title}</h3>
                     <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
