@@ -32,6 +32,72 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // ── CLOCK IN/OUT ──────────────────────────
+
+  // GET current clock status for the authenticated user
+  app.get(
+    "/api/timecards/clock/status",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const openPunch = await timecardStorage.getOpenPunch(userId);
+      const todayPunches = await timecardStorage.getTodayPunches(userId);
+      res.json({ clockedIn: !!openPunch, openPunch, todayPunches });
+    }),
+  );
+
+  // POST clock in
+  app.post(
+    "/api/timecards/clock/in",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      try {
+        const punch = await timecardStorage.clockIn(userId);
+        const todayPunches = await timecardStorage.getTodayPunches(userId);
+        res.json({ punch, todayPunches });
+      } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+      }
+    }),
+  );
+
+  // POST clock out
+  app.post(
+    "/api/timecards/clock/out",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      try {
+        const { notes } = req.body || {};
+        const punch = await timecardStorage.clockOut(userId, notes);
+        const todayPunches = await timecardStorage.getTodayPunches(userId);
+        res.json({ punch, todayPunches });
+      } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+      }
+    }),
+  );
+
+  // GET punches for a specific timecard (used by admin and employee views)
+  app.get(
+    "/api/timecards/:timecardId/punches",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const timecardId = parseInt(req.params.timecardId, 10);
+      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
+
+      const punches = await timecardStorage.getPunchesByTimecard(timecardId);
+      res.json(punches);
+    }),
+  );
+
   // ── EMPLOYEE ROUTES ───────────────────────
 
   // GET own timecard for a specific week (get or create)

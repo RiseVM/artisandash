@@ -23,6 +23,7 @@ import {
   History,
   ShieldCheck,
   Loader2,
+  Timer,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -117,6 +118,16 @@ interface TimecardWithUser {
   status: string;
   totalHours: string | null;
   user: CardUser;
+}
+
+interface ClockPunch {
+  id: number;
+  timecardId: number;
+  punchDate: string;
+  clockIn: string;
+  clockOut: string | null;
+  hours: string | null;
+  notes: string | null;
 }
 
 interface TimecardDetail {
@@ -268,6 +279,12 @@ export function TimeManagement() {
   // Fetch expanded card detail
   const { data: expandedDetail } = useQuery<TimecardDetail>({
     queryKey: ["/api/timecards/admin/" + expandedCard],
+    enabled: !!verifiedUser && expandedCard !== null,
+  });
+
+  // Fetch punches for expanded card
+  const { data: expandedPunches = [] } = useQuery<ClockPunch[]>({
+    queryKey: ["/api/timecards/" + expandedCard + "/punches"],
     enabled: !!verifiedUser && expandedCard !== null,
   });
 
@@ -488,6 +505,33 @@ export function TimeManagement() {
                         );
                       })}
                     </div>
+
+                    {/* Clock punches */}
+                    {expandedPunches.length > 0 && (
+                      <div className="border-t px-4 py-3">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                          <Timer className="h-3 w-3" /> Clock Punches
+                        </p>
+                        <div className="space-y-1">
+                          {expandedPunches.map((p) => {
+                            const inTime = new Date(p.clockIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                            const outTime = p.clockOut
+                              ? new Date(p.clockOut).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                              : "active";
+                            const dayLabel = new Date(p.punchDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                            return (
+                              <div key={p.id} className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground w-24">{dayLabel}</span>
+                                <span>{inTime} → {outTime}</span>
+                                <span className="text-muted-foreground w-16 text-right">
+                                  {p.hours ? `${parseFloat(p.hours).toFixed(1)} hrs` : "—"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Audit log */}
                     {expandedDetail.auditLog.length > 0 && (

@@ -3,16 +3,18 @@ import {
   timecards,
   timecardEntries,
   timecardAuditLog,
+  timecardPunches,
   users,
 } from "@shared/schema";
 import type {
   Timecard,
   TimecardEntry,
+  TimecardPunch,
   TimecardWithEntries,
   TimecardWithUser,
   TimecardAuditLogWithUser,
 } from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, isNull, sql } from "drizzle-orm";
 
 /** Return Monday-based ISO date strings for a 7-day week */
 function weekDates(mondayIso: string): string[] {
@@ -363,5 +365,177 @@ export const timecardStorage = {
     if (!card) return undefined;
 
     return { entry, timecard: card };
+  },
+
+  // ── CLOCK IN/OUT ─────────────────────────
+
+  /** Get any open punch (clocked in, not yet clocked out) for this user today */
+  async getOpenPunch(userId: string): Promise<TimecardPunch | undefined> {
+    const [row] = await db
+      .select()
+      .from(timecardPunches)
+      .where(
+        and(
+          eq(timecardPunches.userId, userId),
+          isNull(timecardPunches.clockOut),
+        ),
+      )
+      .orderBy(desc(timecardPunches.clockIn))
+      .limit(1);
+    return row;
+  },
+
+  /** Clock in — creates a new punch for today, auto-creates timecard if needed */
+  async clockIn(userId: string): Promise<TimecardPunch> {
+    // Check for existing open punch
+    const open = await this.getOpenPunch(userId);
+    if (open) throw new Error("Already clocked in. Please clock out first.");
+
+    const now = new Date();
+    const todayIso = now.toISOString().split("T")[0];
+
+    // Figure out the Monday of this week
+    const dayObj = new Date(todayIso + "T12:00:00");
+    const dayOfWeek = dayObj.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(dayObj);
+    monday.setDate(dayObj.getDate() + mondayOffset);
+    const mondayIso = monday.toISOString().split("T")[0];
+
+    // Make sure a timecard exists for this week
+    const card = await this.getOrCreateTimecard(userId, mondayIso);
+
+    const [punch] = await db
+      .insert(timecardPunches)
+      .values({
+        timecardId: card.id,
+        userId,
+        punchDate: todayIso,
+        clockIn: now,
+      })
+      .returning();
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: card.id,
+      changedById: userId,
+      action: "clock_in",
+      entryDate: todayIso,
+      description: `Clocked in at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
+    });
+
+    return punch;
+  },
+
+  /** Clock out — closes the open punch, calculates hours, updates timecard entry */
+  async clockOut(userId: string, notes?: string): Promise<TimecardPunch> {
+    const open = await this.getOpenPunch(userId);
+    if (!open) throw new Error("Not currently clocked in.");
+
+    const now = new Date();
+    const diffMs = now.getTime() - new Date(open.clockIn).getTime();
+    const hours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+
+    const [punch] = await db
+      .update(timecardPunches)
+      .set({
+        clockOut: now,
+        hours,
+        notes: notes || null,
+        updatedAt: now,
+      })
+      .where(eq(timecardPunches.id, open.id))
+      .returning();
+
+    // Recalculate the day's total from all punches and update the timecard entry
+    await this.recalcDayFromPunches(open.timecardId, open.punchDate, userId);
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: open.timecardId,
+      changedById: userId,
+      action: "clock_out",
+      entryDate: open.punchDate,
+      description: `Clocked out at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} (${hours} hrs)`,
+    });
+
+    return punch;
+  },
+
+  /** Recalculate a day's total hours from all completed punches and update the timecard entry */
+  async recalcDayFromPunches(timecardId: number, punchDate: string, userId: string): Promise<void> {
+    // Sum all completed punches for this day
+    const dayPunches = await db
+      .select()
+      .from(timecardPunches)
+      .where(
+        and(
+          eq(timecardPunches.timecardId, timecardId),
+          eq(timecardPunches.punchDate, punchDate),
+        ),
+      );
+
+    const totalDayHours = dayPunches.reduce((sum, p) => {
+      return sum + parseFloat(p.hours || "0");
+    }, 0);
+
+    // Find the matching timecard entry for this day and update
+    const [entry] = await db
+      .select()
+      .from(timecardEntries)
+      .where(
+        and(
+          eq(timecardEntries.timecardId, timecardId),
+          eq(timecardEntries.entryDate, punchDate),
+        ),
+      );
+
+    if (entry) {
+      await db
+        .update(timecardEntries)
+        .set({ hours: totalDayHours.toFixed(2), updatedAt: new Date() })
+        .where(eq(timecardEntries.id, entry.id));
+    }
+
+    // Recalculate total hours on parent timecard
+    const allEntries = await db
+      .select()
+      .from(timecardEntries)
+      .where(eq(timecardEntries.timecardId, timecardId));
+
+    const weekTotal = allEntries.reduce((sum, e) => {
+      // For the day we just updated, use the new value
+      if (e.entryDate === punchDate) return sum + totalDayHours;
+      return sum + parseFloat(e.hours || "0");
+    }, 0);
+
+    await db
+      .update(timecards)
+      .set({ totalHours: weekTotal.toFixed(2), updatedAt: new Date() })
+      .where(eq(timecards.id, timecardId));
+  },
+
+  /** Get all punches for a specific timecard */
+  async getPunchesByTimecard(timecardId: number): Promise<TimecardPunch[]> {
+    return db
+      .select()
+      .from(timecardPunches)
+      .where(eq(timecardPunches.timecardId, timecardId))
+      .orderBy(timecardPunches.punchDate, timecardPunches.clockIn);
+  },
+
+  /** Get today's punches for a user */
+  async getTodayPunches(userId: string): Promise<TimecardPunch[]> {
+    const todayIso = new Date().toISOString().split("T")[0];
+    return db
+      .select()
+      .from(timecardPunches)
+      .where(
+        and(
+          eq(timecardPunches.userId, userId),
+          eq(timecardPunches.punchDate, todayIso),
+        ),
+      )
+      .orderBy(timecardPunches.clockIn);
   },
 };

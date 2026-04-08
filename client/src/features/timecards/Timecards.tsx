@@ -1,4 +1,4 @@
-import { useState, useCallback, FormEvent } from "react";
+import { useState, useCallback, useEffect, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/features/auth/hooks";
@@ -16,6 +16,9 @@ import {
   ChevronUp,
   ShieldCheck,
   Loader2,
+  LogIn,
+  LogOut,
+  Timer,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -116,6 +119,159 @@ interface PastTimecard {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
+}
+
+interface ClockPunch {
+  id: number;
+  timecardId: number;
+  punchDate: string;
+  clockIn: string;
+  clockOut: string | null;
+  hours: string | null;
+  notes: string | null;
+}
+
+interface ClockStatus {
+  clockedIn: boolean;
+  openPunch: ClockPunch | null;
+  todayPunches: ClockPunch[];
+}
+
+// ── Clock In / Out Widget ──────────────────
+
+function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
+  const [elapsed, setElapsed] = useState("");
+
+  const { data: clockStatus } = useQuery<ClockStatus>({
+    queryKey: ["/api/timecards/clock/status"],
+    refetchInterval: 30000, // refresh every 30s
+  });
+
+  const clockIn = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/timecards/clock/in");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/clock/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/my"] });
+    },
+  });
+
+  const clockOut = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/timecards/clock/out");
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/clock/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/my"] });
+      // Also refresh the current week's timecard since hours were updated
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const key = q.queryKey[0];
+        return typeof key === "string" && key.startsWith("/api/timecards/my/");
+      }});
+    },
+  });
+
+  // Update elapsed timer
+  useEffect(() => {
+    if (!clockStatus?.openPunch) {
+      setElapsed("");
+      return;
+    }
+    const tick = () => {
+      const start = new Date(clockStatus.openPunch!.clockIn).getTime();
+      const diff = Date.now() - start;
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setElapsed(`${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [clockStatus?.openPunch]);
+
+  const isClockedIn = clockStatus?.clockedIn ?? false;
+  const todayPunches = clockStatus?.todayPunches ?? [];
+  const todayTotal = todayPunches.reduce((sum, p) => sum + parseFloat(p.hours || "0"), 0);
+
+  return (
+    <div className="bg-card border rounded-lg p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${isClockedIn ? "bg-green-500 animate-pulse" : "bg-gray-300"}`} />
+          <div>
+            <p className="text-sm font-medium">
+              {isClockedIn ? "Currently Clocked In" : "Not Clocked In"}
+            </p>
+            {isClockedIn && elapsed && (
+              <p className="text-xs text-muted-foreground font-mono">{elapsed} elapsed</p>
+            )}
+            {!isClockedIn && todayTotal > 0 && (
+              <p className="text-xs text-muted-foreground">Today: {todayTotal.toFixed(1)} hrs across {todayPunches.filter(p => p.clockOut).length} shift(s)</p>
+            )}
+          </div>
+        </div>
+
+        {isClockedIn ? (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => clockOut.mutate()}
+            disabled={clockOut.isPending}
+          >
+            {clockOut.isPending ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <LogOut className="h-4 w-4 mr-1" />
+            )}
+            Clock Out
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={() => clockIn.mutate()}
+            disabled={clockIn.isPending}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            {clockIn.isPending ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <LogIn className="h-4 w-4 mr-1" />
+            )}
+            Clock In
+          </Button>
+        )}
+      </div>
+
+      {/* Today's shifts */}
+      {todayPunches.length > 0 && (
+        <div className="mt-3 pt-3 border-t">
+          <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
+            <Timer className="h-3 w-3" /> Today's Shifts
+          </p>
+          <div className="space-y-1">
+            {todayPunches.map((p) => {
+              const inTime = new Date(p.clockIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+              const outTime = p.clockOut
+                ? new Date(p.clockOut).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                : "—";
+              return (
+                <div key={p.id} className="flex items-center justify-between text-xs">
+                  <span>{inTime} → {outTime}</span>
+                  <span className="text-muted-foreground">
+                    {p.hours ? `${parseFloat(p.hours).toFixed(1)} hrs` : "active"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Identity Verification Gate ──────────────
@@ -316,6 +472,9 @@ export function Timecards() {
           </p>
         </div>
       </div>
+
+      {/* Clock In / Out */}
+      <ClockWidget queryClient={queryClient} />
 
       {/* Week Navigator */}
       <div className="flex items-center justify-center gap-4 bg-card border rounded-lg p-3">

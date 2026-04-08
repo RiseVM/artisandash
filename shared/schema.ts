@@ -1626,7 +1626,33 @@ export const timecardAuditLog = pgTable("timecard_audit_log", {
   index("IDX_timecard_audit_timecard_id").on(table.timecardId),
 ]);
 
+// Clock in / clock out punches (multiple shifts per day)
+export const timecardPunches = pgTable("timecard_punches", {
+  id: serial("id").primaryKey(),
+  timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  punchDate: varchar("punch_date").notNull(), // ISO date string
+  clockIn: timestamp("clock_in").notNull(),
+  clockOut: timestamp("clock_out"),
+  hours: numeric("hours", { precision: 5, scale: 2 }), // calculated on clock-out
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_punches_timecard_id").on(table.timecardId),
+  index("IDX_punches_user_date").on(table.userId, table.punchDate),
+]);
+
 // Insert schemas
+export const insertTimecardPunchSchema = createInsertSchema(timecardPunches).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertTimecardPunch = z.infer<typeof insertTimecardPunchSchema>;
+export type TimecardPunch = typeof timecardPunches.$inferSelect;
+
 export const insertTimecardSchema = createInsertSchema(timecards).omit({
   id: true,
   createdAt: true,
