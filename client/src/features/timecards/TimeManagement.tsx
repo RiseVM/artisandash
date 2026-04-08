@@ -139,32 +139,37 @@ interface VerifiedUser {
 }
 
 function AdminIdentityGate({ onVerified }: { onVerified: (user: VerifiedUser) => void }) {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const verify = useMutation({
-    mutationFn: async (pw: string) => {
-      const res = await apiRequest("POST", "/api/timecards/verify-identity", { password: pw });
+    mutationFn: async (creds: { email: string; password: string }) => {
+      const res = await apiRequest("POST", "/api/timecards/verify-identity", creds);
       return res.json();
     },
-    onSuccess: (data: { verified: boolean; user: VerifiedUser }) => {
+    onSuccess: (data: { verified: boolean; user: VerifiedUser & { role?: string } }) => {
       if (data.verified) {
+        if (data.user.role && data.user.role !== "admin") {
+          setError("Admin access required. This account does not have admin privileges.");
+          return;
+        }
         onVerified(data.user);
       }
     },
-    onError: (err: Error) => {
-      setError(err.message.includes("Incorrect") ? "Incorrect password. Try again." : "Verification failed. Please try again.");
+    onError: () => {
+      setError("Invalid email or password. Please try again.");
     },
   });
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!password.trim()) {
-      setError("Please enter your password");
+    if (!email.trim() || !password.trim()) {
+      setError("Please enter your email and password");
       return;
     }
-    verify.mutate(password);
+    verify.mutate({ email: email.trim(), password });
   };
 
   return (
@@ -175,17 +180,29 @@ function AdminIdentityGate({ onVerified }: { onVerified: (user: VerifiedUser) =>
             <ShieldCheck className="h-10 w-10 text-primary mx-auto mb-2" />
             <h2 className="text-xl font-bold">Admin Verification</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Please verify your identity to manage employee timecards
+              Please sign in to manage employee timecards
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
+              <Label htmlFor="admin-verify-email">Email</Label>
+              <Input
+                id="admin-verify-email"
+                type="email"
+                autoFocus
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+              />
+            </div>
+
+            <div>
               <Label htmlFor="admin-verify-password">Password</Label>
               <Input
                 id="admin-verify-password"
                 type="password"
-                autoFocus
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
