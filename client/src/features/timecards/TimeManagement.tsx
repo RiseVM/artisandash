@@ -242,20 +242,7 @@ export function TimeManagement() {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
 
-  // Redirect non-admins
-  if (user && user.role !== "admin") {
-    return (
-      <div className="text-center py-20">
-        <h1 className="text-2xl font-bold text-destructive">Access Denied</h1>
-        <p className="text-muted-foreground mt-2">Admin access required</p>
-      </div>
-    );
-  }
-
-  // Gate: require password verification on every page visit
-  if (!verifiedUser) {
-    return <AdminIdentityGate onVerified={setVerifiedUser} />;
-  }
+  // ALL hooks must be called before any conditional return (React Rules of Hooks)
 
   // Fetch all timecards for selected week
   const { data: allCards = [], isLoading } = useQuery<TimecardWithUser[]>({
@@ -269,19 +256,19 @@ export function TimeManagement() {
       if (!res.ok) throw new Error("Failed to load");
       return res.json();
     },
-    enabled: !!user,
+    enabled: !!verifiedUser,
   });
 
   // Fetch all active users for dropdown
   const { data: activeUsers = [] } = useQuery<CardUser[]>({
     queryKey: ["/api/timecards/admin/users"],
-    enabled: !!user,
+    enabled: !!verifiedUser,
   });
 
   // Fetch expanded card detail
   const { data: expandedDetail } = useQuery<TimecardDetail>({
     queryKey: ["/api/timecards/admin/" + expandedCard],
-    enabled: expandedCard !== null,
+    enabled: !!verifiedUser && expandedCard !== null,
   });
 
   // Mutation: admin edit entry
@@ -333,6 +320,21 @@ export function TimeManagement() {
     },
     [adminEditEntry],
   );
+
+  // Redirect non-admins
+  if (user && user.role !== "admin") {
+    return (
+      <div className="text-center py-20">
+        <h1 className="text-2xl font-bold text-destructive">Access Denied</h1>
+        <p className="text-muted-foreground mt-2">Admin access required</p>
+      </div>
+    );
+  }
+
+  // Gate: require identity verification on every page visit
+  if (!verifiedUser) {
+    return <AdminIdentityGate onVerified={setVerifiedUser} />;
+  }
 
   // Week summary
   const weekTotalHours = allCards.reduce((s, c) => s + parseFloat(c.totalHours || "0"), 0);

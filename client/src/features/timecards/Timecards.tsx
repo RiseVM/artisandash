@@ -225,10 +225,7 @@ export function Timecards() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
 
-  // Gate: require password verification on every page visit
-  if (!verifiedUser) {
-    return <IdentityGate onVerified={setVerifiedUser} />;
-  }
+  // ALL hooks must be called before any conditional return (React Rules of Hooks)
 
   // Fetch current week's timecard
   const { data: timecard, isLoading } = useQuery<TimecardData>({
@@ -291,6 +288,11 @@ export function Timecards() {
     },
     [updateEntry],
   );
+
+  // Gate: require identity verification on every page visit
+  if (!verifiedUser) {
+    return <IdentityGate onVerified={setVerifiedUser} />;
+  }
 
   const isApproved = timecard?.status === "approved";
   const isSubmitted = timecard?.status === "submitted";
