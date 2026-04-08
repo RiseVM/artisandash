@@ -138,6 +138,25 @@ export const timecardStorage = {
       .map((r) => ({ ...r.card, user: r.user }));
   },
 
+  /** Same as above but includes entries for each card (for grid view) */
+  async getAllTimecardsWithEntries(filters?: {
+    weekStartDate?: string;
+    userId?: string;
+    status?: string;
+  }): Promise<(TimecardWithUser & { entries: TimecardEntry[] })[]> {
+    const cards = await this.getAllTimecardsWithUsers(filters);
+    const results: (TimecardWithUser & { entries: TimecardEntry[] })[] = [];
+    for (const card of cards) {
+      const entries = await db
+        .select()
+        .from(timecardEntries)
+        .where(eq(timecardEntries.timecardId, card.id))
+        .orderBy(timecardEntries.entryDate);
+      results.push({ ...card, entries });
+    }
+    return results;
+  },
+
   // ── LIST OWN TIMECARDS ────────────────────
 
   async getMyTimecards(userId: string): Promise<Timecard[]> {

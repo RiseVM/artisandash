@@ -143,6 +143,7 @@ interface TimecardWithUser {
   totalHours: string | null;
   totalMileage: string | null;
   user: CardUser;
+  entries: TimecardEntry[];
 }
 
 interface ClockPunch {
@@ -849,22 +850,14 @@ export function TimeManagement() {
                           </div>
                         </td>
                         <td className="text-center py-2 px-1">{statusBadge(card.status)}</td>
-                        {/* We don't have per-day data on the summary — show from expandedDetail if loaded, else show totalHours only */}
                         {weekDays.map((day) => {
-                          // Find matching entry from expandedDetail if available
-                          const entry = isExpanded && expandedDetail && expandedDetail.id === card.id
-                            ? expandedDetail.entries.find(e => e.entryDate === day)
-                            : undefined;
-                          const hrs = entry ? parseFloat(entry.hours || "0") : null;
+                          const entry = card.entries?.find(e => e.entryDate === day);
+                          const hrs = entry ? parseFloat(entry.hours || "0") : 0;
                           return (
                             <td key={day} className="text-center py-2 px-1">
-                              {hrs !== null ? (
-                                <span className={`text-xs font-mono ${hrs > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                                  {hrs > 0 ? hrs.toFixed(1) : "—"}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">·</span>
-                              )}
+                              <span className={`text-xs font-mono ${hrs > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                                {hrs > 0 ? hrs.toFixed(1) : "—"}
+                              </span>
                             </td>
                           );
                         })}
@@ -897,8 +890,15 @@ export function TimeManagement() {
                   <tr className="bg-muted/50 font-semibold">
                     <td className="py-2.5 px-3 text-sm" colSpan={2}>Totals</td>
                     {weekDays.map((day) => {
-                      // Sum all expanded entries for this day - only if we have loaded detail for any card
-                      return <td key={day} className="text-center py-2.5 px-1 text-xs">—</td>;
+                      const dayTotal = allCards.reduce((sum, card) => {
+                        const entry = card.entries?.find(e => e.entryDate === day);
+                        return sum + parseFloat(entry?.hours || "0");
+                      }, 0);
+                      return (
+                        <td key={day} className="text-center py-2.5 px-1 text-xs font-mono">
+                          {dayTotal > 0 ? dayTotal.toFixed(1) : "—"}
+                        </td>
+                      );
                     })}
                     <td className="text-center py-2.5 px-2 text-sm">{weekTotalHours.toFixed(1)}</td>
                     <td className="py-2.5 px-2"></td>

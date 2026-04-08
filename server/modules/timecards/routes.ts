@@ -215,7 +215,7 @@ export function registerTimecardRoutes(app: Express) {
     isAdmin,
     asyncHandler(async (req: any, res) => {
       const { weekStartDate, userId, status } = req.query;
-      const cards = await timecardStorage.getAllTimecardsWithUsers({
+      const cards = await timecardStorage.getAllTimecardsWithEntries({
         weekStartDate: weekStartDate as string | undefined,
         userId: userId as string | undefined,
         status: status as string | undefined,
