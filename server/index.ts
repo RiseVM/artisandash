@@ -82,6 +82,48 @@ declare module "http" {
       `INSERT INTO team_resources (title, category, description, file_name, file_url, uploaded_by_user_name)
        SELECT 'Countertop & Backsplash Project Steps', 'sop', 'Procedures for countertop and backsplash projects — measurement, customer communication, and installation steps.', 'Countertop-Backsplash-Project-Steps.pdf', '/templates/Countertop-Backsplash-Project-Steps.pdf', 'System'
        WHERE NOT EXISTS (SELECT 1 FROM team_resources WHERE title = 'Countertop & Backsplash Project Steps')`,
+      // Base timecards tables (ensure they exist before dependent tables)
+      `CREATE TABLE IF NOT EXISTS timecards (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        week_start_date VARCHAR NOT NULL,
+        status VARCHAR NOT NULL DEFAULT 'draft',
+        submitted_at TIMESTAMP,
+        approved_at TIMESTAMP,
+        approved_by_id VARCHAR REFERENCES users(id),
+        total_hours NUMERIC(5, 2) DEFAULT '0',
+        total_mileage NUMERIC(8, 1) DEFAULT '0',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS "IDX_timecards_user_id" ON timecards(user_id)`,
+      `CREATE INDEX IF NOT EXISTS "IDX_timecards_week" ON timecards(week_start_date)`,
+      `CREATE TABLE IF NOT EXISTS timecard_entries (
+        id SERIAL PRIMARY KEY,
+        timecard_id INTEGER NOT NULL REFERENCES timecards(id) ON DELETE CASCADE,
+        entry_date VARCHAR NOT NULL,
+        hours NUMERIC(4, 2) NOT NULL DEFAULT '0',
+        mileage NUMERIC(7, 1) DEFAULT '0',
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS "IDX_timecard_entries_timecard_id" ON timecard_entries(timecard_id)`,
+      `CREATE TABLE IF NOT EXISTS timecard_audit_log (
+        id SERIAL PRIMARY KEY,
+        timecard_id INTEGER NOT NULL REFERENCES timecards(id) ON DELETE CASCADE,
+        changed_by_id VARCHAR NOT NULL REFERENCES users(id),
+        changed_at TIMESTAMP DEFAULT NOW(),
+        action VARCHAR NOT NULL,
+        entry_date VARCHAR,
+        old_hours NUMERIC(4, 2),
+        new_hours NUMERIC(4, 2),
+        old_notes TEXT,
+        new_notes TEXT,
+        description TEXT
+      )`,
+      `CREATE INDEX IF NOT EXISTS "IDX_timecard_audit_timecard_id" ON timecard_audit_log(timecard_id)`,
       // Clock in/out punches table for timecards
       `CREATE TABLE IF NOT EXISTS timecard_punches (
         id SERIAL PRIMARY KEY,

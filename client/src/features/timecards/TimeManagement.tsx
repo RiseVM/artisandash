@@ -1,4 +1,4 @@
-import { useState, useCallback, FormEvent } from "react";
+import { useState, useCallback, useEffect, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/features/auth/hooks";
@@ -28,6 +28,11 @@ import {
   UserPlus,
   Trash2,
   DollarSign,
+  Clock,
+  Pencil,
+  Plus,
+  X,
+  Circle,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -58,11 +63,26 @@ function formatDayLabel(iso: string): string {
   return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`;
 }
 
+function formatShortDay(iso: string): string {
+  const d = new Date(iso + "T12:00:00");
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return days[d.getDay()];
+}
+
 function formatWeekLabel(mondayIso: string): string {
   const mon = new Date(mondayIso + "T12:00:00");
   const sun = addDays(mon, 6);
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `Week of ${months[mon.getMonth()]} ${mon.getDate()} – ${months[sun.getMonth()]} ${sun.getDate()}`;
+}
+
+function formatTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function formatTimeInput(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 function statusBadge(status: string) {
@@ -128,6 +148,7 @@ interface TimecardWithUser {
 interface ClockPunch {
   id: number;
   timecardId: number;
+  userId: string;
   punchDate: string;
   clockIn: string;
   clockOut: string | null;
@@ -164,6 +185,12 @@ interface PayrollContact {
   id: number;
   name: string;
   email: string;
+}
+
+interface EmployeeClockStatus {
+  user: CardUser;
+  openPunch: ClockPunch | null;
+  todayHours: number;
 }
 
 // ── Identity Verification Gate ──────────────
@@ -268,6 +295,84 @@ function AdminIdentityGate({ onVerified }: { onVerified: (user: VerifiedUser) =>
   );
 }
 
+// ── Punch Edit Modal ────────────────────────
+
+function PunchEditRow({
+  punch,
+  onSave,
+  onDelete,
+  isSaving,
+}: {
+  punch: ClockPunch;
+  onSave: (punchId: number, clockIn: string, clockOut: string | null) => void;
+  onDelete: (punchId: number) => void;
+  isSaving: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [inTime, setInTime] = useState(formatTimeInput(punch.clockIn));
+  const [outTime, setOutTime] = useState(punch.clockOut ? formatTimeInput(punch.clockOut) : "");
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-muted/50 group">
+        <span className="text-muted-foreground w-20 text-xs">{formatDayLabel(punch.punchDate)}</span>
+        <span className="font-mono text-xs">
+          {formatTime(punch.clockIn)} → {punch.clockOut ? formatTime(punch.clockOut) : <span className="text-green-600 font-medium">Active</span>}
+        </span>
+        <span className="text-xs text-muted-foreground ml-auto">
+          {punch.hours ? `${parseFloat(punch.hours).toFixed(1)}h` : "—"}
+        </span>
+        <button
+          onClick={() => setEditing(true)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded"
+        >
+          <Pencil className="h-3 w-3 text-muted-foreground" />
+        </button>
+        <button
+          onClick={() => onDelete(punch.id)}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
+        >
+          <Trash2 className="h-3 w-3 text-red-500" />
+        </button>
+      </div>
+    );
+  }
+
+  const handleSave = () => {
+    // Rebuild full datetime from the punch date + time input
+    const inDate = `${punch.punchDate}T${inTime}:00`;
+    const outDate = outTime ? `${punch.punchDate}T${outTime}:00` : null;
+    onSave(punch.id, inDate, outDate);
+    setEditing(false);
+  };
+
+  return (
+    <div className="flex items-center gap-2 text-sm py-1 px-2 bg-blue-50 rounded">
+      <span className="text-muted-foreground w-20 text-xs">{formatDayLabel(punch.punchDate)}</span>
+      <input
+        type="time"
+        value={inTime}
+        onChange={(e) => setInTime(e.target.value)}
+        className="border rounded px-2 py-0.5 text-xs w-24"
+      />
+      <span className="text-xs">→</span>
+      <input
+        type="time"
+        value={outTime}
+        onChange={(e) => setOutTime(e.target.value)}
+        className="border rounded px-2 py-0.5 text-xs w-24"
+        placeholder="Still active"
+      />
+      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={handleSave} disabled={isSaving}>
+        Save
+      </Button>
+      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setEditing(false)}>
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+}
+
 // ── Component ───────────────────────────────
 
 export function TimeManagement() {
@@ -285,8 +390,19 @@ export function TimeManagement() {
   const [newEmployeeForm, setNewEmployeeForm] = useState({ firstName: "", lastName: "", email: "", password: "", mileageEnabled: false, mileageRate: 0 });
   const [newContactForm, setNewContactForm] = useState({ name: "", email: "" });
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<"timecards" | "status">("status");
+  const [addPunchFor, setAddPunchFor] = useState<{ userId: string; date: string } | null>(null);
+  const [newPunchIn, setNewPunchIn] = useState("09:00");
+  const [newPunchOut, setNewPunchOut] = useState("17:00");
 
   // ALL hooks must be called before any conditional return (React Rules of Hooks)
+
+  // Fetch all employees' live clock status
+  const { data: clockStatuses = [] } = useQuery<EmployeeClockStatus[]>({
+    queryKey: ["/api/timecards/admin/clock-status"],
+    enabled: !!verifiedUser,
+    refetchInterval: 30000, // refresh every 30s
+  });
 
   // Fetch all timecards for selected week
   const { data: allCards = [], isLoading } = useQuery<TimecardWithUser[]>({
@@ -434,6 +550,57 @@ export function TimeManagement() {
     },
   });
 
+  // Mutation: edit punch
+  const editPunch = useMutation({
+    mutationFn: async ({ punchId, clockIn, clockOut }: { punchId: number; clockIn: string; clockOut: string | null }) => {
+      const res = await apiRequest("PATCH", `/api/timecards/admin/punches/${punchId}`, { clockIn, clockOut });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/clock-status"] });
+      if (expandedCard) {
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/" + expandedCard + "/punches"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
+      }
+    },
+  });
+
+  // Mutation: delete punch
+  const deletePunch = useMutation({
+    mutationFn: async (punchId: number) => {
+      const res = await apiRequest("DELETE", `/api/timecards/admin/punches/${punchId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/clock-status"] });
+      if (expandedCard) {
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/" + expandedCard + "/punches"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
+      }
+    },
+  });
+
+  // Mutation: add punch
+  const addPunch = useMutation({
+    mutationFn: async ({ userId, punchDate, clockIn, clockOut }: { userId: string; punchDate: string; clockIn: string; clockOut: string | null }) => {
+      const res = await apiRequest("POST", "/api/timecards/admin/punches", { userId, punchDate, clockIn, clockOut });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/clock-status"] });
+      if (expandedCard) {
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/" + expandedCard + "/punches"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
+      }
+      setAddPunchFor(null);
+      setNewPunchIn("09:00");
+      setNewPunchOut("17:00");
+    },
+  });
+
   const navigateWeek = useCallback((direction: -1 | 1) => {
     setExpandedCard(null);
     setCurrentMonday((prev) => {
@@ -474,6 +641,8 @@ export function TimeManagement() {
   // Week summary
   const weekTotalHours = allCards.reduce((s, c) => s + parseFloat(c.totalHours || "0"), 0);
   const approvedTimecards = allCards.filter(c => c.status === "approved");
+  const clockedInCount = clockStatuses.filter(s => s.openPunch).length;
+  const weekDays = Array.from({ length: 7 }, (_, i) => formatIso(addDays(new Date(currentMonday + "T12:00:00"), i)));
 
   return (
     <div className="space-y-6">
@@ -492,7 +661,78 @@ export function TimeManagement() {
         </div>
       )}
 
-      {/* Week Nav + Filters */}
+      {/* Live Clock Status Bar */}
+      <div className="bg-card border rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Clock className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Today's Status</h2>
+          <Badge variant="secondary" className="ml-auto">
+            {clockedInCount} clocked in
+          </Badge>
+        </div>
+        {clockStatuses.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No employees found</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+            {clockStatuses.map((status) => {
+              const isClockedIn = !!status.openPunch;
+              const elapsed = isClockedIn
+                ? ((Date.now() - new Date(status.openPunch!.clockIn).getTime()) / 3600000)
+                : 0;
+              return (
+                <div
+                  key={status.user.id}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${
+                    isClockedIn ? "bg-green-50 border-green-200" : "bg-gray-50 border-gray-200"
+                  }`}
+                >
+                  <Circle
+                    className={`h-2.5 w-2.5 flex-shrink-0 ${
+                      isClockedIn ? "fill-green-500 text-green-500" : "fill-gray-300 text-gray-300"
+                    }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-xs truncate">{fullName(status.user)}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {isClockedIn ? (
+                        <span className="text-green-700">
+                          In since {formatTime(status.openPunch!.clockIn)} ({elapsed.toFixed(1)}h)
+                        </span>
+                      ) : (
+                        <span>Today: {status.todayHours.toFixed(1)}h</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit">
+        <button
+          onClick={() => setActiveTab("status")}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+            activeTab === "status" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Clock className="h-4 w-4 inline mr-1.5" />
+          Timecard View
+        </button>
+        <button
+          onClick={() => setActiveTab("timecards")}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+            activeTab === "timecards" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <History className="h-4 w-4 inline mr-1.5" />
+          Detail View
+        </button>
+      </div>
+
+      {/* Week Nav */}
       <div className="bg-card border rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigateWeek(-1)}>
@@ -517,38 +757,466 @@ export function TimeManagement() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Select value={userFilter} onValueChange={setUserFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="All Employees" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Employees</SelectItem>
-              {activeUsers.map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {fullName(u)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {activeTab === "timecards" && (
+          <div className="flex flex-wrap gap-3">
+            <Select value={userFilter} onValueChange={setUserFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All Employees" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Employees</SelectItem>
+                {activeUsers.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {fullName(u)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="draft">Draft</SelectItem>
-              <SelectItem value="submitted">Submitted</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-            </SelectContent>
-          </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="draft">Draft</SelectItem>
+                <SelectItem value="submitted">Submitted</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{weekTotalHours.toFixed(1)}</span> total hours across {allCards.length} {allCards.length === 1 ? "card" : "cards"}
+            <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">{weekTotalHours.toFixed(1)}</span> total hours across {allCards.length} {allCards.length === 1 ? "card" : "cards"}
+            </div>
           </div>
-        </div>
+        )}
       </div>
+
+      {/* ═══ TIMECARD VIEW (Traditional Grid) ═══ */}
+      {activeTab === "status" && (
+        <>
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading timecards…</div>
+          ) : allCards.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">No timecards found for this week</div>
+          ) : (
+            <div className="bg-card border rounded-lg overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left py-2.5 px-3 font-semibold w-44">Employee</th>
+                    <th className="text-center py-2.5 px-1 font-semibold w-16">Status</th>
+                    {weekDays.map((day) => (
+                      <th key={day} className="text-center py-2.5 px-1 font-medium w-16">
+                        <div className="text-xs">{formatShortDay(day)}</div>
+                        <div className="text-[10px] text-muted-foreground">{day.slice(5)}</div>
+                      </th>
+                    ))}
+                    <th className="text-center py-2.5 px-2 font-semibold w-16">Total</th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-20">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allCards.map((card) => {
+                    const clockStatus = clockStatuses.find(s => s.user.id === card.userId);
+                    const isClockedIn = clockStatus?.openPunch != null;
+                    const isExpanded = expandedCard === card.id;
+
+                    return (
+                      <tr
+                        key={card.id}
+                        className={`border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer ${isExpanded ? "bg-blue-50/50" : ""}`}
+                        onClick={() => setExpandedCard(isExpanded ? null : card.id)}
+                      >
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+                                {initials(card.user.firstName, card.user.lastName)}
+                              </div>
+                              {isClockedIn && (
+                                <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-white" />
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{fullName(card.user)}</div>
+                              {isClockedIn && (
+                                <div className="text-[10px] text-green-700">
+                                  Clocked in {formatTime(clockStatus!.openPunch!.clockIn)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="text-center py-2 px-1">{statusBadge(card.status)}</td>
+                        {/* We don't have per-day data on the summary — show from expandedDetail if loaded, else show totalHours only */}
+                        {weekDays.map((day) => {
+                          // Find matching entry from expandedDetail if available
+                          const entry = isExpanded && expandedDetail && expandedDetail.id === card.id
+                            ? expandedDetail.entries.find(e => e.entryDate === day)
+                            : undefined;
+                          const hrs = entry ? parseFloat(entry.hours || "0") : null;
+                          return (
+                            <td key={day} className="text-center py-2 px-1">
+                              {hrs !== null ? (
+                                <span className={`text-xs font-mono ${hrs > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                                  {hrs > 0 ? hrs.toFixed(1) : "—"}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">·</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="text-center py-2 px-2">
+                          <span className="font-semibold text-sm">{parseFloat(card.totalHours || "0").toFixed(1)}</span>
+                        </td>
+                        <td className="text-center py-2 px-2" onClick={(e) => e.stopPropagation()}>
+                          {card.status === "submitted" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-green-600 border-green-200 hover:bg-green-50 h-7 text-xs"
+                              onClick={() => approveTimecard.mutate(card.id)}
+                              disabled={approveTimecard.isPending}
+                            >
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Approve
+                            </Button>
+                          )}
+                          {card.totalMileage && parseFloat(card.totalMileage) > 0 && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              {parseFloat(card.totalMileage).toFixed(1)} mi
+                            </Badge>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {/* Totals row */}
+                  <tr className="bg-muted/50 font-semibold">
+                    <td className="py-2.5 px-3 text-sm" colSpan={2}>Totals</td>
+                    {weekDays.map((day) => {
+                      // Sum all expanded entries for this day - only if we have loaded detail for any card
+                      return <td key={day} className="text-center py-2.5 px-1 text-xs">—</td>;
+                    })}
+                    <td className="text-center py-2.5 px-2 text-sm">{weekTotalHours.toFixed(1)}</td>
+                    <td className="py-2.5 px-2"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Expanded Punch Detail Panel */}
+          {expandedCard && expandedDetail && expandedDetail.id === expandedCard && (
+            <div className="bg-card border rounded-lg overflow-hidden">
+              <div className="px-4 py-3 bg-muted/30 border-b flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Timer className="h-4 w-4 text-primary" />
+                  <span className="font-semibold text-sm">
+                    {fullName(allCards.find(c => c.id === expandedCard)?.user || { firstName: null, lastName: null, email: "" })} — Punches & Entries
+                  </span>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => setExpandedCard(null)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Day-by-day entries with punches */}
+              <div className="divide-y">
+                {expandedDetail.entries.map((entry: TimecardEntryWithMileage) => {
+                  const dayPunches = expandedPunches.filter(p => p.punchDate === entry.entryDate);
+                  const hrs = parseFloat(entry.hours || "0");
+                  const isAddingPunch = addPunchFor?.userId === expandedDetail.userId && addPunchFor?.date === entry.entryDate;
+
+                  return (
+                    <div key={entry.id} className="px-4 py-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium w-28">{formatDayLabel(entry.entryDate)}</span>
+                          <span className={`text-sm font-mono ${hrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
+                            {hrs > 0 ? `${hrs.toFixed(1)}h` : "0.0h"}
+                          </span>
+                          {entry.mileage && entry.mileage > 0 && (
+                            <Badge variant="secondary" className="text-[10px]">{entry.mileage.toFixed(1)} mi</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="24"
+                            step="0.5"
+                            defaultValue={entry.hours}
+                            className="w-16 h-7 text-center text-xs"
+                            onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
+                            key={`ah-${entry.id}-${entry.hours}`}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <button
+                            onClick={() => setAddPunchFor({ userId: expandedDetail.userId, date: entry.entryDate })}
+                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+                            title="Add punch"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Punches for this day */}
+                      {dayPunches.length > 0 && (
+                        <div className="ml-4 space-y-0.5">
+                          {dayPunches.map((punch) => (
+                            <PunchEditRow
+                              key={punch.id}
+                              punch={punch}
+                              onSave={(punchId, clockIn, clockOut) => editPunch.mutate({ punchId, clockIn, clockOut })}
+                              onDelete={(punchId) => deletePunch.mutate(punchId)}
+                              isSaving={editPunch.isPending}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add punch form */}
+                      {isAddingPunch && (
+                        <div className="ml-4 mt-1 flex items-center gap-2 p-2 bg-blue-50 rounded">
+                          <span className="text-xs text-muted-foreground">New punch:</span>
+                          <input
+                            type="time"
+                            value={newPunchIn}
+                            onChange={(e) => setNewPunchIn(e.target.value)}
+                            className="border rounded px-2 py-0.5 text-xs w-24"
+                          />
+                          <span className="text-xs">→</span>
+                          <input
+                            type="time"
+                            value={newPunchOut}
+                            onChange={(e) => setNewPunchOut(e.target.value)}
+                            className="border rounded px-2 py-0.5 text-xs w-24"
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              addPunch.mutate({
+                                userId: expandedDetail.userId,
+                                punchDate: entry.entryDate,
+                                clockIn: `${entry.entryDate}T${newPunchIn}:00`,
+                                clockOut: newPunchOut ? `${entry.entryDate}T${newPunchOut}:00` : null,
+                              });
+                            }}
+                            disabled={addPunch.isPending}
+                          >
+                            {addPunch.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setAddPunchFor(null)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Audit log */}
+              {expandedDetail.auditLog.length > 0 && (
+                <div className="border-t px-4 py-3">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                    <History className="h-3 w-3" /> Audit Log
+                  </p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {expandedDetail.auditLog.map((log) => {
+                      const who = fullName(log.changedBy);
+                      const when = new Date(log.changedAt).toLocaleString();
+                      return (
+                        <div key={log.id} className="text-xs">
+                          <span className="text-muted-foreground">{when}</span>
+                          <span className="mx-1">·</span>
+                          <span className="font-medium">{who}</span>
+                          {(log.action === "admin_edit" || log.action === "admin_edit_punch" || log.action === "admin_add_punch" || log.action === "admin_delete_punch") && (
+                            <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-orange-600 border-orange-200">Admin</Badge>
+                          )}
+                          <p className="text-muted-foreground">{log.description}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ═══ DETAIL VIEW (Original card-per-employee) ═══ */}
+      {activeTab === "timecards" && (
+        <>
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">Loading timecards…</div>
+          ) : allCards.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">No timecards found for this week</div>
+          ) : (
+            <div className="space-y-3">
+              {allCards.map((card) => {
+                const isExpanded = expandedCard === card.id;
+                return (
+                  <div key={card.id} className="bg-card border rounded-lg overflow-hidden">
+                    {/* Summary row */}
+                    <button
+                      onClick={() => setExpandedCard(isExpanded ? null : card.id)}
+                      className="w-full flex items-center gap-4 px-4 py-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                    >
+                      <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                        {initials(card.user.firstName, card.user.lastName)}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <div className="font-medium text-sm">{fullName(card.user)}</div>
+                        <div className="text-xs text-muted-foreground">{card.user.email}</div>
+                      </div>
+                      <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
+                      {statusBadge(card.status)}
+                      {card.totalMileage && parseFloat(card.totalMileage) > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {parseFloat(card.totalMileage).toFixed(1)} mi
+                        </Badge>
+                      )}
+
+                      {card.status === "submitted" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-200 hover:bg-green-50"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            approveTimecard.mutate(card.id);
+                          }}
+                          disabled={approveTimecard.isPending}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          Approve
+                        </Button>
+                      )}
+
+                      {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                    </button>
+
+                    {/* Expanded detail */}
+                    {isExpanded && expandedDetail && expandedDetail.id === card.id && (
+                      <div className="border-t">
+                        {/* Entries grid */}
+                        <div className="px-4 py-2">
+                          <div className="grid grid-cols-[1fr_100px_80px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
+                            <span>Day</span>
+                            <span className="text-center">Hours</span>
+                            <span className="text-center">Mileage</span>
+                            <span>Notes</span>
+                            <span></span>
+                          </div>
+                          {expandedDetail.entries.map((entry: TimecardEntryWithMileage) => {
+                            const wasAdminEdited = expandedDetail.auditLog.some(
+                              (l) => l.action === "admin_edit" && l.entryDate === entry.entryDate,
+                            );
+                            return (
+                              <div key={entry.id} className="grid grid-cols-[1fr_100px_80px_1fr_80px] gap-2 items-center py-1.5 border-b last:border-b-0">
+                                <span className="text-sm">{formatDayLabel(entry.entryDate)}</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="24"
+                                  step="0.5"
+                                  defaultValue={entry.hours}
+                                  className="w-20 text-center text-sm"
+                                  onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
+                                  key={`ah-${entry.id}-${entry.hours}`}
+                                />
+                                <span className="text-sm text-center text-muted-foreground">
+                                  {entry.mileage ? `${entry.mileage.toFixed(1)} mi` : "—"}
+                                </span>
+                                <Input
+                                  type="text"
+                                  placeholder="Notes…"
+                                  defaultValue={entry.notes || ""}
+                                  className="text-sm"
+                                  onBlur={(e) => handleAdminBlur(entry, "notes", e.target.value)}
+                                  key={`an-${entry.id}-${entry.notes}`}
+                                />
+                                <div className="flex justify-end">
+                                  {wasAdminEdited && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-200">
+                                      Admin edited
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Clock punches */}
+                        {expandedPunches.length > 0 && (
+                          <div className="border-t px-4 py-3">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                              <Timer className="h-3 w-3" /> Clock Punches
+                            </p>
+                            <div className="space-y-0.5">
+                              {expandedPunches.map((p) => (
+                                <PunchEditRow
+                                  key={p.id}
+                                  punch={p}
+                                  onSave={(punchId, clockIn, clockOut) => editPunch.mutate({ punchId, clockIn, clockOut })}
+                                  onDelete={(punchId) => deletePunch.mutate(punchId)}
+                                  isSaving={editPunch.isPending}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Audit log */}
+                        {expandedDetail.auditLog.length > 0 && (
+                          <div className="border-t px-4 py-3">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                              <History className="h-3 w-3" /> Audit Log
+                            </p>
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                              {expandedDetail.auditLog.map((log) => {
+                                const who = fullName(log.changedBy);
+                                const when = new Date(log.changedAt).toLocaleString();
+                                return (
+                                  <div key={log.id} className="text-xs">
+                                    <span className="text-muted-foreground">{when}</span>
+                                    <span className="mx-1">·</span>
+                                    <span className="font-medium">{who}</span>
+                                    {log.action === "admin_edit" && (
+                                      <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-orange-600 border-orange-200">Admin</Badge>
+                                    )}
+                                    <p className="text-muted-foreground">{log.description}</p>
+                                    {log.oldHours && log.newHours && (
+                                      <p className="text-muted-foreground">
+                                        <span className="line-through text-red-400">{log.oldHours}h</span>
+                                        <span className="mx-1">→</span>
+                                        <span className="text-green-600 font-medium">{log.newHours}h</span>
+                                      </p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Manage Employees Section */}
       <div className="bg-card border rounded-lg overflow-hidden">
@@ -824,175 +1492,6 @@ export function TimeManagement() {
           </div>
         )}
       </div>
-
-      {/* Employee Cards */}
-      {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading timecards…</div>
-      ) : allCards.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground">No timecards found for this week</div>
-      ) : (
-        <div className="space-y-3">
-          {allCards.map((card) => {
-            const isExpanded = expandedCard === card.id;
-            return (
-              <div key={card.id} className="bg-card border rounded-lg overflow-hidden">
-                {/* Summary row */}
-                <button
-                  onClick={() => setExpandedCard(isExpanded ? null : card.id)}
-                  className="w-full flex items-center gap-4 px-4 py-3 hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                  <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                    {initials(card.user.firstName, card.user.lastName)}
-                  </div>
-                  <div className="flex-1 text-left">
-                    <div className="font-medium text-sm">{fullName(card.user)}</div>
-                    <div className="text-xs text-muted-foreground">{card.user.email}</div>
-                  </div>
-                  <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
-                  {statusBadge(card.status)}
-                  {card.totalMileage && parseFloat(card.totalMileage) > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      {parseFloat(card.totalMileage).toFixed(1)} mi
-                    </Badge>
-                  )}
-
-                  {card.status === "submitted" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-green-600 border-green-200 hover:bg-green-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        approveTimecard.mutate(card.id);
-                      }}
-                      disabled={approveTimecard.isPending}
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-1" />
-                      Approve
-                    </Button>
-                  )}
-
-                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-                </button>
-
-                {/* Expanded detail */}
-                {isExpanded && expandedDetail && expandedDetail.id === card.id && (
-                  <div className="border-t">
-                    {/* Entries grid */}
-                    <div className="px-4 py-2">
-                      <div className="grid grid-cols-[1fr_100px_80px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
-                        <span>Day</span>
-                        <span className="text-center">Hours</span>
-                        <span className="text-center">Mileage</span>
-                        <span>Notes</span>
-                        <span></span>
-                      </div>
-                      {expandedDetail.entries.map((entry: TimecardEntryWithMileage) => {
-                        const wasAdminEdited = expandedDetail.auditLog.some(
-                          (l) => l.action === "admin_edit" && l.entryDate === entry.entryDate,
-                        );
-                        return (
-                          <div key={entry.id} className="grid grid-cols-[1fr_100px_80px_1fr_80px] gap-2 items-center py-1.5 border-b last:border-b-0">
-                            <span className="text-sm">{formatDayLabel(entry.entryDate)}</span>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="24"
-                              step="0.5"
-                              defaultValue={entry.hours}
-                              className="w-20 text-center text-sm"
-                              onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
-                              key={`ah-${entry.id}-${entry.hours}`}
-                            />
-                            <span className="text-sm text-center text-muted-foreground">
-                              {entry.mileage ? `${entry.mileage.toFixed(1)} mi` : "—"}
-                            </span>
-                            <Input
-                              type="text"
-                              placeholder="Notes…"
-                              defaultValue={entry.notes || ""}
-                              className="text-sm"
-                              onBlur={(e) => handleAdminBlur(entry, "notes", e.target.value)}
-                              key={`an-${entry.id}-${entry.notes}`}
-                            />
-                            <div className="flex justify-end">
-                              {wasAdminEdited && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-200">
-                                  Admin edited
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Clock punches */}
-                    {expandedPunches.length > 0 && (
-                      <div className="border-t px-4 py-3">
-                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-                          <Timer className="h-3 w-3" /> Clock Punches
-                        </p>
-                        <div className="space-y-1">
-                          {expandedPunches.map((p) => {
-                            const inTime = new Date(p.clockIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-                            const outTime = p.clockOut
-                              ? new Date(p.clockOut).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-                              : "active";
-                            const dayLabel = new Date(p.punchDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-                            return (
-                              <div key={p.id} className="flex items-center justify-between text-xs">
-                                <span className="text-muted-foreground w-24">{dayLabel}</span>
-                                <span>{inTime} → {outTime}</span>
-                                <span className="text-muted-foreground w-16 text-right">
-                                  {p.hours ? `${parseFloat(p.hours).toFixed(1)} hrs` : "—"}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Audit log */}
-                    {expandedDetail.auditLog.length > 0 && (
-                      <div className="border-t px-4 py-3">
-                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
-                          <History className="h-3 w-3" /> Audit Log
-                        </p>
-                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                          {expandedDetail.auditLog.map((log) => {
-                            const who = fullName(log.changedBy);
-                            const when = new Date(log.changedAt).toLocaleString();
-                            return (
-                              <div key={log.id} className="text-xs">
-                                <span className="text-muted-foreground">{when}</span>
-                                <span className="mx-1">·</span>
-                                <span className="font-medium">{who}</span>
-                                {log.action === "admin_edit" && (
-                                  <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-orange-600 border-orange-200">Admin</Badge>
-                                )}
-                                <p className="text-muted-foreground">{log.description}</p>
-                                {log.oldHours && log.newHours && (
-                                  <p className="text-muted-foreground">
-                                    <span className="line-through text-red-400">{log.oldHours}h</span>
-                                    <span className="mx-1">→</span>
-                                    <span className="text-green-600 font-medium">{log.newHours}h</span>
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

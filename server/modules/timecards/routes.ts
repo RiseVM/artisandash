@@ -406,6 +406,75 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // ── ADMIN: ALL EMPLOYEES CLOCK STATUS ─────
+
+  // GET all employees' current clock status
+  app.get(
+    "/api/timecards/admin/clock-status",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const statuses = await timecardStorage.getAllEmployeesClockStatus();
+      res.json(statuses);
+    }),
+  );
+
+  // ── ADMIN: PUNCH MANAGEMENT ──────────────
+
+  // PATCH edit a punch (admin can change clock in/out times)
+  app.patch(
+    "/api/timecards/admin/punches/:punchId",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const punchId = parseInt(req.params.punchId, 10);
+      if (isNaN(punchId)) return res.status(400).json({ error: "Invalid punch ID" });
+
+      const { clockIn, clockOut } = req.body;
+      if (!clockIn) return res.status(400).json({ error: "clockIn is required" });
+
+      const punch = await timecardStorage.adminEditPunch(
+        punchId,
+        new Date(clockIn),
+        clockOut ? new Date(clockOut) : null,
+        req.user.id,
+      );
+      res.json(punch);
+    }),
+  );
+
+  // DELETE a punch (admin)
+  app.delete(
+    "/api/timecards/admin/punches/:punchId",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const punchId = parseInt(req.params.punchId, 10);
+      if (isNaN(punchId)) return res.status(400).json({ error: "Invalid punch ID" });
+
+      await timecardStorage.adminDeletePunch(punchId, req.user.id);
+      res.json({ success: true });
+    }),
+  );
+
+  // POST add a manual punch (admin)
+  app.post(
+    "/api/timecards/admin/punches",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { userId, punchDate, clockIn, clockOut } = req.body;
+      if (!userId || !punchDate || !clockIn) {
+        return res.status(400).json({ error: "userId, punchDate, and clockIn are required" });
+      }
+
+      const punch = await timecardStorage.adminAddPunch(
+        userId,
+        punchDate,
+        new Date(clockIn),
+        clockOut ? new Date(clockOut) : null,
+        req.user.id,
+      );
+      res.json(punch);
+    }),
+  );
+
   // ── PAYROLL EMAIL ─────────────────────────
 
   // POST send payroll email for approved timecards of a week
@@ -457,37 +526,28 @@ export function registerTimecardRoutes(app: Express) {
       const { generatePayrollPdf } = await import("./payroll-pdf");
       const pdfBuffer = await generatePayrollPdf(weekLabel, cards);
 
-      // Send email via nodemailer (or log for now)
+      // Send email via Resend (same service used by rest of app)
       try {
-        const nodemailer = await import("nodemailer");
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || "smtp.gmail.com",
-          port: parseInt(process.env.SMTP_PORT || "587"),
-          secure: false,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-          },
-        });
+        const { getResendClient } = await import("../../services/emailService");
+        const { client, fromEmail } = await getResendClient();
 
-        const toList = activeContacts.map((c) => `"${c.name}" <${c.email}>`).join(", ");
+        const toList = activeContacts.map((c) => c.email);
 
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+        await client.emails.send({
+          from: fromEmail,
           to: toList,
           subject: `Timecard Report — ${weekLabel}`,
           html: htmlBody,
           attachments: [{
             filename: `Timecards-${weekStartDate}.pdf`,
-            content: pdfBuffer,
-            contentType: "application/pdf",
+            content: pdfBuffer.toString("base64"),
           }],
         });
 
-        res.json({ success: true, sentTo: activeContacts.map((c) => c.email) });
+        res.json({ success: true, sentTo: toList });
       } catch (emailErr: any) {
         console.error("Failed to send payroll email:", emailErr);
-        return res.status(500).json({ error: "Failed to send email. Check SMTP settings.", details: emailErr.message });
+        return res.status(500).json({ error: "Failed to send email. Check Resend API key.", details: emailErr.message });
       }
     }),
   );

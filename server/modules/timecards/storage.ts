@@ -596,4 +596,188 @@ export const timecardStorage = {
     }).from(users).where(eq(users.id, userId));
     return user;
   },
+
+  // ── ADMIN: ALL EMPLOYEES CLOCK STATUS ─────
+
+  /** Get current clock status for all active employees */
+  async getAllEmployeesClockStatus(): Promise<Array<{
+    user: { id: string; firstName: string | null; lastName: string | null; email: string };
+    openPunch: TimecardPunch | null;
+    todayHours: number;
+  }>> {
+    const allUsers = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.isActive, "yes"))
+      .orderBy(users.lastName);
+
+    const todayIso = new Date().toISOString().split("T")[0];
+    const results: Array<{
+      user: { id: string; firstName: string | null; lastName: string | null; email: string };
+      openPunch: TimecardPunch | null;
+      todayHours: number;
+    }> = [];
+
+    for (const u of allUsers) {
+      // Get open punch
+      const [openPunch] = await db
+        .select()
+        .from(timecardPunches)
+        .where(
+          and(
+            eq(timecardPunches.userId, u.id),
+            isNull(timecardPunches.clockOut),
+          ),
+        )
+        .orderBy(desc(timecardPunches.clockIn))
+        .limit(1);
+
+      // Get today's completed punches for total
+      const todayPunches = await db
+        .select()
+        .from(timecardPunches)
+        .where(
+          and(
+            eq(timecardPunches.userId, u.id),
+            eq(timecardPunches.punchDate, todayIso),
+          ),
+        );
+
+      const todayHours = todayPunches.reduce((sum, p) => sum + parseFloat(p.hours || "0"), 0);
+
+      results.push({ user: u, openPunch: openPunch || null, todayHours });
+    }
+
+    return results;
+  },
+
+  // ── ADMIN: EDIT PUNCH ────────────────────
+
+  /** Admin edit a clock punch (change in/out times) */
+  async adminEditPunch(
+    punchId: number,
+    clockIn: Date,
+    clockOut: Date | null,
+    adminId: string,
+  ): Promise<TimecardPunch> {
+    const [existing] = await db
+      .select()
+      .from(timecardPunches)
+      .where(eq(timecardPunches.id, punchId));
+
+    if (!existing) throw new Error("Punch not found");
+
+    // Calculate hours if both in and out are set
+    let hours: string | null = null;
+    if (clockOut) {
+      const diffMs = clockOut.getTime() - clockIn.getTime();
+      hours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+    }
+
+    const [updated] = await db
+      .update(timecardPunches)
+      .set({
+        clockIn,
+        clockOut,
+        hours,
+        updatedAt: new Date(),
+      })
+      .where(eq(timecardPunches.id, punchId))
+      .returning();
+
+    // Recalculate day totals
+    await this.recalcDayFromPunches(existing.timecardId, existing.punchDate, existing.userId);
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: existing.timecardId,
+      changedById: adminId,
+      action: "admin_edit_punch",
+      entryDate: existing.punchDate,
+      description: `Admin edited punch: ${clockIn.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} → ${clockOut ? clockOut.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "open"}`,
+    });
+
+    return updated;
+  },
+
+  /** Admin delete a punch */
+  async adminDeletePunch(punchId: number, adminId: string): Promise<void> {
+    const [existing] = await db
+      .select()
+      .from(timecardPunches)
+      .where(eq(timecardPunches.id, punchId));
+
+    if (!existing) throw new Error("Punch not found");
+
+    await db.delete(timecardPunches).where(eq(timecardPunches.id, punchId));
+
+    // Recalculate day totals
+    await this.recalcDayFromPunches(existing.timecardId, existing.punchDate, existing.userId);
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: existing.timecardId,
+      changedById: adminId,
+      action: "admin_delete_punch",
+      entryDate: existing.punchDate,
+      description: `Admin deleted punch from ${new Date(existing.clockIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
+    });
+  },
+
+  /** Admin add a manual punch */
+  async adminAddPunch(
+    userId: string,
+    punchDate: string,
+    clockIn: Date,
+    clockOut: Date | null,
+    adminId: string,
+  ): Promise<TimecardPunch> {
+    // Figure out the Monday of the punch date
+    const dayObj = new Date(punchDate + "T12:00:00");
+    const dayOfWeek = dayObj.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(dayObj);
+    monday.setDate(dayObj.getDate() + mondayOffset);
+    const mondayIso = monday.toISOString().split("T")[0];
+
+    // Ensure timecard exists
+    const card = await this.getOrCreateTimecard(userId, mondayIso);
+
+    let hours: string | null = null;
+    if (clockOut) {
+      const diffMs = clockOut.getTime() - clockIn.getTime();
+      hours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+    }
+
+    const [punch] = await db
+      .insert(timecardPunches)
+      .values({
+        timecardId: card.id,
+        userId,
+        punchDate,
+        clockIn,
+        clockOut,
+        hours,
+      })
+      .returning();
+
+    // Recalculate day totals
+    await this.recalcDayFromPunches(card.id, punchDate, userId);
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: card.id,
+      changedById: adminId,
+      action: "admin_add_punch",
+      entryDate: punchDate,
+      description: `Admin added punch: ${clockIn.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} → ${clockOut ? clockOut.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "open"}`,
+    });
+
+    return punch;
+  },
 };
