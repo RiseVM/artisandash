@@ -14,7 +14,6 @@ import {
   Activity,
   FolderKanban,
   Bug,
-  Clock,
   Calculator,
   MessageSquare,
   Wrench,
@@ -42,7 +41,6 @@ export function Sidebar() {
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/team", label: "Team Resources", icon: Users2 },
-    { href: "/timesheets", label: "Timesheets", icon: Clock },
     { href: "/timecards", label: "Timecards", icon: Timer },
     { href: "/messages", label: "Messages", icon: MessageSquare },
   ];

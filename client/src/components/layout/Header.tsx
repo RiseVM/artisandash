@@ -15,7 +15,6 @@ import {
   Activity,
   FolderKanban,
   Bug,
-  Clock,
   Calculator,
   MessageSquare,
   Wrench,
@@ -39,7 +38,6 @@ export function Header() {
     { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },
-    { href: "/timesheets", label: "Timesheets", icon: Clock },
     { href: "/messages", label: "Messages", icon: MessageSquare },
   ];
 

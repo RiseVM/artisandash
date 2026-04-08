@@ -210,10 +210,6 @@ declare module "http" {
     const { registerContractRoutes } = await import("./modules/contracts/routes");
     registerContractRoutes(app);
 
-    // Phase 8: timesheets
-    const { registerTimesheetRoutes } = await import("./modules/timesheets/routes");
-    registerTimesheetRoutes(app);
-
     // Phase 9: timecards (standalone weekly employee timecards)
     const { registerTimecardRoutes } = await import("./modules/timecards/routes");
     registerTimecardRoutes(app);

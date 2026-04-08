@@ -48,10 +48,6 @@ import { HomeImprovementContractForm } from "@/features/contracts/HomeImprovemen
 import { KitchenDesignRetainerForm } from "@/features/contracts/KitchenDesignRetainerForm";
 import { RemoteSign } from "@/features/RemoteSign";
 
-// Phase 8: Timesheets
-import { MyTimesheets } from "@/features/timesheets/MyTimesheets";
-import { AdminTimesheets } from "@/features/timesheets/AdminTimesheets";
-
 // Phase 9: Timecards
 import { Timecards } from "@/features/timecards/Timecards";
 import { TimeManagement } from "@/features/timecards/TimeManagement";
@@ -218,14 +214,6 @@ function AdminRouter() {
         </Route>
         <Route path="/team">
           <TeamResources />
-        </Route>
-
-        {/* Timesheets */}
-        <Route path="/timesheets">
-          <MyTimesheets />
-        </Route>
-        <Route path="/admin/timesheets">
-          <AdminTimesheets />
         </Route>
 
         {/* Timecards */}
