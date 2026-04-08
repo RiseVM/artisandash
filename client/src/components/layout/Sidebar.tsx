@@ -20,6 +20,7 @@ import {
   Wrench,
   Settings,
   Users2,
+  Timer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/hooks";
@@ -42,10 +43,12 @@ export function Sidebar() {
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/team", label: "Team Resources", icon: Users2 },
     { href: "/timesheets", label: "Timesheets", icon: Clock },
+    { href: "/timecards", label: "Timecards", icon: Timer },
     { href: "/messages", label: "Messages", icon: MessageSquare },
   ];
 
   const adminItems = [
+    { href: "/time-management", label: "Time Management", icon: Timer, permission: "manage_users" },
     { href: "/admin/users", label: "User Management", icon: Shield, permission: "manage_users" },
     { href: "/admin/activity", label: "Activity Reports", icon: Activity, permission: "view_reports" },
     { href: "/admin/bug-reports", label: "Bug Reports", icon: Bug, permission: "manage_users" },

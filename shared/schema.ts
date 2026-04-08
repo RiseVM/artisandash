@@ -1576,3 +1576,93 @@ export type TeamResource = typeof teamResources.$inferSelect;
 export type TeamMemberWithItems = TeamMember & {
   items: TeamSetupItem[];
 };
+
+// ============================================
+// EMPLOYEE TIMECARDS (standalone weekly cards)
+// ============================================
+
+export const timecards = pgTable("timecards", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  weekStartDate: varchar("week_start_date").notNull(), // ISO date string, always Monday
+  status: varchar("status").notNull().default("draft"), // draft | submitted | approved
+  submittedAt: timestamp("submitted_at"),
+  approvedAt: timestamp("approved_at"),
+  approvedById: varchar("approved_by_id").references(() => users.id),
+  totalHours: numeric("total_hours", { precision: 5, scale: 2 }).default("0"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_timecards_user_id").on(table.userId),
+  index("IDX_timecards_week").on(table.weekStartDate),
+]);
+
+export const timecardEntries = pgTable("timecard_entries", {
+  id: serial("id").primaryKey(),
+  timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
+  entryDate: varchar("entry_date").notNull(), // ISO date string for the specific day
+  hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_timecard_entries_timecard_id").on(table.timecardId),
+]);
+
+export const timecardAuditLog = pgTable("timecard_audit_log", {
+  id: serial("id").primaryKey(),
+  timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
+  changedById: varchar("changed_by_id").notNull().references(() => users.id),
+  changedAt: timestamp("changed_at").defaultNow(),
+  action: varchar("action").notNull(), // created | updated_hours | submitted | approved | admin_edit
+  entryDate: varchar("entry_date"), // which day was changed (null if whole card action)
+  oldHours: numeric("old_hours", { precision: 4, scale: 2 }),
+  newHours: numeric("new_hours", { precision: 4, scale: 2 }),
+  oldNotes: text("old_notes"),
+  newNotes: text("new_notes"),
+  description: text("description"), // human readable summary
+}, (table) => [
+  index("IDX_timecard_audit_timecard_id").on(table.timecardId),
+]);
+
+// Insert schemas
+export const insertTimecardSchema = createInsertSchema(timecards).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTimecardEntrySchema = createInsertSchema(timecardEntries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertTimecardAuditLogSchema = createInsertSchema(timecardAuditLog).omit({
+  id: true,
+  changedAt: true,
+});
+
+// Types
+export type InsertTimecard = z.infer<typeof insertTimecardSchema>;
+export type Timecard = typeof timecards.$inferSelect;
+
+export type InsertTimecardEntry = z.infer<typeof insertTimecardEntrySchema>;
+export type TimecardEntry = typeof timecardEntries.$inferSelect;
+
+export type InsertTimecardAuditLog = z.infer<typeof insertTimecardAuditLogSchema>;
+export type TimecardAuditLog = typeof timecardAuditLog.$inferSelect;
+
+// View types
+export type TimecardWithEntries = Timecard & {
+  entries: TimecardEntry[];
+};
+
+export type TimecardWithUser = Timecard & {
+  user: { id: string; firstName: string | null; lastName: string | null; email: string };
+};
+
+export type TimecardAuditLogWithUser = TimecardAuditLog & {
+  changedBy: { id: string; firstName: string | null; lastName: string | null; email: string };
+};

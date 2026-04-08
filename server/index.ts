@@ -214,7 +214,11 @@ declare module "http" {
     const { registerTimesheetRoutes } = await import("./modules/timesheets/routes");
     registerTimesheetRoutes(app);
 
-    // Phase 9: estimates, notes, internal messages
+    // Phase 9: timecards (standalone weekly employee timecards)
+    const { registerTimecardRoutes } = await import("./modules/timecards/routes");
+    registerTimecardRoutes(app);
+
+    // Phase 10: estimates, notes, internal messages
     const { registerEstimateRoutes } = await import("./modules/estimates/routes");
     registerEstimateRoutes(app);
 
@@ -224,11 +228,11 @@ declare module "http" {
     const { registerInternalMessageRoutes } = await import("./modules/internal-messages/routes");
     registerInternalMessageRoutes(app);
 
-    // Phase 10: service catalog
+    // Phase 11: service catalog
     const { registerCatalogRoutes } = await import("./modules/catalog/routes");
     registerCatalogRoutes(app);
 
-    // Phase 11: team resources
+    // Phase 12: team resources
     const { registerTeamRoutes } = await import("./modules/team/routes");
     registerTeamRoutes(app);
 

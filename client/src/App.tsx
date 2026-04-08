@@ -52,7 +52,11 @@ import { RemoteSign } from "@/features/RemoteSign";
 import { MyTimesheets } from "@/features/timesheets/MyTimesheets";
 import { AdminTimesheets } from "@/features/timesheets/AdminTimesheets";
 
-// Phase 9: Quotes & Messages
+// Phase 9: Timecards
+import { Timecards } from "@/features/timecards/Timecards";
+import { TimeManagement } from "@/features/timecards/TimeManagement";
+
+// Phase 10: Quotes & Messages
 import { Estimates } from "@/features/estimates/Estimates";
 import { EstimateBuilder } from "@/features/estimates/EstimateBuilder";
 import { Messages } from "@/features/messages/Messages";
@@ -222,6 +226,14 @@ function AdminRouter() {
         </Route>
         <Route path="/admin/timesheets">
           <AdminTimesheets />
+        </Route>
+
+        {/* Timecards */}
+        <Route path="/timecards">
+          <Timecards />
+        </Route>
+        <Route path="/time-management">
+          <TimeManagement />
         </Route>
 
         {/* Admin */}
