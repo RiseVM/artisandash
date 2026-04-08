@@ -88,6 +88,7 @@ interface TimecardEntry {
   entryDate: string;
   hours: string;
   notes: string | null;
+  mileage: string | null;
 }
 
 interface AuditLogEntry {
@@ -135,6 +136,11 @@ interface ClockStatus {
   clockedIn: boolean;
   openPunch: ClockPunch | null;
   todayPunches: ClockPunch[];
+}
+
+interface MileageSettings {
+  mileageEnabled: "yes" | "no";
+  mileageRate: string | null;
 }
 
 // ── Clock In / Out Widget ──────────────────
@@ -395,10 +401,16 @@ export function Timecards() {
     enabled: !!verifiedUser,
   });
 
+  // Fetch mileage settings
+  const { data: mileageSettings } = useQuery<MileageSettings>({
+    queryKey: ["/api/timecards/my/mileage-settings"],
+    enabled: !!verifiedUser,
+  });
+
   // Mutation: update an entry
   const updateEntry = useMutation({
-    mutationFn: async ({ entryId, hours, notes }: { entryId: number; hours: string; notes: string | null }) => {
-      const res = await apiRequest("PATCH", `/api/timecards/entries/${entryId}`, { hours, notes });
+    mutationFn: async ({ entryId, hours, notes, mileage }: { entryId: number; hours: string; notes: string | null; mileage?: string | null }) => {
+      const res = await apiRequest("PATCH", `/api/timecards/entries/${entryId}`, { hours, notes, mileage });
       return res.json();
     },
     onSuccess: () => {
@@ -432,14 +444,15 @@ export function Timecards() {
   }, []);
 
   const handleBlur = useCallback(
-    (entry: TimecardEntry, field: "hours" | "notes", value: string) => {
-      const currentVal = field === "hours" ? entry.hours : (entry.notes || "");
+    (entry: TimecardEntry, field: "hours" | "notes" | "mileage", value: string) => {
+      const currentVal = field === "hours" ? entry.hours : field === "notes" ? (entry.notes || "") : (entry.mileage || "");
       if (value === currentVal) return; // no change
 
       updateEntry.mutate({
         entryId: entry.id,
         hours: field === "hours" ? value : entry.hours,
         notes: field === "notes" ? (value || null) : entry.notes,
+        mileage: field === "mileage" ? (value || null) : entry.mileage,
       });
     },
     [updateEntry],
@@ -453,6 +466,8 @@ export function Timecards() {
   const isApproved = timecard?.status === "approved";
   const isSubmitted = timecard?.status === "submitted";
   const totalHours = timecard?.totalHours ? parseFloat(timecard.totalHours) : 0;
+  const totalMileage = timecard?.entries.reduce((sum, entry) => sum + parseFloat(entry.mileage || "0"), 0) ?? 0;
+  const mileageEnabled = mileageSettings?.mileageEnabled === "yes";
 
   // Who is verified — show at top for safety
   const userName = verifiedUser
@@ -462,12 +477,12 @@ export function Timecards() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Clock className="h-6 w-6" /> My Timecards
+          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+            <Clock className="h-5 w-5 sm:h-6 sm:w-6" /> My Timecards
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Logged in as <strong>{userName}</strong>
           </p>
         </div>
@@ -477,14 +492,14 @@ export function Timecards() {
       <ClockWidget queryClient={queryClient} />
 
       {/* Week Navigator */}
-      <div className="flex items-center justify-center gap-4 bg-card border rounded-lg p-3">
-        <Button variant="ghost" size="icon" onClick={() => navigateWeek(-1)}>
+      <div className="flex items-center justify-center gap-2 sm:gap-4 bg-card border rounded-lg p-3">
+        <Button variant="ghost" size="icon" onClick={() => navigateWeek(-1)} className="h-10 w-10">
           <ChevronLeft className="h-5 w-5" />
         </Button>
-        <span className="text-lg font-semibold min-w-[260px] text-center">
+        <span className="text-sm sm:text-lg font-semibold min-w-0 sm:min-w-[260px] text-center flex-1 sm:flex-none px-2">
           {formatWeekLabel(currentMonday)}
         </span>
-        <Button variant="ghost" size="icon" onClick={() => navigateWeek(1)}>
+        <Button variant="ghost" size="icon" onClick={() => navigateWeek(1)} className="h-10 w-10">
           <ChevronRight className="h-5 w-5" />
         </Button>
       </div>
@@ -494,19 +509,73 @@ export function Timecards() {
         <div className="text-center py-12 text-muted-foreground">Loading timecard…</div>
       ) : timecard ? (
         <div className="bg-card border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_120px_1fr] gap-0 text-sm font-medium text-muted-foreground border-b px-4 py-2">
+          {/* Desktop Header - hidden on mobile */}
+          <div className="hidden sm:grid grid-cols-[1fr_120px_120px_1fr] gap-0 text-sm font-medium text-muted-foreground border-b px-4 py-2">
             <span>Day</span>
             <span className="text-center">Hours</span>
+            {mileageEnabled && <span className="text-center">Miles</span>}
             <span>Notes</span>
           </div>
 
+          {/* Mobile/Desktop Entries */}
           {timecard.entries.map((entry) => (
             <div
               key={entry.id}
-              className="grid grid-cols-[1fr_120px_1fr] gap-0 items-center border-b last:border-b-0 px-4 py-2"
+              className="sm:grid sm:grid-cols-[1fr_120px_120px_1fr] sm:gap-0 sm:items-center border-b last:border-b-0 px-4 py-3 sm:py-2"
             >
-              <span className="text-sm font-medium">{formatDayLabel(entry.entryDate)}</span>
-              <div className="flex justify-center">
+              {/* Mobile: stacked layout */}
+              <div className="sm:hidden space-y-3">
+                <p className="text-sm font-medium text-foreground">{formatDayLabel(entry.entryDate)}</p>
+
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Hours</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="24"
+                    step="0.5"
+                    defaultValue={entry.hours}
+                    disabled={isApproved}
+                    className="w-full h-10 text-center"
+                    onBlur={(e) => handleBlur(entry, "hours", e.target.value)}
+                    key={`h-${entry.id}-${entry.hours}`}
+                  />
+                </div>
+
+                {mileageEnabled && (
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">Miles</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      defaultValue={entry.mileage || ""}
+                      disabled={isApproved}
+                      placeholder="0"
+                      className="w-full h-10 text-center"
+                      onBlur={(e) => handleBlur(entry, "mileage", e.target.value)}
+                      key={`m-${entry.id}-${entry.mileage}`}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1">Notes</label>
+                  <Input
+                    type="text"
+                    placeholder="Notes…"
+                    defaultValue={entry.notes || ""}
+                    disabled={isApproved}
+                    className="w-full h-10 text-sm"
+                    onBlur={(e) => handleBlur(entry, "notes", e.target.value)}
+                    key={`n-${entry.id}-${entry.notes}`}
+                  />
+                </div>
+              </div>
+
+              {/* Desktop: grid layout */}
+              <div className="hidden sm:block text-sm font-medium">{formatDayLabel(entry.entryDate)}</div>
+              <div className="hidden sm:flex sm:justify-center">
                 <Input
                   type="number"
                   min="0"
@@ -519,59 +588,78 @@ export function Timecards() {
                   key={`h-${entry.id}-${entry.hours}`}
                 />
               </div>
-              <Input
-                type="text"
-                placeholder="Notes…"
-                defaultValue={entry.notes || ""}
-                disabled={isApproved}
-                className="text-sm"
-                onBlur={(e) => handleBlur(entry, "notes", e.target.value)}
-                key={`n-${entry.id}-${entry.notes}`}
-              />
+              {mileageEnabled && (
+                <div className="hidden sm:flex sm:justify-center">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    defaultValue={entry.mileage || ""}
+                    disabled={isApproved}
+                    placeholder="0"
+                    className="w-20 text-center"
+                    onBlur={(e) => handleBlur(entry, "mileage", e.target.value)}
+                    key={`m-${entry.id}-${entry.mileage}`}
+                  />
+                </div>
+              )}
+              <div className="hidden sm:block">
+                <Input
+                  type="text"
+                  placeholder="Notes…"
+                  defaultValue={entry.notes || ""}
+                  disabled={isApproved}
+                  className="text-sm"
+                  onBlur={(e) => handleBlur(entry, "notes", e.target.value)}
+                  key={`n-${entry.id}-${entry.notes}`}
+                />
+              </div>
             </div>
           ))}
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-t">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-muted/50 border-t gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-2">
               <span className="text-sm font-semibold">
-                Total: {totalHours.toFixed(1)} hours
+                Total: {totalHours.toFixed(1)} hours {mileageEnabled && `| ${totalMileage.toFixed(1)} miles`}
               </span>
               {statusBadge(timecard.status)}
             </div>
 
-            {timecard.status === "draft" && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" disabled={submitTimecard.isPending}>
-                    <Send className="h-4 w-4 mr-1" />
-                    Submit
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Submit Timecard?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Submit timecard for {formatWeekLabel(currentMonday)}? You can still edit after submitting.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => submitTimecard.mutate(timecard.id)}>
+            <div className="flex gap-2">
+              {timecard.status === "draft" && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" disabled={submitTimecard.isPending} className="h-10">
+                      <Send className="h-4 w-4 mr-1" />
                       Submit
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Submit Timecard?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Submit timecard for {formatWeekLabel(currentMonday)}? You can still edit after submitting.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => submitTimecard.mutate(timecard.id)}>
+                        Submit
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
 
-            {isSubmitted && (
-              <span className="text-xs text-muted-foreground">Awaiting admin approval</span>
-            )}
+              {isSubmitted && (
+                <span className="text-xs text-muted-foreground">Awaiting admin approval</span>
+              )}
 
-            {isApproved && (
-              <span className="text-xs text-green-600 font-medium">Approved ✓</span>
-            )}
+              {isApproved && (
+                <span className="text-xs text-green-600 font-medium">Approved ✓</span>
+              )}
+            </div>
           </div>
         </div>
       ) : (

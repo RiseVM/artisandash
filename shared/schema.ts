@@ -22,8 +22,11 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role").default("staff").notNull(), // admin | manager | staff
+  role: varchar("role").default("staff").notNull(), // admin | manager | staff | timecard_only
   isActive: text("is_active").default("yes").notNull(), // yes | no
+  // Mileage settings (admin-managed per employee)
+  mileageEnabled: text("mileage_enabled").default("no").notNull(), // yes | no
+  mileageRate: numeric("mileage_rate", { precision: 5, scale: 3 }), // $/mile, null = not set
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1590,6 +1593,7 @@ export const timecards = pgTable("timecards", {
   approvedAt: timestamp("approved_at"),
   approvedById: varchar("approved_by_id").references(() => users.id),
   totalHours: numeric("total_hours", { precision: 5, scale: 2 }).default("0"),
+  totalMileage: numeric("total_mileage", { precision: 8, scale: 1 }).default("0"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1603,6 +1607,7 @@ export const timecardEntries = pgTable("timecard_entries", {
   timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
   entryDate: varchar("entry_date").notNull(), // ISO date string for the specific day
   hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  mileage: numeric("mileage", { precision: 7, scale: 1 }).default("0"), // total miles for the day
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1642,6 +1647,25 @@ export const timecardPunches = pgTable("timecard_punches", {
   index("IDX_punches_timecard_id").on(table.timecardId),
   index("IDX_punches_user_date").on(table.userId, table.punchDate),
 ]);
+
+// Payroll contacts (who receives weekly timecard emails)
+export const payrollContacts = pgTable("payroll_contacts", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  email: varchar("email").notNull(),
+  isActive: text("is_active").default("yes").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPayrollContactSchema = createInsertSchema(payrollContacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPayrollContact = z.infer<typeof insertPayrollContactSchema>;
+export type PayrollContact = typeof payrollContacts.$inferSelect;
 
 // Insert schemas
 export const insertTimecardPunchSchema = createInsertSchema(timecardPunches).omit({

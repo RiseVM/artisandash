@@ -97,6 +97,20 @@ declare module "http" {
       )`,
       `CREATE INDEX IF NOT EXISTS "IDX_punches_timecard_id" ON timecard_punches(timecard_id)`,
       `CREATE INDEX IF NOT EXISTS "IDX_punches_user_date" ON timecard_punches(user_id, punch_date)`,
+      // Mileage fields on users and timecard entries
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS mileage_enabled TEXT NOT NULL DEFAULT 'no'`,
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS mileage_rate NUMERIC(5, 3)`,
+      `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS mileage NUMERIC(7, 1) DEFAULT '0'`,
+      `ALTER TABLE timecards ADD COLUMN IF NOT EXISTS total_mileage NUMERIC(8, 1) DEFAULT '0'`,
+      // Payroll contacts table
+      `CREATE TABLE IF NOT EXISTS payroll_contacts (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR NOT NULL,
+        email VARCHAR NOT NULL,
+        is_active TEXT NOT NULL DEFAULT 'yes',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`,
     ];
     for (const sql of migrations) {
       try { await dbPool.query(sql); } catch (e: any) {

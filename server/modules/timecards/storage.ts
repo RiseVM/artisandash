@@ -4,12 +4,14 @@ import {
   timecardEntries,
   timecardAuditLog,
   timecardPunches,
+  payrollContacts,
   users,
 } from "@shared/schema";
 import type {
   Timecard,
   TimecardEntry,
   TimecardPunch,
+  PayrollContact,
   TimecardWithEntries,
   TimecardWithUser,
   TimecardAuditLogWithUser,
@@ -153,6 +155,7 @@ export const timecardStorage = {
     hours: string,
     notes: string | null,
     changedById: string,
+    mileage?: string,
   ): Promise<TimecardEntry> {
     // Fetch existing entry
     const [existing] = await db
@@ -163,29 +166,23 @@ export const timecardStorage = {
     if (!existing) throw new Error("Entry not found");
 
     // Update the entry
+    const setData: any = { hours, notes, updatedAt: new Date() };
+    if (mileage !== undefined) setData.mileage = mileage;
+
     const [updated] = await db
       .update(timecardEntries)
-      .set({ hours, notes, updatedAt: new Date() })
+      .set(setData)
       .where(eq(timecardEntries.id, entryId))
       .returning();
 
-    // Recalculate totalHours on parent timecard
-    const allEntries = await db
-      .select()
-      .from(timecardEntries)
-      .where(eq(timecardEntries.timecardId, existing.timecardId));
-
-    const total = allEntries.reduce(
-      (sum, e) => sum + parseFloat(e.hours || "0"),
-      0,
-    );
-
-    await db
-      .update(timecards)
-      .set({ totalHours: total.toFixed(2), updatedAt: new Date() })
-      .where(eq(timecards.id, existing.timecardId));
+    // Recalculate totals on parent timecard
+    await this.recalcTimecardTotals(existing.timecardId);
 
     // Write audit log
+    const parts: string[] = [];
+    if (hours !== existing.hours) parts.push(`hours: ${existing.hours} → ${hours}`);
+    if (mileage !== undefined && mileage !== (existing.mileage || "0")) parts.push(`mileage: ${existing.mileage || "0"} → ${mileage} mi`);
+
     await db.insert(timecardAuditLog).values({
       timecardId: existing.timecardId,
       changedById,
@@ -195,7 +192,7 @@ export const timecardStorage = {
       newHours: hours,
       oldNotes: existing.notes,
       newNotes: notes,
-      description: `${existing.entryDate} hours: ${existing.hours} → ${hours}`,
+      description: `${existing.entryDate} ${parts.join(", ") || "updated"}`,
     });
 
     return updated;
@@ -208,6 +205,7 @@ export const timecardStorage = {
     hours: string,
     notes: string | null,
     adminId: string,
+    mileage?: string,
   ): Promise<TimecardEntry> {
     const [existing] = await db
       .select()
@@ -216,29 +214,17 @@ export const timecardStorage = {
 
     if (!existing) throw new Error("Entry not found");
 
+    const setData: any = { hours, notes, updatedAt: new Date() };
+    if (mileage !== undefined) setData.mileage = mileage;
+
     const [updated] = await db
       .update(timecardEntries)
-      .set({ hours, notes, updatedAt: new Date() })
+      .set(setData)
       .where(eq(timecardEntries.id, entryId))
       .returning();
 
-    // Recalculate totalHours
-    const allEntries = await db
-      .select()
-      .from(timecardEntries)
-      .where(eq(timecardEntries.timecardId, existing.timecardId));
+    await this.recalcTimecardTotals(existing.timecardId);
 
-    const total = allEntries.reduce(
-      (sum, e) => sum + parseFloat(e.hours || "0"),
-      0,
-    );
-
-    await db
-      .update(timecards)
-      .set({ totalHours: total.toFixed(2), updatedAt: new Date() })
-      .where(eq(timecards.id, existing.timecardId));
-
-    // Audit log with admin_edit action
     await db.insert(timecardAuditLog).values({
       timecardId: existing.timecardId,
       changedById: adminId,
@@ -252,6 +238,22 @@ export const timecardStorage = {
     });
 
     return updated;
+  },
+
+  /** Recalculate totalHours and totalMileage on a timecard from its entries */
+  async recalcTimecardTotals(timecardId: number): Promise<void> {
+    const allEntries = await db
+      .select()
+      .from(timecardEntries)
+      .where(eq(timecardEntries.timecardId, timecardId));
+
+    const totalHours = allEntries.reduce((sum, e) => sum + parseFloat(e.hours || "0"), 0);
+    const totalMileage = allEntries.reduce((sum, e) => sum + parseFloat(e.mileage || "0"), 0);
+
+    await db
+      .update(timecards)
+      .set({ totalHours: totalHours.toFixed(2), totalMileage: totalMileage.toFixed(1), updatedAt: new Date() })
+      .where(eq(timecards.id, timecardId));
   },
 
   // ── SUBMIT ────────────────────────────────
@@ -497,22 +499,8 @@ export const timecardStorage = {
         .where(eq(timecardEntries.id, entry.id));
     }
 
-    // Recalculate total hours on parent timecard
-    const allEntries = await db
-      .select()
-      .from(timecardEntries)
-      .where(eq(timecardEntries.timecardId, timecardId));
-
-    const weekTotal = allEntries.reduce((sum, e) => {
-      // For the day we just updated, use the new value
-      if (e.entryDate === punchDate) return sum + totalDayHours;
-      return sum + parseFloat(e.hours || "0");
-    }, 0);
-
-    await db
-      .update(timecards)
-      .set({ totalHours: weekTotal.toFixed(2), updatedAt: new Date() })
-      .where(eq(timecards.id, timecardId));
+    // Recalculate totals on parent timecard
+    await this.recalcTimecardTotals(timecardId);
   },
 
   /** Get all punches for a specific timecard */
@@ -537,5 +525,75 @@ export const timecardStorage = {
         ),
       )
       .orderBy(timecardPunches.clockIn);
+  },
+
+  // ── PAYROLL CONTACTS ─────────────────────
+
+  async getPayrollContacts(): Promise<PayrollContact[]> {
+    return db.select().from(payrollContacts).orderBy(payrollContacts.name);
+  },
+
+  async createPayrollContact(data: { name: string; email: string }): Promise<PayrollContact> {
+    const [contact] = await db.insert(payrollContacts).values(data).returning();
+    return contact;
+  },
+
+  async updatePayrollContact(id: number, data: Partial<{ name: string; email: string; isActive: string }>): Promise<PayrollContact> {
+    const [updated] = await db.update(payrollContacts).set({ ...data, updatedAt: new Date() }).where(eq(payrollContacts.id, id)).returning();
+    return updated;
+  },
+
+  async deletePayrollContact(id: number): Promise<void> {
+    await db.delete(payrollContacts).where(eq(payrollContacts.id, id));
+  },
+
+  // ── APPROVED TIMECARDS FOR PAYROLL EMAIL ──
+
+  async getApprovedTimecardsForWeek(weekStartDate: string): Promise<(TimecardWithUser & { entries: TimecardEntry[] })[]> {
+    const rows = await db
+      .select({
+        card: timecards,
+        user: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          mileageRate: users.mileageRate,
+          mileageEnabled: users.mileageEnabled,
+        },
+      })
+      .from(timecards)
+      .innerJoin(users, eq(timecards.userId, users.id))
+      .where(and(eq(timecards.weekStartDate, weekStartDate), eq(timecards.status, "approved")))
+      .orderBy(users.lastName);
+
+    const results: any[] = [];
+    for (const r of rows) {
+      const entries = await db
+        .select()
+        .from(timecardEntries)
+        .where(eq(timecardEntries.timecardId, r.card.id))
+        .orderBy(timecardEntries.entryDate);
+      results.push({ ...r.card, user: r.user, entries });
+    }
+    return results;
+  },
+
+  // ── EMPLOYEE MILEAGE SETTINGS ─────────────
+
+  async updateEmployeeMileageSettings(userId: string, mileageEnabled: string, mileageRate: string | null): Promise<void> {
+    await db.update(users).set({
+      mileageEnabled,
+      mileageRate: mileageRate,
+      updatedAt: new Date(),
+    }).where(eq(users.id, userId));
+  },
+
+  async getEmployeeWithMileageSettings(userId: string): Promise<{ mileageEnabled: string; mileageRate: string | null } | undefined> {
+    const [user] = await db.select({
+      mileageEnabled: users.mileageEnabled,
+      mileageRate: users.mileageRate,
+    }).from(users).where(eq(users.id, userId));
+    return user;
   },
 };

@@ -156,15 +156,28 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(400).json({ error: "Cannot edit an approved timecard" });
       }
 
-      const { hours, notes } = req.body;
+      const { hours, notes, mileage } = req.body;
       const updated = await timecardStorage.updateTimecardEntry(
         entryId,
         String(hours ?? found.entry.hours),
         notes !== undefined ? notes : found.entry.notes,
         userId,
+        mileage !== undefined ? String(mileage) : undefined,
       );
 
       res.json(updated);
+    }),
+  );
+
+  // GET own mileage settings
+  app.get(
+    "/api/timecards/my/mileage-settings",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const settings = await timecardStorage.getEmployeeWithMileageSettings(userId);
+      res.json(settings || { mileageEnabled: "no", mileageRate: null });
     }),
   );
 
@@ -249,12 +262,13 @@ export function registerTimecardRoutes(app: Express) {
       const found = await timecardStorage.getEntryWithTimecard(entryId);
       if (!found) return res.status(404).json({ error: "Entry not found" });
 
-      const { hours, notes } = req.body;
+      const { hours, notes, mileage } = req.body;
       const updated = await timecardStorage.adminEditTimecardEntry(
         entryId,
         String(hours ?? found.entry.hours),
         notes !== undefined ? notes : found.entry.notes,
         adminId,
+        mileage !== undefined ? String(mileage) : undefined,
       );
 
       res.json(updated);
@@ -274,6 +288,207 @@ export function registerTimecardRoutes(app: Express) {
 
       const updated = await timecardStorage.approveTimecard(timecardId, adminId);
       res.json(updated);
+    }),
+  );
+
+  // ── EMPLOYEE MANAGEMENT ───────────────────
+
+  // POST create a timecard-only employee
+  app.post(
+    "/api/timecards/admin/employees",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { firstName, lastName, email, password, mileageEnabled, mileageRate } = req.body;
+      if (!email || !password || !firstName) {
+        return res.status(400).json({ error: "First name, email, and password are required" });
+      }
+
+      const { hashPassword } = await import("../auth/service");
+      const { storage } = await import("../auth/storage");
+
+      // Check if email already exists
+      const existing = await storage.getUserByEmail(email);
+      if (existing) {
+        return res.status(400).json({ error: "An account with this email already exists" });
+      }
+
+      const passwordHash = await hashPassword(password);
+      const user = await storage.createUser({
+        email,
+        passwordHash,
+        firstName,
+        lastName: lastName || null,
+        role: "timecard_only",
+        isActive: "yes",
+        mileageEnabled: mileageEnabled || "no",
+        mileageRate: mileageRate || null,
+      });
+
+      res.json({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, mileageEnabled: user.mileageEnabled, mileageRate: user.mileageRate });
+    }),
+  );
+
+  // PATCH update employee mileage settings
+  app.patch(
+    "/api/timecards/admin/employees/:userId/mileage",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { userId } = req.params;
+      const { mileageEnabled, mileageRate } = req.body;
+      await timecardStorage.updateEmployeeMileageSettings(
+        userId,
+        mileageEnabled || "no",
+        mileageRate !== undefined ? String(mileageRate) : null,
+      );
+      res.json({ success: true });
+    }),
+  );
+
+  // GET all employees with mileage settings (for admin management)
+  app.get(
+    "/api/timecards/admin/employees",
+    isAdmin,
+    asyncHandler(async (_req: any, res) => {
+      const { db: dbInstance } = await import("../../../db/index");
+      const { users: usersTable } = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const allUsers = await dbInstance
+        .select({
+          id: usersTable.id,
+          firstName: usersTable.firstName,
+          lastName: usersTable.lastName,
+          email: usersTable.email,
+          role: usersTable.role,
+          isActive: usersTable.isActive,
+          mileageEnabled: usersTable.mileageEnabled,
+          mileageRate: usersTable.mileageRate,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.isActive, "yes"))
+        .orderBy(usersTable.lastName);
+      res.json(allUsers);
+    }),
+  );
+
+  // ── PAYROLL CONTACTS ──────────────────────
+
+  // GET all payroll contacts
+  app.get(
+    "/api/timecards/admin/payroll-contacts",
+    isAdmin,
+    asyncHandler(async (_req: any, res) => {
+      const contacts = await timecardStorage.getPayrollContacts();
+      res.json(contacts);
+    }),
+  );
+
+  // POST create payroll contact
+  app.post(
+    "/api/timecards/admin/payroll-contacts",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { name, email } = req.body;
+      if (!name || !email) return res.status(400).json({ error: "Name and email required" });
+      const contact = await timecardStorage.createPayrollContact({ name, email });
+      res.json(contact);
+    }),
+  );
+
+  // DELETE payroll contact
+  app.delete(
+    "/api/timecards/admin/payroll-contacts/:id",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      await timecardStorage.deletePayrollContact(id);
+      res.json({ success: true });
+    }),
+  );
+
+  // ── PAYROLL EMAIL ─────────────────────────
+
+  // POST send payroll email for approved timecards of a week
+  app.post(
+    "/api/timecards/admin/send-payroll",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { weekStartDate } = req.body;
+      if (!weekStartDate) return res.status(400).json({ error: "weekStartDate required" });
+
+      const contacts = await timecardStorage.getPayrollContacts();
+      const activeContacts = contacts.filter((c) => c.isActive === "yes");
+      if (activeContacts.length === 0) {
+        return res.status(400).json({ error: "No active payroll contacts. Please add a payroll contact first." });
+      }
+
+      const cards = await timecardStorage.getApprovedTimecardsForWeek(weekStartDate);
+      if (cards.length === 0) {
+        return res.status(400).json({ error: "No approved timecards for this week" });
+      }
+
+      // Build email body
+      const weekEnd = new Date(weekStartDate + "T12:00:00");
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      const weekLabel = `${weekStartDate} to ${weekEnd.toISOString().split("T")[0]}`;
+
+      let htmlBody = `<h2>Weekly Timecard Report</h2><p><strong>Week:</strong> ${weekLabel}</p>`;
+      htmlBody += `<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:sans-serif;font-size:14px;">`;
+      htmlBody += `<tr style="background:#f0f0f0"><th>Employee</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th><th>Total Hrs</th><th>Total Miles</th><th>Mileage $</th></tr>`;
+
+      for (const card of cards) {
+        const name = [card.user.firstName, card.user.lastName].filter(Boolean).join(" ") || card.user.email;
+        const rate = parseFloat((card.user as any).mileageRate || "0");
+        const totalMiles = parseFloat(card.totalMileage || "0");
+        const mileageCost = (rate * totalMiles).toFixed(2);
+
+        htmlBody += `<tr><td><strong>${name}</strong></td>`;
+        for (const entry of card.entries) {
+          htmlBody += `<td style="text-align:center">${parseFloat(entry.hours || "0").toFixed(1)}</td>`;
+        }
+        htmlBody += `<td style="text-align:center;font-weight:bold">${parseFloat(card.totalHours || "0").toFixed(1)}</td>`;
+        htmlBody += `<td style="text-align:center">${totalMiles.toFixed(1)}</td>`;
+        htmlBody += `<td style="text-align:center">$${mileageCost}</td>`;
+        htmlBody += `</tr>`;
+      }
+      htmlBody += `</table>`;
+
+      // Generate PDF
+      const { generatePayrollPdf } = await import("./payroll-pdf");
+      const pdfBuffer = await generatePayrollPdf(weekLabel, cards);
+
+      // Send email via nodemailer (or log for now)
+      try {
+        const nodemailer = await import("nodemailer");
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || "smtp.gmail.com",
+          port: parseInt(process.env.SMTP_PORT || "587"),
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+
+        const toList = activeContacts.map((c) => `"${c.name}" <${c.email}>`).join(", ");
+
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || process.env.SMTP_USER,
+          to: toList,
+          subject: `Timecard Report — ${weekLabel}`,
+          html: htmlBody,
+          attachments: [{
+            filename: `Timecards-${weekStartDate}.pdf`,
+            content: pdfBuffer,
+            contentType: "application/pdf",
+          }],
+        });
+
+        res.json({ success: true, sentTo: activeContacts.map((c) => c.email) });
+      } catch (emailErr: any) {
+        console.error("Failed to send payroll email:", emailErr);
+        return res.status(500).json({ error: "Failed to send email. Check SMTP settings.", details: emailErr.message });
+      }
     }),
   );
 }

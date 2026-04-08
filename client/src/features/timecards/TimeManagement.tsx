@@ -24,6 +24,10 @@ import {
   ShieldCheck,
   Loader2,
   Timer,
+  Mail,
+  UserPlus,
+  Trash2,
+  DollarSign,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -117,6 +121,7 @@ interface TimecardWithUser {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
+  totalMileage: string | null;
   user: CardUser;
 }
 
@@ -136,8 +141,29 @@ interface TimecardDetail {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
+  totalMileage: number | null;
   entries: TimecardEntry[];
   auditLog: AuditLogEntry[];
+}
+
+interface TimecardEntryWithMileage extends TimecardEntry {
+  mileage?: number | null;
+}
+
+interface Employee {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+  role: string;
+  mileageEnabled: boolean;
+  mileageRate: number;
+}
+
+interface PayrollContact {
+  id: number;
+  name: string;
+  email: string;
 }
 
 // ── Identity Verification Gate ──────────────
@@ -252,6 +278,13 @@ export function TimeManagement() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
+  const [expandedEmployeesSection, setExpandedEmployeesSection] = useState(false);
+  const [expandedPayrollSection, setExpandedPayrollSection] = useState(false);
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [newEmployeeForm, setNewEmployeeForm] = useState({ firstName: "", lastName: "", email: "", password: "", mileageEnabled: false, mileageRate: 0 });
+  const [newContactForm, setNewContactForm] = useState({ name: "", email: "" });
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // ALL hooks must be called before any conditional return (React Rules of Hooks)
 
@@ -288,6 +321,18 @@ export function TimeManagement() {
     enabled: !!verifiedUser && expandedCard !== null,
   });
 
+  // Fetch all employees
+  const { data: employees = [], refetch: refetchEmployees } = useQuery<Employee[]>({
+    queryKey: ["/api/timecards/admin/employees"],
+    enabled: !!verifiedUser,
+  });
+
+  // Fetch payroll contacts
+  const { data: payrollContacts = [], refetch: refetchPayrollContacts } = useQuery<PayrollContact[]>({
+    queryKey: ["/api/timecards/admin/payroll-contacts"],
+    enabled: !!verifiedUser,
+  });
+
   // Mutation: admin edit entry
   const adminEditEntry = useMutation({
     mutationFn: async ({ entryId, hours, notes }: { entryId: number; hours: string; notes: string | null }) => {
@@ -313,6 +358,79 @@ export function TimeManagement() {
       if (expandedCard) {
         queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
       }
+    },
+  });
+
+  // Mutation: add employee
+  const addEmployee = useMutation({
+    mutationFn: async (data: typeof newEmployeeForm) => {
+      const res = await apiRequest("POST", "/api/timecards/admin/employees", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchEmployees();
+      setNewEmployeeForm({ firstName: "", lastName: "", email: "", password: "", mileageEnabled: false, mileageRate: 0 });
+      setShowAddEmployee(false);
+      setFeedback({ type: "success", message: "Employee added successfully" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+    onError: () => {
+      setFeedback({ type: "error", message: "Failed to add employee" });
+    },
+  });
+
+  // Mutation: update mileage
+  const updateMileage = useMutation({
+    mutationFn: async ({ userId, mileageEnabled, mileageRate }: { userId: string; mileageEnabled: boolean; mileageRate: number }) => {
+      const res = await apiRequest("PATCH", `/api/timecards/admin/employees/${userId}/mileage`, { mileageEnabled, mileageRate });
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchEmployees();
+    },
+  });
+
+  // Mutation: add payroll contact
+  const addPayrollContact = useMutation({
+    mutationFn: async (data: typeof newContactForm) => {
+      const res = await apiRequest("POST", "/api/timecards/admin/payroll-contacts", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchPayrollContacts();
+      setNewContactForm({ name: "", email: "" });
+      setShowAddContact(false);
+      setFeedback({ type: "success", message: "Contact added successfully" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+    onError: () => {
+      setFeedback({ type: "error", message: "Failed to add contact" });
+    },
+  });
+
+  // Mutation: delete payroll contact
+  const deletePayrollContact = useMutation({
+    mutationFn: async (contactId: number) => {
+      const res = await apiRequest("DELETE", `/api/timecards/admin/payroll-contacts/${contactId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchPayrollContacts();
+    },
+  });
+
+  // Mutation: send payroll email
+  const sendPayrollEmail = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/timecards/admin/send-payroll", { weekStartDate: currentMonday });
+      return res.json();
+    },
+    onSuccess: () => {
+      setFeedback({ type: "success", message: "Payroll report sent successfully" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+    onError: () => {
+      setFeedback({ type: "error", message: "Failed to send payroll report" });
     },
   });
 
@@ -355,6 +473,7 @@ export function TimeManagement() {
 
   // Week summary
   const weekTotalHours = allCards.reduce((s, c) => s + parseFloat(c.totalHours || "0"), 0);
+  const approvedTimecards = allCards.filter(c => c.status === "approved");
 
   return (
     <div className="space-y-6">
@@ -365,6 +484,13 @@ export function TimeManagement() {
         </h1>
         <p className="text-sm text-muted-foreground mt-1">Review and approve employee timecards</p>
       </div>
+
+      {/* Feedback Messages */}
+      {feedback && (
+        <div className={`p-3 rounded-lg text-sm ${feedback.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+          {feedback.message}
+        </div>
+      )}
 
       {/* Week Nav + Filters */}
       <div className="bg-card border rounded-lg p-4 space-y-3">
@@ -378,6 +504,17 @@ export function TimeManagement() {
           <Button variant="ghost" size="icon" onClick={() => navigateWeek(1)}>
             <ChevronRight className="h-5 w-5" />
           </Button>
+          {approvedTimecards.length > 0 && payrollContacts.length > 0 && (
+            <Button
+              size="sm"
+              className="ml-4 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => sendPayrollEmail.mutate()}
+              disabled={sendPayrollEmail.isPending}
+            >
+              <Mail className="h-4 w-4 mr-1" />
+              {sendPayrollEmail.isPending ? "Sending…" : "Email Payroll Report"}
+            </Button>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-3">
@@ -413,6 +550,281 @@ export function TimeManagement() {
         </div>
       </div>
 
+      {/* Manage Employees Section */}
+      <div className="bg-card border rounded-lg overflow-hidden">
+        <button
+          onClick={() => setExpandedEmployeesSection(!expandedEmployeesSection)}
+          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
+        >
+          <UserPlus className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Manage Employees</h2>
+          {expandedEmployeesSection ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground ml-auto" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
+          )}
+        </button>
+
+        {expandedEmployeesSection && (
+          <div className="border-t px-4 py-3 space-y-4">
+            {/* Employees List */}
+            {employees.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Current Employees</h3>
+                <div className="space-y-1">
+                  {employees.map((emp) => (
+                    <div key={emp.id} className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded border gap-3">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{emp.firstName} {emp.lastName}</div>
+                        <div className="text-xs text-muted-foreground">{emp.email}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">{emp.role}</Badge>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={emp.mileageEnabled}
+                              onChange={(e) =>
+                                updateMileage.mutate({
+                                  userId: emp.id,
+                                  mileageEnabled: e.target.checked,
+                                  mileageRate: emp.mileageRate,
+                                })
+                              }
+                              className="h-4 w-4"
+                            />
+                            <span className="text-xs">Mileage</span>
+                          </label>
+                          {emp.mileageEnabled && (
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={emp.mileageRate}
+                              onChange={(e) =>
+                                updateMileage.mutate({
+                                  userId: emp.id,
+                                  mileageEnabled: true,
+                                  mileageRate: parseFloat(e.target.value) || 0,
+                                })
+                              }
+                              placeholder="$/mi"
+                              className="w-16 px-2 py-1 text-xs border rounded"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add Employee Form */}
+            {!showAddEmployee ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowAddEmployee(true)}
+                className="w-full"
+              >
+                <UserPlus className="h-4 w-4 mr-1" />
+                Add Employee
+              </Button>
+            ) : (
+              <div className="border-t pt-3 space-y-3">
+                <h3 className="text-sm font-medium">Add New Employee</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">First Name</Label>
+                    <Input
+                      type="text"
+                      placeholder="First name"
+                      value={newEmployeeForm.firstName}
+                      onChange={(e) => setNewEmployeeForm({ ...newEmployeeForm, firstName: e.target.value })}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Last Name</Label>
+                    <Input
+                      type="text"
+                      placeholder="Last name"
+                      value={newEmployeeForm.lastName}
+                      onChange={(e) => setNewEmployeeForm({ ...newEmployeeForm, lastName: e.target.value })}
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={newEmployeeForm.email}
+                    onChange={(e) => setNewEmployeeForm({ ...newEmployeeForm, email: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Password</Label>
+                  <Input
+                    type="password"
+                    placeholder="Password"
+                    value={newEmployeeForm.password}
+                    onChange={(e) => setNewEmployeeForm({ ...newEmployeeForm, password: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="mileage-enabled"
+                    checked={newEmployeeForm.mileageEnabled}
+                    onChange={(e) => setNewEmployeeForm({ ...newEmployeeForm, mileageEnabled: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <Label htmlFor="mileage-enabled" className="text-sm font-normal cursor-pointer">
+                    Enable Mileage Tracking
+                  </Label>
+                </div>
+                {newEmployeeForm.mileageEnabled && (
+                  <div>
+                    <Label className="text-xs">Mileage Rate ($/mile)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.67"
+                      value={newEmployeeForm.mileageRate}
+                      onChange={(e) => setNewEmployeeForm({ ...newEmployeeForm, mileageRate: parseFloat(e.target.value) || 0 })}
+                      className="text-sm"
+                    />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => addEmployee.mutate(newEmployeeForm)}
+                    disabled={addEmployee.isPending || !newEmployeeForm.firstName || !newEmployeeForm.email || !newEmployeeForm.password}
+                  >
+                    {addEmployee.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                    Save Employee
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowAddEmployee(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Payroll Contacts Section */}
+      <div className="bg-card border rounded-lg overflow-hidden">
+        <button
+          onClick={() => setExpandedPayrollSection(!expandedPayrollSection)}
+          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
+        >
+          <DollarSign className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">Payroll Contacts</h2>
+          {expandedPayrollSection ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground ml-auto" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
+          )}
+        </button>
+
+        {expandedPayrollSection && (
+          <div className="border-t px-4 py-3 space-y-4">
+            {/* Contacts List */}
+            {payrollContacts.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Current Contacts</h3>
+                <div className="space-y-1">
+                  {payrollContacts.map((contact) => (
+                    <div key={contact.id} className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded border gap-3">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">{contact.name}</div>
+                        <div className="text-xs text-muted-foreground">{contact.email}</div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        onClick={() => deletePayrollContact.mutate(contact.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add Contact Form */}
+            {!showAddContact ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowAddContact(true)}
+                className="w-full"
+              >
+                <Mail className="h-4 w-4 mr-1" />
+                Add Contact
+              </Button>
+            ) : (
+              <div className="border-t pt-3 space-y-3">
+                <h3 className="text-sm font-medium">Add Payroll Contact</h3>
+                <div>
+                  <Label className="text-xs">Name</Label>
+                  <Input
+                    type="text"
+                    placeholder="Contact name"
+                    value={newContactForm.name}
+                    onChange={(e) => setNewContactForm({ ...newContactForm, name: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={newContactForm.email}
+                    onChange={(e) => setNewContactForm({ ...newContactForm, email: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => addPayrollContact.mutate(newContactForm)}
+                    disabled={addPayrollContact.isPending || !newContactForm.name || !newContactForm.email}
+                  >
+                    {addPayrollContact.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                    Save Contact
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowAddContact(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Employee Cards */}
       {isLoading ? (
         <div className="text-center py-12 text-muted-foreground">Loading timecards…</div>
@@ -438,6 +850,11 @@ export function TimeManagement() {
                   </div>
                   <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
                   {statusBadge(card.status)}
+                  {card.totalMileage && parseFloat(card.totalMileage) > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {parseFloat(card.totalMileage).toFixed(1)} mi
+                    </Badge>
+                  )}
 
                   {card.status === "submitted" && (
                     <Button
@@ -463,18 +880,19 @@ export function TimeManagement() {
                   <div className="border-t">
                     {/* Entries grid */}
                     <div className="px-4 py-2">
-                      <div className="grid grid-cols-[1fr_100px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
+                      <div className="grid grid-cols-[1fr_100px_80px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
                         <span>Day</span>
                         <span className="text-center">Hours</span>
+                        <span className="text-center">Mileage</span>
                         <span>Notes</span>
                         <span></span>
                       </div>
-                      {expandedDetail.entries.map((entry) => {
+                      {expandedDetail.entries.map((entry: TimecardEntryWithMileage) => {
                         const wasAdminEdited = expandedDetail.auditLog.some(
                           (l) => l.action === "admin_edit" && l.entryDate === entry.entryDate,
                         );
                         return (
-                          <div key={entry.id} className="grid grid-cols-[1fr_100px_1fr_80px] gap-2 items-center py-1.5 border-b last:border-b-0">
+                          <div key={entry.id} className="grid grid-cols-[1fr_100px_80px_1fr_80px] gap-2 items-center py-1.5 border-b last:border-b-0">
                             <span className="text-sm">{formatDayLabel(entry.entryDate)}</span>
                             <Input
                               type="number"
@@ -486,6 +904,9 @@ export function TimeManagement() {
                               onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
                               key={`ah-${entry.id}-${entry.hours}`}
                             />
+                            <span className="text-sm text-center text-muted-foreground">
+                              {entry.mileage ? `${entry.mileage.toFixed(1)} mi` : "—"}
+                            </span>
                             <Input
                               type="text"
                               placeholder="Notes…"
