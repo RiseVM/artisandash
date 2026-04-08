@@ -82,6 +82,21 @@ declare module "http" {
       `INSERT INTO team_resources (title, category, description, file_name, file_url, uploaded_by_user_name)
        SELECT 'Countertop & Backsplash Project Steps', 'sop', 'Procedures for countertop and backsplash projects — measurement, customer communication, and installation steps.', 'Countertop-Backsplash-Project-Steps.pdf', '/templates/Countertop-Backsplash-Project-Steps.pdf', 'System'
        WHERE NOT EXISTS (SELECT 1 FROM team_resources WHERE title = 'Countertop & Backsplash Project Steps')`,
+      // Clock in/out punches table for timecards
+      `CREATE TABLE IF NOT EXISTS timecard_punches (
+        id SERIAL PRIMARY KEY,
+        timecard_id INTEGER NOT NULL REFERENCES timecards(id) ON DELETE CASCADE,
+        user_id VARCHAR NOT NULL REFERENCES users(id),
+        punch_date VARCHAR NOT NULL,
+        clock_in TIMESTAMP NOT NULL,
+        clock_out TIMESTAMP,
+        hours NUMERIC(5, 2),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS "IDX_punches_timecard_id" ON timecard_punches(timecard_id)`,
+      `CREATE INDEX IF NOT EXISTS "IDX_punches_user_date" ON timecard_punches(user_id, punch_date)`,
     ];
     for (const sql of migrations) {
       try { await dbPool.query(sql); } catch (e: any) {
