@@ -153,6 +153,21 @@ declare module "http" {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )`,
+      // Timecard recipients table (HR / managers who timecards are submitted to)
+      `CREATE TABLE IF NOT EXISTS timecard_recipients (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR NOT NULL,
+        email VARCHAR NOT NULL,
+        title VARCHAR,
+        is_active TEXT NOT NULL DEFAULT 'yes',
+        created_at TIMESTAMP DEFAULT NOW()
+      )`,
+      // Add recipient_id column to timecards
+      `ALTER TABLE timecards ADD COLUMN IF NOT EXISTS recipient_id INTEGER REFERENCES timecard_recipients(id)`,
+      // Seed default recipient (Claudia — HR Manager) if none exist
+      `INSERT INTO timecard_recipients (name, email, title, is_active)
+       SELECT 'Claudia', 'claudia@artisantilect.com', 'HR Manager', 'yes'
+       WHERE NOT EXISTS (SELECT 1 FROM timecard_recipients LIMIT 1)`,
     ];
     for (const sql of migrations) {
       try { await dbPool.query(sql); } catch (e: any) {

@@ -4,6 +4,7 @@ import {
   timecardEntries,
   timecardAuditLog,
   timecardPunches,
+  timecardRecipients,
   payrollContacts,
   users,
 } from "@shared/schema";
@@ -11,6 +12,7 @@ import type {
   Timecard,
   TimecardEntry,
   TimecardPunch,
+  TimecardRecipient,
   PayrollContact,
   TimecardWithEntries,
   TimecardWithUser,
@@ -86,6 +88,44 @@ export const timecardStorage = {
     return this.getTimecardWithEntries(card.id);
   },
 
+  // ── ADMIN UPSERT ──────────────────────────
+
+  async adminGetOrCreateTimecard(
+    userId: string,
+    weekStartDate: string,
+    adminId: string,
+  ): Promise<TimecardWithEntries> {
+    const existing = await this.getTimecardByUserAndWeek(userId, weekStartDate);
+
+    if (existing) {
+      return this.getTimecardWithEntries(existing.id);
+    }
+
+    // Create new draft timecard on behalf of employee
+    const [card] = await db
+      .insert(timecards)
+      .values({ userId, weekStartDate, status: "draft" })
+      .returning();
+
+    const dates = weekDates(weekStartDate);
+    const entryRows = dates.map((d) => ({
+      timecardId: card.id,
+      entryDate: d,
+      hours: "0" as const,
+    }));
+
+    await db.insert(timecardEntries).values(entryRows);
+
+    await db.insert(timecardAuditLog).values({
+      timecardId: card.id,
+      changedById: adminId,
+      action: "created",
+      description: `Timecard created by admin for week of ${weekStartDate}`,
+    });
+
+    return this.getTimecardWithEntries(card.id);
+  },
+
   // ── READ WITH ENTRIES ─────────────────────
 
   async getTimecardWithEntries(
@@ -104,7 +144,17 @@ export const timecardStorage = {
       .where(eq(timecardEntries.timecardId, timecardId))
       .orderBy(timecardEntries.entryDate);
 
-    return { ...card, entries };
+    // Fetch recipient if set
+    let recipient: TimecardRecipient | null = null;
+    if (card.recipientId) {
+      const [r] = await db
+        .select()
+        .from(timecardRecipients)
+        .where(eq(timecardRecipients.id, card.recipientId));
+      recipient = r || null;
+    }
+
+    return { ...card, entries, recipient };
   },
 
   // ── ADMIN: ALL TIMECARDS ──────────────────
@@ -128,7 +178,7 @@ export const timecardStorage = {
       .innerJoin(users, eq(timecards.userId, users.id))
       .orderBy(desc(timecards.weekStartDate), users.lastName);
 
-    return rows
+    const mapped = rows
       .filter((r) => {
         if (filters?.weekStartDate && r.card.weekStartDate !== filters.weekStartDate) return false;
         if (filters?.userId && r.card.userId !== filters.userId) return false;
@@ -136,6 +186,21 @@ export const timecardStorage = {
         return true;
       })
       .map((r) => ({ ...r.card, user: r.user }));
+
+    // Fetch recipients for cards that have one
+    const cardsWithRecipients: TimecardWithUser[] = [];
+    for (const card of mapped) {
+      let recipient: TimecardRecipient | null = null;
+      if (card.recipientId) {
+        const [r] = await db
+          .select()
+          .from(timecardRecipients)
+          .where(eq(timecardRecipients.id, card.recipientId));
+        recipient = r || null;
+      }
+      cardsWithRecipients.push({ ...card, recipient });
+    }
+    return cardsWithRecipients;
   },
 
   /** Same as above but includes entries for each card (for grid view) */
@@ -798,5 +863,90 @@ export const timecardStorage = {
     });
 
     return punch;
+  },
+
+  // ── TIMECARD RECIPIENTS ──────────────────
+
+  async getRecipients(): Promise<TimecardRecipient[]> {
+    return db
+      .select()
+      .from(timecardRecipients)
+      .where(eq(timecardRecipients.isActive, "yes"))
+      .orderBy(timecardRecipients.name);
+  },
+
+  async getAllRecipients(): Promise<TimecardRecipient[]> {
+    return db.select().from(timecardRecipients).orderBy(timecardRecipients.name);
+  },
+
+  async createRecipient(name: string, email: string, title?: string): Promise<TimecardRecipient> {
+    const [recipient] = await db
+      .insert(timecardRecipients)
+      .values({ name, email, title: title || null })
+      .returning();
+    return recipient;
+  },
+
+  async updateRecipient(id: number, data: Partial<{ name: string; email: string; title: string }>): Promise<TimecardRecipient> {
+    const [updated] = await db
+      .update(timecardRecipients)
+      .set(data)
+      .where(eq(timecardRecipients.id, id))
+      .returning();
+    return updated;
+  },
+
+  async deactivateRecipient(id: number): Promise<void> {
+    await db
+      .update(timecardRecipients)
+      .set({ isActive: "no" })
+      .where(eq(timecardRecipients.id, id));
+  },
+
+  async setTimecardRecipient(
+    timecardId: number,
+    recipientId: number,
+    changedById: string,
+  ): Promise<Timecard> {
+    // Get current card for audit
+    const [card] = await db
+      .select()
+      .from(timecards)
+      .where(eq(timecards.id, timecardId));
+
+    if (!card) throw new Error("Timecard not found");
+
+    // Get old recipient name for audit
+    let oldRecipientName = "none";
+    if (card.recipientId) {
+      const [old] = await db
+        .select()
+        .from(timecardRecipients)
+        .where(eq(timecardRecipients.id, card.recipientId));
+      if (old) oldRecipientName = old.name;
+    }
+
+    // Get new recipient name
+    const [newRecipient] = await db
+      .select()
+      .from(timecardRecipients)
+      .where(eq(timecardRecipients.id, recipientId));
+    const newRecipientName = newRecipient?.name || "unknown";
+
+    const [updated] = await db
+      .update(timecards)
+      .set({ recipientId, updatedAt: new Date() })
+      .where(eq(timecards.id, timecardId))
+      .returning();
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId,
+      changedById,
+      action: "recipient_changed",
+      description: `Recipient changed: ${oldRecipientName} → ${newRecipientName}`,
+    });
+
+    return updated;
   },
 };

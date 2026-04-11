@@ -1589,6 +1589,7 @@ export const timecards = pgTable("timecards", {
   userId: varchar("user_id").notNull().references(() => users.id),
   weekStartDate: varchar("week_start_date").notNull(), // ISO date string, always Monday
   status: varchar("status").notNull().default("draft"), // draft | submitted | approved
+  recipientId: integer("recipient_id").references(() => timecardRecipients.id),
   submittedAt: timestamp("submitted_at"),
   approvedAt: timestamp("approved_at"),
   approvedById: varchar("approved_by_id").references(() => users.id),
@@ -1658,6 +1659,16 @@ export const payrollContacts = pgTable("payroll_contacts", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Timecard recipients (HR / managers who timecards are submitted to)
+export const timecardRecipients = pgTable("timecard_recipients", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  email: varchar("email").notNull(),
+  title: varchar("title"),
+  isActive: text("is_active").default("yes").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertPayrollContactSchema = createInsertSchema(payrollContacts).omit({
   id: true,
   createdAt: true,
@@ -1666,6 +1677,14 @@ export const insertPayrollContactSchema = createInsertSchema(payrollContacts).om
 
 export type InsertPayrollContact = z.infer<typeof insertPayrollContactSchema>;
 export type PayrollContact = typeof payrollContacts.$inferSelect;
+
+export const insertTimecardRecipientSchema = createInsertSchema(timecardRecipients).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertTimecardRecipient = z.infer<typeof insertTimecardRecipientSchema>;
+export type TimecardRecipient = typeof timecardRecipients.$inferSelect;
 
 // Insert schemas
 export const insertTimecardPunchSchema = createInsertSchema(timecardPunches).omit({
@@ -1707,10 +1726,12 @@ export type TimecardAuditLog = typeof timecardAuditLog.$inferSelect;
 // View types
 export type TimecardWithEntries = Timecard & {
   entries: TimecardEntry[];
+  recipient?: TimecardRecipient | null;
 };
 
 export type TimecardWithUser = Timecard & {
   user: { id: string; firstName: string | null; lastName: string | null; email: string };
+  recipient?: TimecardRecipient | null;
 };
 
 export type TimecardAuditLogWithUser = TimecardAuditLog & {

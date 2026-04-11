@@ -151,9 +151,9 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(403).json({ error: "Not your timecard" });
       }
 
-      // Cannot edit approved cards
-      if (found.timecard.status === "approved") {
-        return res.status(400).json({ error: "Cannot edit an approved timecard" });
+      // Cannot edit submitted or approved cards
+      if (found.timecard.status === "submitted" || found.timecard.status === "approved") {
+        return res.status(403).json({ error: "This timecard has already been submitted and can no longer be edited. Contact an admin if you need a correction." });
       }
 
       const { hours, notes, mileage } = req.body;
@@ -202,12 +202,124 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(400).json({ error: `Cannot submit a timecard with status "${card.status}"` });
       }
 
+      // Require a recipient to be set before submitting
+      if (!card.recipientId) {
+        return res.status(400).json({ error: "Please select a recipient before submitting." });
+      }
+
       const updated = await timecardStorage.submitTimecard(timecardId, userId);
       res.json(updated);
     }),
   );
 
+  // ── RECIPIENT SELECTION ────────────────────
+
+  // PATCH set recipient on own timecard (blocked if submitted or approved)
+  app.patch(
+    "/api/timecards/:id/recipient",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const timecardId = parseInt(req.params.id, 10);
+      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
+
+      const card = await timecardStorage.getTimecardWithEntries(timecardId);
+      if (card.userId !== userId) {
+        return res.status(403).json({ error: "Not your timecard" });
+      }
+      if (card.status === "submitted" || card.status === "approved") {
+        return res.status(403).json({ error: "Cannot change recipient on a submitted or approved timecard" });
+      }
+
+      const { recipientId } = req.body;
+      if (!recipientId) return res.status(400).json({ error: "recipientId is required" });
+
+      const updated = await timecardStorage.setTimecardRecipient(timecardId, recipientId, userId);
+      res.json(updated);
+    }),
+  );
+
+  // ── RECIPIENT CRUD ───────────────────────
+
+  // GET all active recipients (any authenticated user)
+  app.get(
+    "/api/timecards/recipients",
+    isAuthenticated,
+    asyncHandler(async (_req: any, res) => {
+      const recipients = await timecardStorage.getRecipients();
+      res.json(recipients);
+    }),
+  );
+
+  // GET all recipients including inactive (admin only, for management)
+  app.get(
+    "/api/timecards/admin/recipients",
+    isAdmin,
+    asyncHandler(async (_req: any, res) => {
+      const recipients = await timecardStorage.getAllRecipients();
+      res.json(recipients);
+    }),
+  );
+
+  // POST create new recipient (admin only)
+  app.post(
+    "/api/timecards/recipients",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { name, email, title } = req.body;
+      if (!name || !email) return res.status(400).json({ error: "Name and email are required" });
+      const recipient = await timecardStorage.createRecipient(name, email, title);
+      res.json(recipient);
+    }),
+  );
+
+  // PATCH update recipient (admin only)
+  app.patch(
+    "/api/timecards/recipients/:id",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const { name, email, title } = req.body;
+      const updated = await timecardStorage.updateRecipient(id, { name, email, title });
+      res.json(updated);
+    }),
+  );
+
+  // DELETE deactivate recipient (admin only)
+  app.delete(
+    "/api/timecards/recipients/:id",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      await timecardStorage.deactivateRecipient(id);
+      res.json({ success: true });
+    }),
+  );
+
   // ── ADMIN ROUTES ──────────────────────────
+
+  // GET or create a timecard for any employee+week (admin)
+  app.get(
+    "/api/timecards/admin/user/:userId/:weekStartDate",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const adminId = req.user?.id;
+      if (!adminId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { userId, weekStartDate } = req.params;
+      if (!userId || !weekStartDate || !/^\d{4}-\d{2}-\d{2}$/.test(weekStartDate)) {
+        return res.status(400).json({ error: "Invalid userId or weekStartDate" });
+      }
+
+      const card = await timecardStorage.adminGetOrCreateTimecard(userId, weekStartDate, adminId);
+      const auditLog = await timecardStorage.getTimecardAuditLog(card.id);
+      res.json({ ...card, auditLog });
+    }),
+  );
 
   // GET all timecards with user info (filterable)
   app.get(

@@ -140,10 +140,12 @@ interface TimecardWithUser {
   userId: string;
   weekStartDate: string;
   status: string;
+  recipientId: number | null;
   totalHours: string | null;
   totalMileage: string | null;
   user: CardUser;
   entries: TimecardEntry[];
+  recipient?: TimecardRecipient | null;
 }
 
 interface ClockPunch {
@@ -186,6 +188,14 @@ interface PayrollContact {
   id: number;
   name: string;
   email: string;
+}
+
+interface TimecardRecipient {
+  id: number;
+  name: string;
+  email: string;
+  title: string | null;
+  isActive: string;
 }
 
 interface EmployeeClockStatus {
@@ -391,7 +401,10 @@ export function TimeManagement() {
   const [newEmployeeForm, setNewEmployeeForm] = useState({ firstName: "", lastName: "", email: "", password: "", mileageEnabled: false, mileageRate: 0 });
   const [newContactForm, setNewContactForm] = useState({ name: "", email: "" });
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<"timecards" | "status">("status");
+  const [activeTab, setActiveTab] = useState<"timecards" | "status" | "recipients">("status");
+  const [showAddRecipient, setShowAddRecipient] = useState(false);
+  const [newRecipientForm, setNewRecipientForm] = useState({ name: "", email: "", title: "" });
+  const [editingRecipient, setEditingRecipient] = useState<TimecardRecipient | null>(null);
   const [addPunchFor, setAddPunchFor] = useState<{ userId: string; date: string } | null>(null);
   const [newPunchIn, setNewPunchIn] = useState("09:00");
   const [newPunchOut, setNewPunchOut] = useState("17:00");
@@ -533,6 +546,57 @@ export function TimeManagement() {
     },
     onSuccess: () => {
       refetchPayrollContacts();
+    },
+  });
+
+  // Fetch all recipients (including inactive, for management)
+  const { data: allRecipients = [], refetch: refetchRecipients } = useQuery<TimecardRecipient[]>({
+    queryKey: ["/api/timecards/admin/recipients"],
+    enabled: !!verifiedUser,
+  });
+
+  // Mutation: create recipient
+  const createRecipient = useMutation({
+    mutationFn: async (data: { name: string; email: string; title?: string }) => {
+      const res = await apiRequest("POST", "/api/timecards/recipients", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchRecipients();
+      setNewRecipientForm({ name: "", email: "", title: "" });
+      setShowAddRecipient(false);
+      setFeedback({ type: "success", message: "Recipient added" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+    onError: () => {
+      setFeedback({ type: "error", message: "Failed to add recipient" });
+    },
+  });
+
+  // Mutation: update recipient
+  const updateRecipientMut = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; name?: string; email?: string; title?: string }) => {
+      const res = await apiRequest("PATCH", `/api/timecards/recipients/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchRecipients();
+      setEditingRecipient(null);
+      setFeedback({ type: "success", message: "Recipient updated" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+  });
+
+  // Mutation: deactivate recipient
+  const deactivateRecipient = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/timecards/recipients/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchRecipients();
+      setFeedback({ type: "success", message: "Recipient deactivated" });
+      setTimeout(() => setFeedback(null), 3000);
     },
   });
 
@@ -731,6 +795,15 @@ export function TimeManagement() {
           <History className="h-4 w-4 inline mr-1.5" />
           Detail View
         </button>
+        <button
+          onClick={() => setActiveTab("recipients")}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+            activeTab === "recipients" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Users className="h-4 w-4 inline mr-1.5" />
+          Recipients
+        </button>
       </div>
 
       {/* Week Nav */}
@@ -849,7 +922,14 @@ export function TimeManagement() {
                             </div>
                           </div>
                         </td>
-                        <td className="text-center py-2 px-1">{statusBadge(card.status)}</td>
+                        <td className="text-center py-2 px-1">
+                          {statusBadge(card.status)}
+                          {card.recipient && (card.status === "submitted" || card.status === "approved") && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              → {card.recipient.title ? `${card.recipient.name} (${card.recipient.title})` : card.recipient.name}
+                            </div>
+                          )}
+                        </td>
                         {weekDays.map((day) => {
                           const entry = card.entries?.find(e => e.entryDate === day);
                           const hrs = entry ? parseFloat(entry.hours || "0") : 0;
@@ -1079,6 +1159,11 @@ export function TimeManagement() {
                       </div>
                       <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
                       {statusBadge(card.status)}
+                      {card.recipient && (card.status === "submitted" || card.status === "approved") && (
+                        <span className="text-xs text-muted-foreground">
+                          → {card.recipient.title ? `${card.recipient.name} (${card.recipient.title})` : card.recipient.name}
+                        </span>
+                      )}
                       {card.totalMileage && parseFloat(card.totalMileage) > 0 && (
                         <Badge variant="secondary" className="text-xs">
                           {parseFloat(card.totalMileage).toFixed(1)} mi
@@ -1491,6 +1576,142 @@ export function TimeManagement() {
             )}
           </div>
         )}
+
+      {/* ── Recipients Tab ── */}
+      {activeTab === "recipients" && (
+        <div className="bg-card border rounded-lg p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Timecard Recipients</h3>
+            <Button size="sm" onClick={() => setShowAddRecipient(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Add Recipient
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            {allRecipients.map((r) => (
+              <div key={r.id} className="flex items-center justify-between border rounded-lg p-3">
+                {editingRecipient?.id === r.id ? (
+                  <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                    <Input
+                      value={editingRecipient.name}
+                      onChange={(e) => setEditingRecipient({ ...editingRecipient, name: e.target.value })}
+                      placeholder="Name"
+                      className="text-sm"
+                    />
+                    <Input
+                      value={editingRecipient.email}
+                      onChange={(e) => setEditingRecipient({ ...editingRecipient, email: e.target.value })}
+                      placeholder="Email"
+                      className="text-sm"
+                    />
+                    <Input
+                      value={editingRecipient.title || ""}
+                      onChange={(e) => setEditingRecipient({ ...editingRecipient, title: e.target.value || null })}
+                      placeholder="Title (optional)"
+                      className="text-sm"
+                    />
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        onClick={() => updateRecipientMut.mutate({
+                          id: editingRecipient.id,
+                          name: editingRecipient.name,
+                          email: editingRecipient.email,
+                          title: editingRecipient.title || undefined,
+                        })}
+                        disabled={updateRecipientMut.isPending}
+                      >
+                        Save
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingRecipient(null)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <span className="text-sm font-medium">{r.name}</span>
+                      {r.title && <span className="text-xs text-muted-foreground ml-2">— {r.title}</span>}
+                      <p className="text-xs text-muted-foreground">{r.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {r.isActive === "no" && (
+                        <Badge variant="secondary" className="text-xs">Inactive</Badge>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingRecipient(r)}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      {r.isActive === "yes" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deactivateRecipient.mutate(r.id)}
+                          disabled={deactivateRecipient.isPending}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+            {allRecipients.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4 text-center">No recipients yet. Add one above.</p>
+            )}
+          </div>
+
+          {showAddRecipient && (
+            <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Input
+                  placeholder="Name *"
+                  value={newRecipientForm.name}
+                  onChange={(e) => setNewRecipientForm({ ...newRecipientForm, name: e.target.value })}
+                  className="text-sm"
+                />
+                <Input
+                  placeholder="Email *"
+                  type="email"
+                  value={newRecipientForm.email}
+                  onChange={(e) => setNewRecipientForm({ ...newRecipientForm, email: e.target.value })}
+                  className="text-sm"
+                />
+                <Input
+                  placeholder="Title (optional)"
+                  value={newRecipientForm.title}
+                  onChange={(e) => setNewRecipientForm({ ...newRecipientForm, title: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => createRecipient.mutate({
+                    name: newRecipientForm.name.trim(),
+                    email: newRecipientForm.email.trim(),
+                    title: newRecipientForm.title.trim() || undefined,
+                  })}
+                  disabled={createRecipient.isPending || !newRecipientForm.name || !newRecipientForm.email}
+                >
+                  {createRecipient.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  Save Recipient
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowAddRecipient(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       </div>
     </div>
   );
