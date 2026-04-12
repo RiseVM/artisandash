@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/features/auth/hooks";
 import { Button } from "@/components/ui/button";
@@ -1000,8 +1001,16 @@ function TimecardDayCard({
 
 export function Timecards() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const [currentMonday, setCurrentMonday] = useState(() => formatIso(getMonday(new Date())));
+
+  // Redirect admin users to the admin time management page
+  useEffect(() => {
+    if (user && user.role === "admin") {
+      navigate("/time-management");
+    }
+  }, [user, navigate]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
   const [showAddMileage, setShowAddMileage] = useState(false);
@@ -1084,6 +1093,9 @@ export function Timecards() {
     setCurrentMonday(weekStart);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
+
+  // Admin users get redirected — render nothing while redirect happens
+  if (user && user.role === "admin") return null;
 
   // Gate: require identity verification
   if (!verifiedUser) {
