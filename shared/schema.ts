@@ -1594,6 +1594,9 @@ export const timecards = pgTable("timecards", {
   approvedAt: timestamp("approved_at"),
   approvedById: varchar("approved_by_id").references(() => users.id),
   totalHours: numeric("total_hours", { precision: 5, scale: 2 }).default("0"),
+  totalOtHours: numeric("total_ot_hours", { precision: 5, scale: 2 }).default("0"),
+  totalPtoHours: numeric("total_pto_hours", { precision: 5, scale: 2 }).default("0"),
+  totalHolidayHours: numeric("total_holiday_hours", { precision: 5, scale: 2 }).default("0"),
   totalMileage: numeric("total_mileage", { precision: 8, scale: 1 }).default("0"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1609,7 +1612,11 @@ export const timecardEntries = pgTable("timecard_entries", {
   entryDate: varchar("entry_date").notNull(), // ISO date string for the specific day
   clockIn: varchar("clock_in"),   // "HH:MM" 24hr format, nullable
   clockOut: varchar("clock_out"), // "HH:MM" 24hr format, nullable
-  hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"), // auto-calculated from clockIn/clockOut
+  hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"), // regular hours (capped at 8)
+  otHours: numeric("ot_hours", { precision: 4, scale: 2 }).notNull().default("0"), // overtime (>8h)
+  ptoHours: numeric("pto_hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  holidayHours: numeric("holiday_hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  entryType: varchar("entry_type").notNull().default("work"), // "work" | "pto" | "holiday"
   mileage: numeric("mileage", { precision: 7, scale: 1 }).default("0"), // total miles for the day
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),

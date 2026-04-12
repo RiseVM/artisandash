@@ -126,6 +126,10 @@ interface TimecardEntry {
   timecardId: number;
   entryDate: string;
   hours: string;
+  otHours: string;
+  ptoHours: string;
+  holidayHours: string;
+  entryType: string;
   notes: string | null;
 }
 
@@ -147,6 +151,9 @@ interface TimecardWithUser {
   status: string;
   recipientId: number | null;
   totalHours: string | null;
+  totalOtHours: string | null;
+  totalPtoHours: string | null;
+  totalHolidayHours: string | null;
   totalMileage: string | null;
   user: CardUser;
   entries: TimecardEntry[];
@@ -170,13 +177,16 @@ interface TimecardDetail {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
+  totalOtHours: string | null;
+  totalPtoHours: string | null;
+  totalHolidayHours: string | null;
   totalMileage: number | null;
   entries: TimecardEntry[];
   auditLog: AuditLogEntry[];
 }
 
 interface TimecardEntryWithMileage extends TimecardEntry {
-  mileage?: number | null;
+  mileage?: string | null;
 }
 
 interface Employee {
@@ -917,6 +927,7 @@ export function TimeManagement() {
 
   // Week summary
   const weekTotalHours = allCards.reduce((s, c) => s + parseFloat(c.totalHours || "0"), 0);
+  const weekTotalOtHours = allCards.reduce((s, c) => s + parseFloat(c.totalOtHours || "0"), 0);
   const approvedTimecards = allCards.filter(c => c.status === "approved");
   const clockedInCount = clockStatuses.filter(s => s.openPunch).length;
   const weekDays = Array.from({ length: 7 }, (_, i) => formatIso(addDays(new Date(currentMonday + "T12:00:00"), i)));
@@ -1151,9 +1162,12 @@ export function TimeManagement() {
                         </th>
                       );
                     })}
-                    <th className="text-center py-2.5 px-2 font-semibold w-20">Total Hrs</th>
-                    <th className="text-center py-2.5 px-2 font-semibold w-20">Miles</th>
-                    <th className="text-center py-2.5 px-2 font-semibold w-24">Mileage $</th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-20">Reg Hrs</th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-16"><span className="text-amber-600">OT</span></th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-16"><span className="text-blue-600">PTO</span></th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-16"><span className="text-indigo-600">Hol</span></th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-16">Miles</th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-20">Mileage $</th>
                     <th className="text-center py-2.5 px-2 font-semibold w-24">Status</th>
                   </tr>
                 </thead>
@@ -1163,6 +1177,9 @@ export function TimeManagement() {
                     const isClockedIn = clockStatus?.openPunch != null;
                     const status = card?.status || "draft";
                     const totalHrs = card ? parseFloat(card.totalHours || "0") : 0;
+                    const totalOtHrs = card ? parseFloat(card.totalOtHours || "0") : 0;
+                    const totalPtoHrs = card ? parseFloat(card.totalPtoHours || "0") : 0;
+                    const totalHolHrs = card ? parseFloat(card.totalHolidayHours || "0") : 0;
                     const totalMiles = card ? parseFloat(card.totalMileage || "0") : 0;
                     const mileagePayout = totalMiles * (emp.mileageRate || 0);
 
@@ -1225,6 +1242,24 @@ export function TimeManagement() {
                         </td>
 
                         <td className="text-center py-2 px-2">
+                          <span className={`text-sm ${totalOtHrs > 0 ? "font-semibold text-amber-600" : "text-muted-foreground"}`}>
+                            {totalOtHrs > 0 ? totalOtHrs.toFixed(1) : "—"}
+                          </span>
+                        </td>
+
+                        <td className="text-center py-2 px-2">
+                          <span className={`text-sm ${totalPtoHrs > 0 ? "font-semibold text-blue-600" : "text-muted-foreground"}`}>
+                            {totalPtoHrs > 0 ? totalPtoHrs.toFixed(1) : "—"}
+                          </span>
+                        </td>
+
+                        <td className="text-center py-2 px-2">
+                          <span className={`text-sm ${totalHolHrs > 0 ? "font-semibold text-indigo-600" : "text-muted-foreground"}`}>
+                            {totalHolHrs > 0 ? totalHolHrs.toFixed(1) : "—"}
+                          </span>
+                        </td>
+
+                        <td className="text-center py-2 px-2">
                           <span className="text-sm text-muted-foreground">{totalMiles > 0 ? totalMiles.toFixed(1) : "—"}</span>
                         </td>
 
@@ -1267,6 +1302,24 @@ export function TimeManagement() {
                       );
                     })}
                     <td className="text-center py-2.5 px-2 text-sm">{weekTotalHours.toFixed(1)}</td>
+                    <td className="text-center py-2.5 px-2 text-xs font-mono text-amber-600">
+                      {(() => {
+                        const total = gridRows.reduce((sum, { card }) => sum + parseFloat(card?.totalOtHours || "0"), 0);
+                        return total > 0 ? total.toFixed(1) : "—";
+                      })()}
+                    </td>
+                    <td className="text-center py-2.5 px-2 text-xs font-mono text-blue-600">
+                      {(() => {
+                        const total = gridRows.reduce((sum, { card }) => sum + parseFloat(card?.totalPtoHours || "0"), 0);
+                        return total > 0 ? total.toFixed(1) : "—";
+                      })()}
+                    </td>
+                    <td className="text-center py-2.5 px-2 text-xs font-mono text-indigo-600">
+                      {(() => {
+                        const total = gridRows.reduce((sum, { card }) => sum + parseFloat(card?.totalHolidayHours || "0"), 0);
+                        return total > 0 ? total.toFixed(1) : "—";
+                      })()}
+                    </td>
                     <td className="text-center py-2.5 px-2 text-xs font-mono">
                       {(() => {
                         const totalMi = gridRows.reduce((sum, { card }) => sum + parseFloat(card?.totalMileage || "0"), 0);
@@ -1318,8 +1371,8 @@ export function TimeManagement() {
                           <span className={`text-sm font-mono ${hrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
                             {hrs > 0 ? `${hrs.toFixed(1)}h` : "0.0h"}
                           </span>
-                          {entry.mileage && entry.mileage > 0 && (
-                            <Badge variant="secondary" className="text-[10px]">{entry.mileage.toFixed(1)} mi</Badge>
+                          {entry.mileage && parseFloat(entry.mileage) > 0 && (
+                            <Badge variant="secondary" className="text-[10px]">{parseFloat(entry.mileage).toFixed(1)} mi</Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-1">
@@ -1548,6 +1601,15 @@ export function TimeManagement() {
                         <div className="text-xs text-muted-foreground">{card.user.email}</div>
                       </div>
                       <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
+                      {parseFloat(card.totalOtHours || "0") > 0 && (
+                        <Badge className="bg-amber-100 text-amber-700 text-[10px]">OT {parseFloat(card.totalOtHours || "0").toFixed(1)}h</Badge>
+                      )}
+                      {parseFloat(card.totalPtoHours || "0") > 0 && (
+                        <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO {parseFloat(card.totalPtoHours || "0").toFixed(1)}h</Badge>
+                      )}
+                      {parseFloat(card.totalHolidayHours || "0") > 0 && (
+                        <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Hol {parseFloat(card.totalHolidayHours || "0").toFixed(1)}h</Badge>
+                      )}
                       {statusBadge(card.status)}
                       {card.recipient && (card.status === "submitted" || card.status === "approved") && (
                         <span className="text-xs text-muted-foreground">
@@ -1584,10 +1646,13 @@ export function TimeManagement() {
                       <div className="border-t">
                         {/* Entries grid */}
                         <div className="px-4 py-2">
-                          <div className="grid grid-cols-[1fr_100px_80px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
+                          <div className="grid grid-cols-[1fr_60px_80px_60px_60px_60px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
                             <span>Day</span>
+                            <span className="text-center">Type</span>
                             <span className="text-center">Hours</span>
-                            <span className="text-center">Mileage</span>
+                            <span className="text-center text-amber-600">OT</span>
+                            <span className="text-center text-blue-600">PTO</span>
+                            <span className="text-center text-indigo-600">Hol</span>
                             <span>Notes</span>
                             <span></span>
                           </div>
@@ -1595,9 +1660,22 @@ export function TimeManagement() {
                             const wasAdminEdited = expandedDetail.auditLog.some(
                               (l) => l.action === "admin_edit" && l.entryDate === entry.entryDate,
                             );
+                            const hrs = parseFloat(entry.hours || "0");
+                            const otHrs = parseFloat(entry.otHours || "0");
+                            const ptoHrs = parseFloat(entry.ptoHours || "0");
+                            const holHrs = parseFloat(entry.holidayHours || "0");
                             return (
-                              <div key={entry.id} className="grid grid-cols-[1fr_100px_80px_1fr_80px] gap-2 items-center py-1.5 border-b last:border-b-0">
+                              <div key={entry.id} className={`grid grid-cols-[1fr_60px_80px_60px_60px_60px_1fr_80px] gap-2 items-center py-1.5 border-b last:border-b-0 ${
+                                entry.entryType === "pto" ? "bg-blue-50/50" : entry.entryType === "holiday" ? "bg-indigo-50/50" : ""
+                              }`}>
                                 <span className="text-sm">{formatDayLabel(entry.entryDate)}</span>
+                                <span className={`text-[10px] text-center font-medium px-1 py-0.5 rounded ${
+                                  entry.entryType === "pto" ? "bg-blue-100 text-blue-700"
+                                    : entry.entryType === "holiday" ? "bg-indigo-100 text-indigo-700"
+                                    : "bg-gray-100 text-gray-600"
+                                }`}>
+                                  {entry.entryType === "pto" ? "PTO" : entry.entryType === "holiday" ? "Holiday" : "Work"}
+                                </span>
                                 <Input
                                   type="number"
                                   min="0"
@@ -1608,8 +1686,14 @@ export function TimeManagement() {
                                   onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
                                   key={`ah-${entry.id}-${entry.hours}`}
                                 />
-                                <span className="text-sm text-center text-muted-foreground">
-                                  {entry.mileage ? `${entry.mileage.toFixed(1)} mi` : "—"}
+                                <span className={`text-sm text-center ${otHrs > 0 ? "font-semibold text-amber-600" : "text-muted-foreground"}`}>
+                                  {otHrs > 0 ? otHrs.toFixed(1) : "—"}
+                                </span>
+                                <span className={`text-sm text-center ${ptoHrs > 0 ? "font-semibold text-blue-600" : "text-muted-foreground"}`}>
+                                  {ptoHrs > 0 ? ptoHrs.toFixed(1) : "—"}
+                                </span>
+                                <span className={`text-sm text-center ${holHrs > 0 ? "font-semibold text-indigo-600" : "text-muted-foreground"}`}>
+                                  {holHrs > 0 ? holHrs.toFixed(1) : "—"}
                                 </span>
                                 <Input
                                   type="text"

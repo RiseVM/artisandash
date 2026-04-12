@@ -22,12 +22,15 @@ import type {
 } from "@shared/schema";
 import { eq, and, desc, isNull, sql } from "drizzle-orm";
 
-/** Calculate decimal hours from HH:MM clockIn/clockOut strings */
-function calcHours(clockIn: string, clockOut: string): number {
+/** Calculate regular + OT hours from HH:MM clockIn/clockOut strings */
+function calcHours(clockIn: string, clockOut: string): { regular: number; ot: number } {
   const [inH, inM] = clockIn.split(":").map(Number);
   const [outH, outM] = clockOut.split(":").map(Number);
-  const diff = (outH * 60 + outM) - (inH * 60 + inM);
-  return Math.max(0, parseFloat((diff / 60).toFixed(2)));
+  const totalMins = Math.max(0, (outH * 60 + outM) - (inH * 60 + inM));
+  const totalHrs = parseFloat((totalMins / 60).toFixed(2));
+  const regular = Math.min(totalHrs, 8);
+  const ot = parseFloat(Math.max(0, totalHrs - 8).toFixed(2));
+  return { regular, ot };
 }
 
 /** Return Monday-based ISO date strings for a 7-day week */
@@ -248,11 +251,13 @@ export const timecardStorage = {
     entryId: number,
     clockIn: string | null,
     clockOut: string | null,
+    entryType: string,
+    ptoHours: number,
+    holidayHours: number,
     notes: string | null,
     changedById: string,
     mileage?: string,
   ): Promise<TimecardEntry> {
-    // Fetch existing entry
     const [existing] = await db
       .select()
       .from(timecardEntries)
@@ -260,11 +265,32 @@ export const timecardStorage = {
 
     if (!existing) throw new Error("Entry not found");
 
-    // Calculate hours from clockIn/clockOut
-    const hours = (clockIn && clockOut) ? String(calcHours(clockIn, clockOut)) : "0";
+    let hours = "0";
+    let otHours = "0";
+    let finalPtoHours = "0";
+    let finalHolidayHours = "0";
 
-    // Update the entry
-    const setData: any = { clockIn, clockOut, hours, notes, updatedAt: new Date() };
+    if (entryType === "work") {
+      if (clockIn && clockOut) {
+        const { regular, ot } = calcHours(clockIn, clockOut);
+        hours = String(regular);
+        otHours = String(ot);
+      }
+    } else if (entryType === "pto") {
+      finalPtoHours = String(ptoHours || 0);
+      clockIn = null;
+      clockOut = null;
+    } else if (entryType === "holiday") {
+      finalHolidayHours = String(holidayHours || 0);
+      clockIn = null;
+      clockOut = null;
+    }
+
+    const setData: any = {
+      clockIn, clockOut, hours, otHours,
+      ptoHours: finalPtoHours, holidayHours: finalHolidayHours,
+      entryType, notes, updatedAt: new Date(),
+    };
     if (mileage !== undefined) setData.mileage = mileage;
 
     const [updated] = await db
@@ -273,10 +299,8 @@ export const timecardStorage = {
       .where(eq(timecardEntries.id, entryId))
       .returning();
 
-    // Recalculate totals on parent timecard
     await this.recalcTimecardTotals(existing.timecardId);
 
-    // Write audit log
     await db.insert(timecardAuditLog).values({
       timecardId: existing.timecardId,
       changedById,
@@ -286,7 +310,7 @@ export const timecardStorage = {
       newHours: hours,
       oldNotes: existing.notes,
       newNotes: notes,
-      description: `${existing.entryDate} hours: ${existing.hours} → ${hours}`,
+      description: `${existing.entryDate} ${entryType}: hours ${existing.hours} → ${hours}, OT ${otHours}`,
     });
 
     return updated;
@@ -298,6 +322,9 @@ export const timecardStorage = {
     entryId: number,
     clockIn: string | null,
     clockOut: string | null,
+    entryType: string,
+    ptoHours: number,
+    holidayHours: number,
     notes: string | null,
     adminId: string,
     mileage?: string,
@@ -309,9 +336,32 @@ export const timecardStorage = {
 
     if (!existing) throw new Error("Entry not found");
 
-    const hours = (clockIn && clockOut) ? String(calcHours(clockIn, clockOut)) : "0";
+    let hours = "0";
+    let otHours = "0";
+    let finalPtoHours = "0";
+    let finalHolidayHours = "0";
 
-    const setData: any = { clockIn, clockOut, hours, notes, updatedAt: new Date() };
+    if (entryType === "work") {
+      if (clockIn && clockOut) {
+        const { regular, ot } = calcHours(clockIn, clockOut);
+        hours = String(regular);
+        otHours = String(ot);
+      }
+    } else if (entryType === "pto") {
+      finalPtoHours = String(ptoHours || 0);
+      clockIn = null;
+      clockOut = null;
+    } else if (entryType === "holiday") {
+      finalHolidayHours = String(holidayHours || 0);
+      clockIn = null;
+      clockOut = null;
+    }
+
+    const setData: any = {
+      clockIn, clockOut, hours, otHours,
+      ptoHours: finalPtoHours, holidayHours: finalHolidayHours,
+      entryType, notes, updatedAt: new Date(),
+    };
     if (mileage !== undefined) setData.mileage = mileage;
 
     const [updated] = await db
@@ -331,13 +381,13 @@ export const timecardStorage = {
       newHours: hours,
       oldNotes: existing.notes,
       newNotes: notes,
-      description: `Admin edit: ${existing.entryDate} hours: ${existing.hours} → ${hours}`,
+      description: `Admin edit: ${existing.entryDate} ${entryType}: hours ${existing.hours} → ${hours}, OT ${otHours}`,
     });
 
     return updated;
   },
 
-  /** Recalculate totalHours and totalMileage on a timecard from its entries */
+  /** Recalculate all totals on a timecard from its entries */
   async recalcTimecardTotals(timecardId: number): Promise<void> {
     const allEntries = await db
       .select()
@@ -345,11 +395,21 @@ export const timecardStorage = {
       .where(eq(timecardEntries.timecardId, timecardId));
 
     const totalHours = allEntries.reduce((sum, e) => sum + parseFloat(e.hours || "0"), 0);
+    const totalOtHours = allEntries.reduce((sum, e) => sum + parseFloat(e.otHours || "0"), 0);
+    const totalPtoHours = allEntries.reduce((sum, e) => sum + parseFloat(e.ptoHours || "0"), 0);
+    const totalHolidayHours = allEntries.reduce((sum, e) => sum + parseFloat(e.holidayHours || "0"), 0);
     const totalMileage = allEntries.reduce((sum, e) => sum + parseFloat(e.mileage || "0"), 0);
 
     await db
       .update(timecards)
-      .set({ totalHours: totalHours.toFixed(2), totalMileage: totalMileage.toFixed(1), updatedAt: new Date() })
+      .set({
+        totalHours: totalHours.toFixed(2),
+        totalOtHours: totalOtHours.toFixed(2),
+        totalPtoHours: totalPtoHours.toFixed(2),
+        totalHolidayHours: totalHolidayHours.toFixed(2),
+        totalMileage: totalMileage.toFixed(1),
+        updatedAt: new Date(),
+      })
       .where(eq(timecards.id, timecardId));
   },
 

@@ -182,6 +182,15 @@ declare module "http" {
       `INSERT INTO timecard_recipients (name, email, title, is_active)
        SELECT 'Claudia', 'claudia@artisantilect.com', 'HR Manager', 'yes'
        WHERE NOT EXISTS (SELECT 1 FROM timecard_recipients LIMIT 1)`,
+      // OT / PTO / Holiday columns on timecard_entries
+      `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS ot_hours NUMERIC(4, 2) NOT NULL DEFAULT '0'`,
+      `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS pto_hours NUMERIC(4, 2) NOT NULL DEFAULT '0'`,
+      `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS holiday_hours NUMERIC(4, 2) NOT NULL DEFAULT '0'`,
+      `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS entry_type VARCHAR NOT NULL DEFAULT 'work'`,
+      // OT / PTO / Holiday totals on timecards
+      `ALTER TABLE timecards ADD COLUMN IF NOT EXISTS total_ot_hours NUMERIC(5, 2) DEFAULT '0'`,
+      `ALTER TABLE timecards ADD COLUMN IF NOT EXISTS total_pto_hours NUMERIC(5, 2) DEFAULT '0'`,
+      `ALTER TABLE timecards ADD COLUMN IF NOT EXISTS total_holiday_hours NUMERIC(5, 2) DEFAULT '0'`,
     ];
     for (const sql of migrations) {
       try { await dbPool.query(sql); } catch (e: any) {

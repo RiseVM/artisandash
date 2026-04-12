@@ -151,21 +151,28 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(403).json({ error: "Not your timecard" });
       }
 
-      const { clockIn, clockOut, notes } = req.body;
+      const { clockIn, clockOut, entryType, ptoHours, holidayHours, notes } = req.body;
 
-      // Validate HH:MM format if provided
+      const finalEntryType = entryType !== undefined ? entryType : (found.entry.entryType || "work");
+
+      // Validate HH:MM format if provided and entry is work type
       const timeRegex = /^\d{2}:\d{2}$/;
-      if (clockIn !== undefined && clockIn !== null && !timeRegex.test(clockIn)) {
-        return res.status(400).json({ error: "clockIn must be in HH:MM format" });
-      }
-      if (clockOut !== undefined && clockOut !== null && !timeRegex.test(clockOut)) {
-        return res.status(400).json({ error: "clockOut must be in HH:MM format" });
+      if (finalEntryType === "work") {
+        if (clockIn !== undefined && clockIn !== null && !timeRegex.test(clockIn)) {
+          return res.status(400).json({ error: "clockIn must be in HH:MM format" });
+        }
+        if (clockOut !== undefined && clockOut !== null && !timeRegex.test(clockOut)) {
+          return res.status(400).json({ error: "clockOut must be in HH:MM format" });
+        }
       }
 
       const updated = await timecardStorage.updateTimecardEntry(
         entryId,
         clockIn !== undefined ? clockIn : (found.entry.clockIn || null),
         clockOut !== undefined ? clockOut : (found.entry.clockOut || null),
+        finalEntryType,
+        ptoHours !== undefined ? ptoHours : parseFloat(found.entry.ptoHours || "0"),
+        holidayHours !== undefined ? holidayHours : parseFloat(found.entry.holidayHours || "0"),
         notes !== undefined ? notes : found.entry.notes,
         userId,
       );
@@ -400,13 +407,13 @@ export function registerTimecardRoutes(app: Express) {
       const found = await timecardStorage.getEntryWithTimecard(entryId);
       if (!found) return res.status(404).json({ error: "Entry not found" });
 
-      const { clockIn, clockOut, hours, notes, mileage } = req.body;
+      const { clockIn, clockOut, hours, entryType, ptoHours, holidayHours, notes, mileage } = req.body;
 
-      // Admin can pass clockIn/clockOut OR raw hours for backward compat
+      const finalEntryType = entryType !== undefined ? entryType : (found.entry.entryType || "work");
       let finalClockIn = clockIn !== undefined ? clockIn : (found.entry.clockIn || null);
       let finalClockOut = clockOut !== undefined ? clockOut : (found.entry.clockOut || null);
 
-      // If admin passes raw hours but no clock times, set clockIn/clockOut to null and override
+      // If admin passes raw hours but no clock times, keep existing clock times
       if (hours !== undefined && clockIn === undefined && clockOut === undefined) {
         finalClockIn = found.entry.clockIn || null;
         finalClockOut = found.entry.clockOut || null;
@@ -416,6 +423,9 @@ export function registerTimecardRoutes(app: Express) {
         entryId,
         finalClockIn,
         finalClockOut,
+        finalEntryType,
+        ptoHours !== undefined ? ptoHours : parseFloat(found.entry.ptoHours || "0"),
+        holidayHours !== undefined ? holidayHours : parseFloat(found.entry.holidayHours || "0"),
         notes !== undefined ? notes : found.entry.notes,
         adminId,
         mileage !== undefined ? String(mileage) : undefined,
