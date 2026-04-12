@@ -1711,6 +1711,7 @@ function TimeManagementInner() {
                 });
                 setEditEmployeeOpen(false);
                 toast({ title: "Employee updated successfully" });
+                setTimeout(() => window.location.reload(), 800);
               } else {
                 toast({ title: "Failed to update employee", variant: "destructive" });
               }
