@@ -239,7 +239,8 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(400).json({ error: "entryDate and miles are required" });
       }
 
-      const entry = await timecardStorage.upsertMileageEntry(
+      // Replace all mileage with single weekly total (same as admin)
+      const entry = await timecardStorage.replaceWeeklyMileage(
         timecardId,
         entryDate,
         String(miles),

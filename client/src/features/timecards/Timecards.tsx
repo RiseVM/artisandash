@@ -1077,6 +1077,8 @@ function TimecardsInner() {
   }, [mileageEntries]);
 
   // Mutation: save weekly mileage
+  const [mileageSaved, setMileageSaved] = useState(false);
+  const [mileageError, setMileageError] = useState<string | null>(null);
   const addMileage = useMutation({
     mutationFn: async ({ timecardId, miles }: { timecardId: number; miles: string }) => {
       const res = await apiRequest("POST", `/api/timecards/${timecardId}/mileage`, { entryDate: currentMonday, miles: parseFloat(miles), purpose: null });
@@ -1085,6 +1087,14 @@ function TimecardsInner() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timecards/" + timecard?.id + "/mileage"] });
       queryClient.invalidateQueries({ queryKey: ["/api/timecards/my/" + currentMonday] });
+      setMileageSaved(true);
+      setMileageError(null);
+      setTimeout(() => setMileageSaved(false), 2000);
+    },
+    onError: (err: Error) => {
+      console.error("[Mileage] Save error:", err);
+      setMileageError(err.message || "Failed to save");
+      setTimeout(() => setMileageError(null), 5000);
     },
   });
 
@@ -1298,6 +1308,8 @@ function TimecardsInner() {
                 {addMileage.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
                 Save
               </Button>
+              {mileageSaved && <span className="text-xs text-green-600 font-medium flex items-center gap-0.5"><Check className="h-3 w-3" /> Saved</span>}
+              {mileageError && <span className="text-xs text-red-600">{mileageError}</span>}
             </div>
           </div>
         </div>
