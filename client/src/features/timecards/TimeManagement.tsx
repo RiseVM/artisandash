@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/features/auth/hooks";
 import { Button } from "@/components/ui/button";
@@ -478,9 +479,28 @@ function GridCellEditor({
   );
 }
 
-// ── Component ───────────────────────────────
+// ── Wrapper (handles non-admin redirect before inner hooks) ──
 
 export function TimeManagement() {
+  const { user, isLoading: authLoading } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!authLoading && user && user.role !== "admin") {
+      navigate("/timecards");
+    }
+  }, [user, authLoading, navigate]);
+
+  if (authLoading) return null;
+  if (!user) return null;
+  if (user.role !== "admin") return null;
+
+  return <TimeManagementInner />;
+}
+
+// ── Component ───────────────────────────────
+
+function TimeManagementInner() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [currentMonday, setCurrentMonday] = useState(() => formatIso(getMonday(new Date())));
@@ -917,16 +937,6 @@ export function TimeManagement() {
     },
     [createTimecardEntry, currentMonday, allCards, adminEditEntry],
   );
-
-  // Redirect non-admins
-  if (user && user.role !== "admin") {
-    return (
-      <div className="text-center py-20">
-        <h1 className="text-2xl font-bold text-destructive">Access Denied</h1>
-        <p className="text-muted-foreground mt-2">Admin access required</p>
-      </div>
-    );
-  }
 
   // Gate: require identity verification
   if (!verifiedUser) {
