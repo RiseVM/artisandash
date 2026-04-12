@@ -20,6 +20,14 @@ import type {
 } from "@shared/schema";
 import { eq, and, desc, isNull, sql } from "drizzle-orm";
 
+/** Calculate decimal hours from HH:MM clockIn/clockOut strings */
+function calcHours(clockIn: string, clockOut: string): number {
+  const [inH, inM] = clockIn.split(":").map(Number);
+  const [outH, outM] = clockOut.split(":").map(Number);
+  const diff = (outH * 60 + outM) - (inH * 60 + inM);
+  return Math.max(0, parseFloat((diff / 60).toFixed(2)));
+}
+
 /** Return Monday-based ISO date strings for a 7-day week */
 function weekDates(mondayIso: string): string[] {
   const d = new Date(mondayIso + "T00:00:00");
@@ -236,7 +244,8 @@ export const timecardStorage = {
 
   async updateTimecardEntry(
     entryId: number,
-    hours: string,
+    clockIn: string | null,
+    clockOut: string | null,
     notes: string | null,
     changedById: string,
     mileage?: string,
@@ -249,8 +258,11 @@ export const timecardStorage = {
 
     if (!existing) throw new Error("Entry not found");
 
+    // Calculate hours from clockIn/clockOut
+    const hours = (clockIn && clockOut) ? String(calcHours(clockIn, clockOut)) : "0";
+
     // Update the entry
-    const setData: any = { hours, notes, updatedAt: new Date() };
+    const setData: any = { clockIn, clockOut, hours, notes, updatedAt: new Date() };
     if (mileage !== undefined) setData.mileage = mileage;
 
     const [updated] = await db
@@ -263,10 +275,6 @@ export const timecardStorage = {
     await this.recalcTimecardTotals(existing.timecardId);
 
     // Write audit log
-    const parts: string[] = [];
-    if (hours !== existing.hours) parts.push(`hours: ${existing.hours} → ${hours}`);
-    if (mileage !== undefined && mileage !== (existing.mileage || "0")) parts.push(`mileage: ${existing.mileage || "0"} → ${mileage} mi`);
-
     await db.insert(timecardAuditLog).values({
       timecardId: existing.timecardId,
       changedById,
@@ -276,7 +284,7 @@ export const timecardStorage = {
       newHours: hours,
       oldNotes: existing.notes,
       newNotes: notes,
-      description: `${existing.entryDate} ${parts.join(", ") || "updated"}`,
+      description: `${existing.entryDate} hours: ${existing.hours} → ${hours}`,
     });
 
     return updated;
@@ -286,7 +294,8 @@ export const timecardStorage = {
 
   async adminEditTimecardEntry(
     entryId: number,
-    hours: string,
+    clockIn: string | null,
+    clockOut: string | null,
     notes: string | null,
     adminId: string,
     mileage?: string,
@@ -298,7 +307,9 @@ export const timecardStorage = {
 
     if (!existing) throw new Error("Entry not found");
 
-    const setData: any = { hours, notes, updatedAt: new Date() };
+    const hours = (clockIn && clockOut) ? String(calcHours(clockIn, clockOut)) : "0";
+
+    const setData: any = { clockIn, clockOut, hours, notes, updatedAt: new Date() };
     if (mileage !== undefined) setData.mileage = mileage;
 
     const [updated] = await db

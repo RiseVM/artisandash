@@ -1607,7 +1607,9 @@ export const timecardEntries = pgTable("timecard_entries", {
   id: serial("id").primaryKey(),
   timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
   entryDate: varchar("entry_date").notNull(), // ISO date string for the specific day
-  hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  clockIn: varchar("clock_in"),   // "HH:MM" 24hr format, nullable
+  clockOut: varchar("clock_out"), // "HH:MM" 24hr format, nullable
+  hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"), // auto-calculated from clockIn/clockOut
   mileage: numeric("mileage", { precision: 7, scale: 1 }).default("0"), // total miles for the day
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),

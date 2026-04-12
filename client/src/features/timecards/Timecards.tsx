@@ -7,24 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Send,
   History,
   ChevronDown,
   ChevronUp,
@@ -33,20 +18,8 @@ import {
   LogIn,
   LogOut,
   Timer,
-  Plus,
   Check,
 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 // ── Helpers ─────────────────────────────────
 
@@ -71,7 +44,7 @@ function addDays(d: Date, n: number): Date {
 
 function formatDayLabel(iso: string): string {
   const d = new Date(iso + "T12:00:00");
-  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`;
 }
@@ -83,21 +56,8 @@ function formatWeekLabel(mondayIso: string): string {
   return `Week of ${months[mon.getMonth()]} ${mon.getDate()} – ${months[sun.getMonth()]} ${sun.getDate()}`;
 }
 
-function statusBadge(status: string) {
-  const map: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-700",
-    submitted: "bg-blue-100 text-blue-700",
-    approved: "bg-green-100 text-green-700",
-  };
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${map[status] || "bg-gray-100 text-gray-700"}`}>
-      {status}
-    </span>
-  );
-}
-
-function isToday(iso: string): boolean {
-  return iso === new Date().toISOString().split("T")[0];
+function todayIso(): string {
+  return new Date().toISOString().split("T")[0];
 }
 
 function isWeekend(iso: string): boolean {
@@ -106,18 +66,14 @@ function isWeekend(iso: string): boolean {
   return day === 0 || day === 6;
 }
 
-function shortDayLabel(iso: string): { day: string; date: string } {
-  const d = new Date(iso + "T12:00:00");
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  return { day: days[d.getDay()], date: `${d.getMonth() + 1}/${d.getDate()}` };
-}
-
 // ── Types ───────────────────────────────────
 
 interface TimecardEntry {
   id: number;
   timecardId: number;
   entryDate: string;
+  clockIn: string | null;
+  clockOut: string | null;
   hours: string;
   notes: string | null;
   mileage: string | null;
@@ -137,24 +93,14 @@ interface AuditLogEntry {
   changedBy: { id: string; firstName: string | null; lastName: string | null; email: string };
 }
 
-interface TimecardRecipient {
-  id: number;
-  name: string;
-  email: string;
-  title: string | null;
-  isActive: string;
-}
-
 interface TimecardData {
   id: number;
   userId: string;
   weekStartDate: string;
   status: string;
-  recipientId: number | null;
   totalHours: string | null;
   entries: TimecardEntry[];
   auditLog: AuditLogEntry[];
-  recipient?: TimecardRecipient | null;
 }
 
 interface PastTimecard {
@@ -162,8 +108,6 @@ interface PastTimecard {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
-  recipientId: number | null;
-  recipient?: TimecardRecipient | null;
 }
 
 interface ClockPunch {
@@ -182,11 +126,6 @@ interface ClockStatus {
   todayPunches: ClockPunch[];
 }
 
-interface MileageSettings {
-  mileageEnabled: "yes" | "no";
-  mileageRate: string | null;
-}
-
 // ── Clock In / Out Widget ──────────────────
 
 function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
@@ -194,7 +133,7 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
 
   const { data: clockStatus } = useQuery<ClockStatus>({
     queryKey: ["/api/timecards/clock/status"],
-    refetchInterval: 30000, // refresh every 30s
+    refetchInterval: 30000,
   });
 
   const clockIn = useMutation({
@@ -216,7 +155,6 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/timecards/clock/status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/timecards/my"] });
-      // Also refresh the current week's timecard since hours were updated
       queryClient.invalidateQueries({ predicate: (q) => {
         const key = q.queryKey[0];
         return typeof key === "string" && key.startsWith("/api/timecards/my/");
@@ -224,7 +162,6 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
     },
   });
 
-  // Update elapsed timer
   useEffect(() => {
     if (!clockStatus?.openPunch) {
       setElapsed("");
@@ -272,11 +209,7 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
             onClick={() => clockOut.mutate()}
             disabled={clockOut.isPending}
           >
-            {clockOut.isPending ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4 mr-1" />
-            )}
+            {clockOut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <LogOut className="h-4 w-4 mr-1" />}
             Clock Out
           </Button>
         ) : (
@@ -286,17 +219,12 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
             disabled={clockIn.isPending}
             className="bg-green-600 hover:bg-green-700 text-white"
           >
-            {clockIn.isPending ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <LogIn className="h-4 w-4 mr-1" />
-            )}
+            {clockIn.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <LogIn className="h-4 w-4 mr-1" />}
             Clock In
           </Button>
         )}
       </div>
 
-      {/* Today's shifts */}
       {todayPunches.length > 0 && (
         <div className="mt-3 pt-3 border-t">
           <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
@@ -431,12 +359,6 @@ export function Timecards() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
   const [savedEntryId, setSavedEntryId] = useState<number | null>(null);
-  const [addRecipientOpen, setAddRecipientOpen] = useState(false);
-  const [newRecipientName, setNewRecipientName] = useState("");
-  const [newRecipientEmail, setNewRecipientEmail] = useState("");
-  const [newRecipientTitle, setNewRecipientTitle] = useState("");
-
-  // ALL hooks must be called before any conditional return (React Rules of Hooks)
 
   // Fetch current week's timecard
   const { data: timecard, isLoading } = useQuery<TimecardData>({
@@ -450,72 +372,21 @@ export function Timecards() {
     enabled: !!verifiedUser,
   });
 
-  // Fetch mileage settings
-  const { data: mileageSettings } = useQuery<MileageSettings>({
-    queryKey: ["/api/timecards/my/mileage-settings"],
-    enabled: !!verifiedUser,
-  });
-
-  // Fetch recipients list
-  const { data: recipients } = useQuery<TimecardRecipient[]>({
-    queryKey: ["/api/timecards/recipients"],
-    enabled: !!verifiedUser,
-  });
-
-  // Mutation: update an entry
+  // Mutation: update an entry with clockIn/clockOut
   const updateEntry = useMutation({
-    mutationFn: async ({ entryId, hours, notes, mileage }: { entryId: number; hours: string; notes: string | null; mileage?: string | null }) => {
-      const res = await apiRequest("PATCH", `/api/timecards/entries/${entryId}`, { hours, notes, mileage });
+    mutationFn: async ({ entryId, clockIn, clockOut, notes }: { entryId: number; clockIn?: string | null; clockOut?: string | null; notes?: string | null }) => {
+      const body: any = {};
+      if (clockIn !== undefined) body.clockIn = clockIn;
+      if (clockOut !== undefined) body.clockOut = clockOut;
+      if (notes !== undefined) body.notes = notes;
+      const res = await apiRequest("PATCH", `/api/timecards/entries/${entryId}`, body);
       return res.json();
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/timecards/my/" + currentMonday] });
       queryClient.invalidateQueries({ queryKey: ["/api/timecards/my"] });
-      // Flash "Saved" indicator
       setSavedEntryId(variables.entryId);
-      setTimeout(() => setSavedEntryId(null), 1500);
-    },
-  });
-
-  // Mutation: submit timecard
-  const submitTimecard = useMutation({
-    mutationFn: async (timecardId: number) => {
-      const res = await apiRequest("POST", `/api/timecards/${timecardId}/submit`);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/timecards/my/" + currentMonday] });
-      queryClient.invalidateQueries({ queryKey: ["/api/timecards/my"] });
-    },
-  });
-
-  // Mutation: set recipient on timecard
-  const setRecipient = useMutation({
-    mutationFn: async ({ timecardId, recipientId }: { timecardId: number; recipientId: number }) => {
-      const res = await apiRequest("PATCH", `/api/timecards/${timecardId}/recipient`, { recipientId });
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/timecards/my/" + currentMonday] });
-    },
-  });
-
-  // Mutation: create new recipient
-  const createRecipient = useMutation({
-    mutationFn: async (data: { name: string; email: string; title?: string }) => {
-      const res = await apiRequest("POST", "/api/timecards/recipients", data);
-      return res.json();
-    },
-    onSuccess: (newRecipient: TimecardRecipient) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/timecards/recipients"] });
-      // Auto-select the new recipient on the timecard
-      if (timecard) {
-        setRecipient.mutate({ timecardId: timecard.id, recipientId: newRecipient.id });
-      }
-      setAddRecipientOpen(false);
-      setNewRecipientName("");
-      setNewRecipientEmail("");
-      setNewRecipientTitle("");
+      setTimeout(() => setSavedEntryId(null), 2000);
     },
   });
 
@@ -531,33 +402,14 @@ export function Timecards() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const handleBlur = useCallback(
-    (entry: TimecardEntry, field: "hours" | "notes" | "mileage", value: string) => {
-      const currentVal = field === "hours" ? entry.hours : field === "notes" ? (entry.notes || "") : (entry.mileage || "");
-      if (value === currentVal) return; // no change
-
-      updateEntry.mutate({
-        entryId: entry.id,
-        hours: field === "hours" ? value : entry.hours,
-        notes: field === "notes" ? (value || null) : entry.notes,
-        mileage: field === "mileage" ? (value || null) : entry.mileage,
-      });
-    },
-    [updateEntry],
-  );
-
-  // Gate: require identity verification on every page visit
+  // Gate: require identity verification
   if (!verifiedUser) {
     return <IdentityGate onVerified={setVerifiedUser} />;
   }
 
-  const isApproved = timecard?.status === "approved";
-  const isSubmitted = timecard?.status === "submitted";
   const totalHours = timecard?.totalHours ? parseFloat(timecard.totalHours) : 0;
-  const totalMileage = timecard?.entries.reduce((sum, entry) => sum + parseFloat(entry.mileage || "0"), 0) ?? 0;
-  const mileageEnabled = mileageSettings?.mileageEnabled === "yes";
+  const today = todayIso();
 
-  // Who is verified — show at top for safety
   const userName = verifiedUser
     ? [verifiedUser.firstName, verifiedUser.lastName].filter(Boolean).join(" ") || verifiedUser.email
     : "";
@@ -565,15 +417,13 @@ export function Timecards() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-            <Clock className="h-5 w-5 sm:h-6 sm:w-6" /> My Timecards
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Logged in as <strong>{userName}</strong>
-          </p>
-        </div>
+      <div>
+        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+          <Clock className="h-5 w-5 sm:h-6 sm:w-6" /> My Timecards
+        </h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+          Logged in as <strong>{userName}</strong>
+        </p>
       </div>
 
       {/* Clock In / Out */}
@@ -597,292 +447,204 @@ export function Timecards() {
         <div className="text-center py-12 text-muted-foreground">Loading timecard…</div>
       ) : timecard ? (
         <>
-          {/* Horizontal Week Grid Table - hidden on mobile */}
+          <style>{`
+            @keyframes savedFlash {
+              0% { background-color: rgb(220, 252, 231); }
+              100% { background-color: transparent; }
+            }
+            .saved-flash { animation: savedFlash 2s ease-out forwards; }
+          `}</style>
+
+          {/* Desktop Grid */}
           <div className="bg-card border rounded-lg overflow-x-auto hidden sm:block">
-            <style>{`
-              @keyframes savedFlash {
-                0% { background-color: rgb(220, 252, 231); }
-                100% { background-color: transparent; }
-              }
-              .saved-flash {
-                animation: savedFlash 1.5s ease-out forwards;
-              }
-            `}</style>
             <table className="w-full text-sm border-collapse">
               <thead>
-                <tr className="border-b">
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Hours</th>
-                  {timecard.entries.map((entry) => {
-                    const labels = shortDayLabel(entry.entryDate);
-                    const today = isToday(entry.entryDate);
-                    const weekend = isWeekend(entry.entryDate);
-                    return (
-                      <th
-                        key={`h-${entry.id}`}
-                        className={`px-2 py-2 text-center font-medium text-xs w-24 ${
-                          today ? "bg-primary/5 border-t-2 border-primary" : weekend ? "bg-muted/30" : ""
-                        }`}
-                      >
-                        <div>{labels.day}</div>
-                        <div className="text-muted-foreground">{labels.date}</div>
-                      </th>
-                    );
-                  })}
-                  <th className="px-3 py-2 text-center font-medium text-muted-foreground min-w-16">Total</th>
+                <tr className="border-b bg-muted/30">
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground w-40">Day</th>
+                  <th className="px-4 py-3 text-center font-medium text-muted-foreground w-36">Clock In</th>
+                  <th className="px-4 py-3 text-center font-medium text-muted-foreground w-36">Clock Out</th>
+                  <th className="px-4 py-3 text-center font-medium text-muted-foreground w-24">Hours</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Notes</th>
+                  <th className="px-2 py-3 w-16"></th>
                 </tr>
               </thead>
               <tbody>
-                {/* Hours Row */}
-                <tr className="border-b">
-                  <td className="px-3 py-3 text-sm font-medium text-foreground">Hours</td>
-                  {timecard.entries.map((entry) => {
-                    const today = isToday(entry.entryDate);
-                    const weekend = isWeekend(entry.entryDate);
-                    const saved = savedEntryId === entry.id;
-                    return (
-                      <td
-                        key={`hours-${entry.id}`}
-                        className={`px-2 py-3 text-center ${
-                          today ? "bg-primary/5 border-t-2 border-primary" : weekend ? "bg-muted/30" : ""
-                        } ${saved ? "saved-flash" : ""}`}
-                      >
-                        <Input
-                          type="number"
-                          min="0"
-                          max="24"
-                          step="0.5"
-                          defaultValue={entry.hours}
-                          disabled={isApproved || isSubmitted}
-                          className="w-20 text-center h-8 text-xs"
-                          onBlur={(e) => handleBlur(entry, "hours", e.target.value)}
-                          key={`h-${entry.id}-${entry.hours}`}
+                {timecard.entries.map((entry) => {
+                  const isEntryToday = entry.entryDate === today;
+                  const weekend = isWeekend(entry.entryDate);
+                  const saved = savedEntryId === entry.id;
+                  const hrs = parseFloat(entry.hours || "0");
+
+                  return (
+                    <tr
+                      key={entry.id}
+                      className={`border-b last:border-b-0 ${
+                        isEntryToday ? "border-l-4 border-l-primary bg-primary/5" : ""
+                      } ${weekend ? "bg-muted/20" : ""} ${saved ? "saved-flash" : ""}`}
+                    >
+                      <td className="px-4 py-3 font-medium text-sm">
+                        {formatDayLabel(entry.entryDate)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="time"
+                          defaultValue={entry.clockIn || ""}
+                          className="border rounded px-2 py-1.5 text-sm text-center w-28 bg-background"
+                          onBlur={(e) => {
+                            const val = e.target.value || null;
+                            if (val !== (entry.clockIn || null)) {
+                              updateEntry.mutate({ entryId: entry.id, clockIn: val });
+                            }
+                          }}
+                          key={`ci-${entry.id}-${entry.clockIn}`}
                         />
                       </td>
-                    );
-                  })}
-                  <td className="px-3 py-3 text-center font-bold text-foreground">
-                    {totalHours.toFixed(1)}h
-                  </td>
-                </tr>
-
-                {/* Notes Row */}
-                <tr className="border-b last:border-b-0">
-                  <td className="px-3 py-3 text-sm font-medium text-foreground">Notes</td>
-                  {timecard.entries.map((entry) => {
-                    const today = isToday(entry.entryDate);
-                    const weekend = isWeekend(entry.entryDate);
-                    const saved = savedEntryId === entry.id;
-                    return (
-                      <td
-                        key={`notes-${entry.id}`}
-                        className={`px-2 py-3 text-center ${
-                          today ? "bg-primary/5 border-t-2 border-primary" : weekend ? "bg-muted/30" : ""
-                        } ${saved ? "saved-flash" : ""}`}
-                      >
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="time"
+                          defaultValue={entry.clockOut || ""}
+                          className="border rounded px-2 py-1.5 text-sm text-center w-28 bg-background"
+                          onBlur={(e) => {
+                            const val = e.target.value || null;
+                            if (val !== (entry.clockOut || null)) {
+                              updateEntry.mutate({ entryId: entry.id, clockOut: val });
+                            }
+                          }}
+                          key={`co-${entry.id}-${entry.clockOut}`}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`font-mono text-sm ${hrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
+                          {hrs > 0 ? `${hrs.toFixed(1)}h` : "—"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
                         <Input
                           type="text"
-                          placeholder="…"
+                          placeholder="Notes…"
                           defaultValue={entry.notes || ""}
-                          disabled={isApproved || isSubmitted}
-                          className="text-center h-8 text-xs"
-                          onBlur={(e) => handleBlur(entry, "notes", e.target.value)}
+                          className="h-8 text-sm"
+                          onBlur={(e) => {
+                            const val = e.target.value || null;
+                            if (val !== (entry.notes || null)) {
+                              updateEntry.mutate({ entryId: entry.id, notes: val });
+                            }
+                          }}
                           key={`n-${entry.id}-${entry.notes}`}
                         />
                       </td>
-                    );
-                  })}
-                  <td />
+                      <td className="px-2 py-3 text-center">
+                        {saved && (
+                          <span className="text-xs text-green-600 font-medium flex items-center gap-0.5 justify-center">
+                            <Check className="h-3 w-3" /> Saved
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {/* Totals Row */}
+                <tr className="bg-muted/40 font-semibold border-t-2">
+                  <td className="px-4 py-3 text-sm">Total</td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3 text-center font-bold text-base">
+                    {totalHours.toFixed(1)}h
+                  </td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-2 py-3"></td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Mobile Card Layout - shown on mobile */}
+          {/* Mobile Card Layout */}
           <div className="sm:hidden space-y-3">
-            {timecard.entries.map((entry) => (
-              <div key={entry.id} className={`bg-card border rounded-lg p-4 space-y-3 ${isToday(entry.entryDate) ? "border-primary/30 border-l-4" : ""}`}>
-                <div className="font-medium text-sm text-foreground">{formatDayLabel(entry.entryDate)}</div>
+            {timecard.entries.map((entry) => {
+              const isEntryToday = entry.entryDate === today;
+              const saved = savedEntryId === entry.id;
+              const hrs = parseFloat(entry.hours || "0");
 
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Hours</label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="24"
-                    step="0.5"
-                    defaultValue={entry.hours}
-                    disabled={isApproved || isSubmitted}
-                    className="w-full h-10 text-center"
-                    onBlur={(e) => handleBlur(entry, "hours", e.target.value)}
-                    key={`h-${entry.id}-${entry.hours}`}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs text-muted-foreground block mb-1">Notes</label>
-                  <Input
-                    type="text"
-                    placeholder="Notes…"
-                    defaultValue={entry.notes || ""}
-                    disabled={isApproved || isSubmitted}
-                    className="w-full h-10 text-sm"
-                    onBlur={(e) => handleBlur(entry, "notes", e.target.value)}
-                    key={`n-${entry.id}-${entry.notes}`}
-                  />
-                </div>
-
-                {/* Saved indicator */}
-                {savedEntryId === entry.id && (
-                  <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                    <Check className="h-3 w-3" /> Saved
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* Status and Totals Summary */}
-          <div className="bg-card border rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-2">
-              <span className="text-sm font-semibold">
-                Total: {totalHours.toFixed(1)} hours {mileageEnabled && `| ${totalMileage.toFixed(1)} miles`}
-              </span>
-              {statusBadge(timecard.status)}
-            </div>
-            {isSubmitted && (
-              <span className="text-xs text-muted-foreground">Awaiting admin approval</span>
-            )}
-            {isApproved && (
-              <span className="text-xs text-green-600 font-medium">Approved</span>
-            )}
-          </div>
-
-          {/* Status Banners */}
-          {isSubmitted && timecard.recipient && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
-              Timecard submitted to {timecard.recipient.name} on {new Date().toLocaleDateString()}
-            </div>
-          )}
-          {isApproved && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
-              Timecard approved
-            </div>
-          )}
-
-          {/* Submit To Section */}
-          <div className="bg-card border rounded-lg p-4 space-y-3">
-            <Label className="text-sm font-medium">Submit To</Label>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <Select
-                value={timecard.recipientId ? String(timecard.recipientId) : ""}
-                onValueChange={(val) => {
-                  if (val && timecard) {
-                    setRecipient.mutate({ timecardId: timecard.id, recipientId: parseInt(val, 10) });
-                  }
-                }}
-                disabled={isSubmitted || isApproved}
-              >
-                <SelectTrigger className="w-full sm:w-[300px]">
-                  <SelectValue placeholder="Select a recipient..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {recipients?.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.title ? `${r.name} — ${r.title}` : r.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAddRecipientOpen(true)}
-                disabled={isSubmitted || isApproved}
-              >
-                <Plus className="h-4 w-4 mr-1" /> Add New Recipient
-              </Button>
-            </div>
-
-            {timecard.status === "draft" && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    disabled={!timecard.recipientId || submitTimecard.isPending}
-                    className="h-10"
-                  >
-                    <Send className="h-4 w-4 mr-1" />
-                    Submit Timecard
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Submit Timecard?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Submit timecard for {formatWeekLabel(currentMonday)} to{" "}
-                      {timecard.recipient?.name || "selected recipient"}? Once submitted, you won't be able to edit hours — contact an admin if you need a correction.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => submitTimecard.mutate(timecard.id)}>
-                      Submit
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
-          </div>
-
-          {/* Add New Recipient Dialog */}
-          <Dialog open={addRecipientOpen} onOpenChange={setAddRecipientOpen}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Add New Recipient</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3">
-                <div>
-                  <Label>Name *</Label>
-                  <Input
-                    value={newRecipientName}
-                    onChange={(e) => setNewRecipientName(e.target.value)}
-                    placeholder="e.g. Claudia"
-                  />
-                </div>
-                <div>
-                  <Label>Email *</Label>
-                  <Input
-                    type="email"
-                    value={newRecipientEmail}
-                    onChange={(e) => setNewRecipientEmail(e.target.value)}
-                    placeholder="e.g. claudia@company.com"
-                  />
-                </div>
-                <div>
-                  <Label>Title (optional)</Label>
-                  <Input
-                    value={newRecipientTitle}
-                    onChange={(e) => setNewRecipientTitle(e.target.value)}
-                    placeholder="e.g. HR Manager"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAddRecipientOpen(false)}>Cancel</Button>
-                <Button
-                  onClick={() => createRecipient.mutate({
-                    name: newRecipientName.trim(),
-                    email: newRecipientEmail.trim(),
-                    title: newRecipientTitle.trim() || undefined,
-                  })}
-                  disabled={!newRecipientName.trim() || !newRecipientEmail.trim() || createRecipient.isPending}
+              return (
+                <div
+                  key={entry.id}
+                  className={`bg-card border rounded-lg p-4 space-y-3 ${
+                    isEntryToday ? "border-primary/30 border-l-4" : ""
+                  } ${saved ? "saved-flash" : ""}`}
                 >
-                  {createRecipient.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                  Save Recipient
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm">{formatDayLabel(entry.entryDate)}</span>
+                    <span className={`font-mono text-sm ${hrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
+                      {hrs > 0 ? `${hrs.toFixed(1)}h` : "—"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-1">Clock In</label>
+                      <input
+                        type="time"
+                        defaultValue={entry.clockIn || ""}
+                        className="border rounded px-2 py-2 text-sm w-full bg-background"
+                        onBlur={(e) => {
+                          const val = e.target.value || null;
+                          if (val !== (entry.clockIn || null)) {
+                            updateEntry.mutate({ entryId: entry.id, clockIn: val });
+                          }
+                        }}
+                        key={`mci-${entry.id}-${entry.clockIn}`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-1">Clock Out</label>
+                      <input
+                        type="time"
+                        defaultValue={entry.clockOut || ""}
+                        className="border rounded px-2 py-2 text-sm w-full bg-background"
+                        onBlur={(e) => {
+                          const val = e.target.value || null;
+                          if (val !== (entry.clockOut || null)) {
+                            updateEntry.mutate({ entryId: entry.id, clockOut: val });
+                          }
+                        }}
+                        key={`mco-${entry.id}-${entry.clockOut}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1">Notes</label>
+                    <Input
+                      type="text"
+                      placeholder="Notes…"
+                      defaultValue={entry.notes || ""}
+                      className="w-full h-10 text-sm"
+                      onBlur={(e) => {
+                        const val = e.target.value || null;
+                        if (val !== (entry.notes || null)) {
+                          updateEntry.mutate({ entryId: entry.id, notes: val });
+                        }
+                      }}
+                      key={`mn-${entry.id}-${entry.notes}`}
+                    />
+                  </div>
+
+                  {saved && (
+                    <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <Check className="h-3 w-3" /> Saved
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Mobile Total */}
+            <div className="bg-card border rounded-lg p-4 text-center">
+              <span className="text-sm text-muted-foreground">Weekly Total: </span>
+              <span className="text-lg font-bold">{totalHours.toFixed(1)}h</span>
+            </div>
+          </div>
         </>
       ) : (
         <div className="text-center py-12 text-muted-foreground">No timecard data</div>
@@ -926,7 +688,7 @@ export function Timecards() {
       {/* Past Timecards */}
       {pastTimecards && pastTimecards.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold mb-3">My Past Timecards</h2>
+          <h2 className="text-lg font-semibold mb-3">Past Timecards</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {pastTimecards
               .filter((c) => c.weekStartDate !== currentMonday)
@@ -937,11 +699,8 @@ export function Timecards() {
                   className="bg-card border rounded-lg p-4 text-left hover:bg-muted/50 transition-colors cursor-pointer"
                 >
                   <div className="font-medium text-sm">{formatWeekLabel(card.weekStartDate)}</div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-sm text-muted-foreground">
-                      {parseFloat(card.totalHours || "0").toFixed(1)} hrs
-                    </span>
-                    {statusBadge(card.status)}
+                  <div className="mt-2 text-sm text-muted-foreground">
+                    {parseFloat(card.totalHours || "0").toFixed(1)} hrs
                   </div>
                 </button>
               ))}

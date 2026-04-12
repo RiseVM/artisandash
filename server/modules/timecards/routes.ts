@@ -132,7 +132,7 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
-  // PATCH own entry (blocked if approved)
+  // PATCH own entry (clock in/out times)
   app.patch(
     "/api/timecards/entries/:entryId",
     isAuthenticated,
@@ -151,18 +151,23 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(403).json({ error: "Not your timecard" });
       }
 
-      // Cannot edit submitted or approved cards
-      if (found.timecard.status === "submitted" || found.timecard.status === "approved") {
-        return res.status(403).json({ error: "This timecard has already been submitted and can no longer be edited. Contact an admin if you need a correction." });
+      const { clockIn, clockOut, notes } = req.body;
+
+      // Validate HH:MM format if provided
+      const timeRegex = /^\d{2}:\d{2}$/;
+      if (clockIn !== undefined && clockIn !== null && !timeRegex.test(clockIn)) {
+        return res.status(400).json({ error: "clockIn must be in HH:MM format" });
+      }
+      if (clockOut !== undefined && clockOut !== null && !timeRegex.test(clockOut)) {
+        return res.status(400).json({ error: "clockOut must be in HH:MM format" });
       }
 
-      const { hours, notes, mileage } = req.body;
       const updated = await timecardStorage.updateTimecardEntry(
         entryId,
-        String(hours ?? found.entry.hours),
+        clockIn !== undefined ? clockIn : (found.entry.clockIn || null),
+        clockOut !== undefined ? clockOut : (found.entry.clockOut || null),
         notes !== undefined ? notes : found.entry.notes,
         userId,
-        mileage !== undefined ? String(mileage) : undefined,
       );
 
       res.json(updated);
@@ -181,65 +186,7 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
-  // POST submit own timecard
-  app.post(
-    "/api/timecards/:id/submit",
-    isAuthenticated,
-    asyncHandler(async (req: any, res) => {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-      const timecardId = parseInt(req.params.id, 10);
-      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
-
-      const card = await timecardStorage.getTimecardWithEntries(timecardId);
-
-      if (card.userId !== userId) {
-        return res.status(403).json({ error: "Not your timecard" });
-      }
-
-      if (card.status !== "draft") {
-        return res.status(400).json({ error: `Cannot submit a timecard with status "${card.status}"` });
-      }
-
-      // Require a recipient to be set before submitting
-      if (!card.recipientId) {
-        return res.status(400).json({ error: "Please select a recipient before submitting." });
-      }
-
-      const updated = await timecardStorage.submitTimecard(timecardId, userId);
-      res.json(updated);
-    }),
-  );
-
-  // ── RECIPIENT SELECTION ────────────────────
-
-  // PATCH set recipient on own timecard (blocked if submitted or approved)
-  app.patch(
-    "/api/timecards/:id/recipient",
-    isAuthenticated,
-    asyncHandler(async (req: any, res) => {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-      const timecardId = parseInt(req.params.id, 10);
-      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
-
-      const card = await timecardStorage.getTimecardWithEntries(timecardId);
-      if (card.userId !== userId) {
-        return res.status(403).json({ error: "Not your timecard" });
-      }
-      if (card.status === "submitted" || card.status === "approved") {
-        return res.status(403).json({ error: "Cannot change recipient on a submitted or approved timecard" });
-      }
-
-      const { recipientId } = req.body;
-      if (!recipientId) return res.status(400).json({ error: "recipientId is required" });
-
-      const updated = await timecardStorage.setTimecardRecipient(timecardId, recipientId, userId);
-      res.json(updated);
-    }),
-  );
+  // (Submit and recipient selection routes removed — employees auto-save, no submit flow)
 
   // ── RECIPIENT CRUD ───────────────────────
 
@@ -360,7 +307,7 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
-  // PATCH admin edit any entry (regardless of status)
+  // PATCH admin edit any entry (regardless of status) — accepts clockIn/clockOut or hours
   app.patch(
     "/api/timecards/admin/entries/:entryId",
     isAdmin,
@@ -374,10 +321,22 @@ export function registerTimecardRoutes(app: Express) {
       const found = await timecardStorage.getEntryWithTimecard(entryId);
       if (!found) return res.status(404).json({ error: "Entry not found" });
 
-      const { hours, notes, mileage } = req.body;
+      const { clockIn, clockOut, hours, notes, mileage } = req.body;
+
+      // Admin can pass clockIn/clockOut OR raw hours for backward compat
+      let finalClockIn = clockIn !== undefined ? clockIn : (found.entry.clockIn || null);
+      let finalClockOut = clockOut !== undefined ? clockOut : (found.entry.clockOut || null);
+
+      // If admin passes raw hours but no clock times, set clockIn/clockOut to null and override
+      if (hours !== undefined && clockIn === undefined && clockOut === undefined) {
+        finalClockIn = found.entry.clockIn || null;
+        finalClockOut = found.entry.clockOut || null;
+      }
+
       const updated = await timecardStorage.adminEditTimecardEntry(
         entryId,
-        String(hours ?? found.entry.hours),
+        finalClockIn,
+        finalClockOut,
         notes !== undefined ? notes : found.entry.notes,
         adminId,
         mileage !== undefined ? String(mileage) : undefined,

@@ -162,6 +162,9 @@ declare module "http" {
         is_active TEXT NOT NULL DEFAULT 'yes',
         created_at TIMESTAMP DEFAULT NOW()
       )`,
+      // Clock in/out columns on timecard entries
+      `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS clock_in VARCHAR`,
+      `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS clock_out VARCHAR`,
       // Add recipient_id column to timecards
       `ALTER TABLE timecards ADD COLUMN IF NOT EXISTS recipient_id INTEGER REFERENCES timecard_recipients(id)`,
       // Seed default recipient (Claudia — HR Manager) if none exist
