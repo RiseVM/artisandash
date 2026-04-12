@@ -54,7 +54,8 @@ export async function generatePayrollPdf(
       }
 
       const name = [card.user.firstName, card.user.lastName].filter(Boolean).join(" ") || card.user.email;
-      const rate = parseFloat(card.user.mileageRate || "0");
+      const rawRate = parseFloat(card.user.mileageRate || "0");
+      const rate = rawRate > 0 ? rawRate : 0.67; // default IRS rate
       const totalMiles = parseFloat(card.totalMileage || "0");
       const mileageCost = (rate * totalMiles).toFixed(2);
 
