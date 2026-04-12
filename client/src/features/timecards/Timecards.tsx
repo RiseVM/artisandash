@@ -96,6 +96,22 @@ function statusBadge(status: string) {
   );
 }
 
+function isToday(iso: string): boolean {
+  return iso === new Date().toISOString().split("T")[0];
+}
+
+function isWeekend(iso: string): boolean {
+  const d = new Date(iso + "T12:00:00");
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
+
+function shortDayLabel(iso: string): { day: string; date: string } {
+  const d = new Date(iso + "T12:00:00");
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return { day: days[d.getDay()], date: `${d.getMonth() + 1}/${d.getDate()}` };
+}
+
 // ── Types ───────────────────────────────────
 
 interface TimecardEntry {
@@ -581,30 +597,111 @@ export function Timecards() {
         <div className="text-center py-12 text-muted-foreground">Loading timecard…</div>
       ) : timecard ? (
         <>
-        <div className="bg-card border rounded-lg overflow-hidden">
-          {/* Desktop Header - hidden on mobile */}
-          <div className="hidden sm:grid grid-cols-[1fr_120px_120px_1fr] gap-0 text-sm font-medium text-muted-foreground border-b px-4 py-2">
-            <span>Day</span>
-            <span className="text-center">Hours</span>
-            {mileageEnabled && <span className="text-center">Miles</span>}
-            <span>Notes</span>
+          {/* Horizontal Week Grid Table - hidden on mobile */}
+          <div className="bg-card border rounded-lg overflow-x-auto hidden sm:block">
+            <style>{`
+              @keyframes savedFlash {
+                0% { background-color: rgb(220, 252, 231); }
+                100% { background-color: transparent; }
+              }
+              .saved-flash {
+                animation: savedFlash 1.5s ease-out forwards;
+              }
+            `}</style>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b">
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Hours</th>
+                  {timecard.entries.map((entry) => {
+                    const labels = shortDayLabel(entry.entryDate);
+                    const today = isToday(entry.entryDate);
+                    const weekend = isWeekend(entry.entryDate);
+                    return (
+                      <th
+                        key={`h-${entry.id}`}
+                        className={`px-2 py-2 text-center font-medium text-xs w-24 ${
+                          today ? "bg-primary/5 border-t-2 border-primary" : weekend ? "bg-muted/30" : ""
+                        }`}
+                      >
+                        <div>{labels.day}</div>
+                        <div className="text-muted-foreground">{labels.date}</div>
+                      </th>
+                    );
+                  })}
+                  <th className="px-3 py-2 text-center font-medium text-muted-foreground min-w-16">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Hours Row */}
+                <tr className="border-b">
+                  <td className="px-3 py-3 text-sm font-medium text-foreground">Hours</td>
+                  {timecard.entries.map((entry) => {
+                    const today = isToday(entry.entryDate);
+                    const weekend = isWeekend(entry.entryDate);
+                    const saved = savedEntryId === entry.id;
+                    return (
+                      <td
+                        key={`hours-${entry.id}`}
+                        className={`px-2 py-3 text-center ${
+                          today ? "bg-primary/5 border-t-2 border-primary" : weekend ? "bg-muted/30" : ""
+                        } ${saved ? "saved-flash" : ""}`}
+                      >
+                        <Input
+                          type="number"
+                          min="0"
+                          max="24"
+                          step="0.5"
+                          defaultValue={entry.hours}
+                          disabled={isApproved || isSubmitted}
+                          className="w-20 text-center h-8 text-xs"
+                          onBlur={(e) => handleBlur(entry, "hours", e.target.value)}
+                          key={`h-${entry.id}-${entry.hours}`}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-3 text-center font-bold text-foreground">
+                    {totalHours.toFixed(1)}h
+                  </td>
+                </tr>
+
+                {/* Notes Row */}
+                <tr className="border-b last:border-b-0">
+                  <td className="px-3 py-3 text-sm font-medium text-foreground">Notes</td>
+                  {timecard.entries.map((entry) => {
+                    const today = isToday(entry.entryDate);
+                    const weekend = isWeekend(entry.entryDate);
+                    const saved = savedEntryId === entry.id;
+                    return (
+                      <td
+                        key={`notes-${entry.id}`}
+                        className={`px-2 py-3 text-center ${
+                          today ? "bg-primary/5 border-t-2 border-primary" : weekend ? "bg-muted/30" : ""
+                        } ${saved ? "saved-flash" : ""}`}
+                      >
+                        <Input
+                          type="text"
+                          placeholder="…"
+                          defaultValue={entry.notes || ""}
+                          disabled={isApproved || isSubmitted}
+                          className="text-center h-8 text-xs"
+                          onBlur={(e) => handleBlur(entry, "notes", e.target.value)}
+                          key={`n-${entry.id}-${entry.notes}`}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td />
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          {/* Mobile/Desktop Entries */}
-          {timecard.entries.map((entry) => (
-            <div
-              key={entry.id}
-              className="sm:grid sm:grid-cols-[1fr_120px_120px_1fr] sm:gap-0 sm:items-center border-b last:border-b-0 px-4 py-3 sm:py-2 relative"
-            >
-              {/* Saved flash */}
-              {savedEntryId === entry.id && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-green-600 font-medium flex items-center gap-1 animate-pulse z-10">
-                  <Check className="h-3 w-3" /> Saved
-                </span>
-              )}
-              {/* Mobile: stacked layout */}
-              <div className="sm:hidden space-y-3">
-                <p className="text-sm font-medium text-foreground">{formatDayLabel(entry.entryDate)}</p>
+          {/* Mobile Card Layout - shown on mobile */}
+          <div className="sm:hidden space-y-3">
+            {timecard.entries.map((entry) => (
+              <div key={entry.id} className={`bg-card border rounded-lg p-4 space-y-3 ${isToday(entry.entryDate) ? "border-primary/30 border-l-4" : ""}`}>
+                <div className="font-medium text-sm text-foreground">{formatDayLabel(entry.entryDate)}</div>
 
                 <div>
                   <label className="text-xs text-muted-foreground block mb-1">Hours</label>
@@ -621,23 +718,6 @@ export function Timecards() {
                   />
                 </div>
 
-                {mileageEnabled && (
-                  <div>
-                    <label className="text-xs text-muted-foreground block mb-1">Miles</label>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      defaultValue={entry.mileage || ""}
-                      disabled={isApproved || isSubmitted}
-                      placeholder="0"
-                      className="w-full h-10 text-center"
-                      onBlur={(e) => handleBlur(entry, "mileage", e.target.value)}
-                      key={`m-${entry.id}-${entry.mileage}`}
-                    />
-                  </div>
-                )}
-
                 <div>
                   <label className="text-xs text-muted-foreground block mb-1">Notes</label>
                   <Input
@@ -650,54 +730,19 @@ export function Timecards() {
                     key={`n-${entry.id}-${entry.notes}`}
                   />
                 </div>
-              </div>
 
-              {/* Desktop: grid layout */}
-              <div className="hidden sm:block text-sm font-medium">{formatDayLabel(entry.entryDate)}</div>
-              <div className="hidden sm:flex sm:justify-center">
-                <Input
-                  type="number"
-                  min="0"
-                  max="24"
-                  step="0.5"
-                  defaultValue={entry.hours}
-                  disabled={isApproved || isSubmitted}
-                  className="w-20 text-center"
-                  onBlur={(e) => handleBlur(entry, "hours", e.target.value)}
-                  key={`h-${entry.id}-${entry.hours}`}
-                />
+                {/* Saved indicator */}
+                {savedEntryId === entry.id && (
+                  <div className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <Check className="h-3 w-3" /> Saved
+                  </div>
+                )}
               </div>
-              {mileageEnabled && (
-                <div className="hidden sm:flex sm:justify-center">
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    defaultValue={entry.mileage || ""}
-                    disabled={isApproved || isSubmitted}
-                    placeholder="0"
-                    className="w-20 text-center"
-                    onBlur={(e) => handleBlur(entry, "mileage", e.target.value)}
-                    key={`m-${entry.id}-${entry.mileage}`}
-                  />
-                </div>
-              )}
-              <div className="hidden sm:block">
-                <Input
-                  type="text"
-                  placeholder="Notes…"
-                  defaultValue={entry.notes || ""}
-                  disabled={isApproved || isSubmitted}
-                  className="text-sm"
-                  onBlur={(e) => handleBlur(entry, "notes", e.target.value)}
-                  key={`n-${entry.id}-${entry.notes}`}
-                />
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
 
-          {/* Footer — totals */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-muted/50 border-t gap-3">
+          {/* Status and Totals Summary */}
+          <div className="bg-card border rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-2">
               <span className="text-sm font-semibold">
                 Total: {totalHours.toFixed(1)} hours {mileageEnabled && `| ${totalMileage.toFixed(1)} miles`}
@@ -711,122 +756,133 @@ export function Timecards() {
               <span className="text-xs text-green-600 font-medium">Approved</span>
             )}
           </div>
-        </div>
 
-        {/* Submit To Section */}
-        <div className="bg-card border rounded-lg p-4 space-y-3">
-          <Label className="text-sm font-medium">Submit To</Label>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <Select
-              value={timecard.recipientId ? String(timecard.recipientId) : ""}
-              onValueChange={(val) => {
-                if (val && timecard) {
-                  setRecipient.mutate({ timecardId: timecard.id, recipientId: parseInt(val, 10) });
-                }
-              }}
-              disabled={isSubmitted || isApproved}
-            >
-              <SelectTrigger className="w-full sm:w-[300px]">
-                <SelectValue placeholder="Select a recipient..." />
-              </SelectTrigger>
-              <SelectContent>
-                {recipients?.map((r) => (
-                  <SelectItem key={r.id} value={String(r.id)}>
-                    {r.title ? `${r.name} — ${r.title}` : r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddRecipientOpen(true)}
-              disabled={isSubmitted || isApproved}
-            >
-              <Plus className="h-4 w-4 mr-1" /> Add New Recipient
-            </Button>
+          {/* Status Banners */}
+          {isSubmitted && timecard.recipient && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+              Timecard submitted to {timecard.recipient.name} on {new Date().toLocaleDateString()}
+            </div>
+          )}
+          {isApproved && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+              Timecard approved
+            </div>
+          )}
+
+          {/* Submit To Section */}
+          <div className="bg-card border rounded-lg p-4 space-y-3">
+            <Label className="text-sm font-medium">Submit To</Label>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <Select
+                value={timecard.recipientId ? String(timecard.recipientId) : ""}
+                onValueChange={(val) => {
+                  if (val && timecard) {
+                    setRecipient.mutate({ timecardId: timecard.id, recipientId: parseInt(val, 10) });
+                  }
+                }}
+                disabled={isSubmitted || isApproved}
+              >
+                <SelectTrigger className="w-full sm:w-[300px]">
+                  <SelectValue placeholder="Select a recipient..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {recipients?.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.title ? `${r.name} — ${r.title}` : r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAddRecipientOpen(true)}
+                disabled={isSubmitted || isApproved}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Add New Recipient
+              </Button>
+            </div>
+
+            {timecard.status === "draft" && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    disabled={!timecard.recipientId || submitTimecard.isPending}
+                    className="h-10"
+                  >
+                    <Send className="h-4 w-4 mr-1" />
+                    Submit Timecard
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Submit Timecard?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Submit timecard for {formatWeekLabel(currentMonday)} to{" "}
+                      {timecard.recipient?.name || "selected recipient"}? Once submitted, you won't be able to edit hours — contact an admin if you need a correction.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => submitTimecard.mutate(timecard.id)}>
+                      Submit
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
 
-          {timecard.status === "draft" && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+          {/* Add New Recipient Dialog */}
+          <Dialog open={addRecipientOpen} onOpenChange={setAddRecipientOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add New Recipient</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <Label>Name *</Label>
+                  <Input
+                    value={newRecipientName}
+                    onChange={(e) => setNewRecipientName(e.target.value)}
+                    placeholder="e.g. Claudia"
+                  />
+                </div>
+                <div>
+                  <Label>Email *</Label>
+                  <Input
+                    type="email"
+                    value={newRecipientEmail}
+                    onChange={(e) => setNewRecipientEmail(e.target.value)}
+                    placeholder="e.g. claudia@company.com"
+                  />
+                </div>
+                <div>
+                  <Label>Title (optional)</Label>
+                  <Input
+                    value={newRecipientTitle}
+                    onChange={(e) => setNewRecipientTitle(e.target.value)}
+                    placeholder="e.g. HR Manager"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setAddRecipientOpen(false)}>Cancel</Button>
                 <Button
-                  size="sm"
-                  disabled={!timecard.recipientId || submitTimecard.isPending}
-                  className="h-10"
+                  onClick={() => createRecipient.mutate({
+                    name: newRecipientName.trim(),
+                    email: newRecipientEmail.trim(),
+                    title: newRecipientTitle.trim() || undefined,
+                  })}
+                  disabled={!newRecipientName.trim() || !newRecipientEmail.trim() || createRecipient.isPending}
                 >
-                  <Send className="h-4 w-4 mr-1" />
-                  Submit Timecard
+                  {createRecipient.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  Save Recipient
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Submit Timecard?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Submit timecard for {formatWeekLabel(currentMonday)} to{" "}
-                    {timecard.recipient?.name || "selected recipient"}? Once submitted, you won't be able to edit hours — contact an admin if you need a correction.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => submitTimecard.mutate(timecard.id)}>
-                    Submit
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-
-        {/* Add New Recipient Dialog */}
-        <Dialog open={addRecipientOpen} onOpenChange={setAddRecipientOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Add New Recipient</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <Label>Name *</Label>
-                <Input
-                  value={newRecipientName}
-                  onChange={(e) => setNewRecipientName(e.target.value)}
-                  placeholder="e.g. Claudia"
-                />
-              </div>
-              <div>
-                <Label>Email *</Label>
-                <Input
-                  type="email"
-                  value={newRecipientEmail}
-                  onChange={(e) => setNewRecipientEmail(e.target.value)}
-                  placeholder="e.g. claudia@company.com"
-                />
-              </div>
-              <div>
-                <Label>Title (optional)</Label>
-                <Input
-                  value={newRecipientTitle}
-                  onChange={(e) => setNewRecipientTitle(e.target.value)}
-                  placeholder="e.g. HR Manager"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAddRecipientOpen(false)}>Cancel</Button>
-              <Button
-                onClick={() => createRecipient.mutate({
-                  name: newRecipientName.trim(),
-                  email: newRecipientEmail.trim(),
-                  title: newRecipientTitle.trim() || undefined,
-                })}
-                disabled={!newRecipientName.trim() || !newRecipientEmail.trim() || createRecipient.isPending}
-              >
-                {createRecipient.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                Save Recipient
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       ) : (
         <div className="text-center py-12 text-muted-foreground">No timecard data</div>

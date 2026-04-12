@@ -69,6 +69,10 @@ function formatShortDay(iso: string): string {
   return days[d.getDay()];
 }
 
+function formatShortDate(iso: string): string {
+  return iso.slice(5);
+}
+
 function formatWeekLabel(mondayIso: string): string {
   const mon = new Date(mondayIso + "T12:00:00");
   const sun = addDays(mon, 6);
@@ -350,7 +354,6 @@ function PunchEditRow({
   }
 
   const handleSave = () => {
-    // Rebuild full datetime from the punch date + time input
     const inDate = `${punch.punchDate}T${inTime}:00`;
     const outDate = outTime ? `${punch.punchDate}T${outTime}:00` : null;
     onSave(punch.id, inDate, outDate);
@@ -384,6 +387,72 @@ function PunchEditRow({
   );
 }
 
+// ── Inline Grid Cell Editor ─────────────────
+
+interface GridCellEditorProps {
+  entry: TimecardEntry | null;
+  userId: string;
+  entryDate: string;
+  currentMonday: string;
+  onSave: (hours: number) => void;
+  isLoading?: boolean;
+}
+
+function GridCellEditor({
+  entry,
+  userId,
+  entryDate,
+  currentMonday,
+  onSave,
+  isLoading,
+}: GridCellEditorProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState(entry ? entry.hours : "");
+
+  if (!isEditing) {
+    return (
+      <div
+        onClick={() => setIsEditing(true)}
+        className="cursor-pointer text-center py-2 px-1 hover:bg-muted/50 rounded transition-colors"
+      >
+        {entry ? (
+          <span className="text-sm font-mono">{parseFloat(entry.hours).toFixed(2)}</span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+      </div>
+    );
+  }
+
+  const handleSave = () => {
+    if (value && value !== (entry?.hours || "")) {
+      onSave(parseFloat(value));
+    }
+    setIsEditing(false);
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} className="py-2 px-1">
+      <input
+        autoFocus
+        type="number"
+        min="0"
+        max="24"
+        step="0.5"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSave();
+          if (e.key === "Escape") setIsEditing(false);
+        }}
+        className="w-full text-center px-1 py-1 text-sm border rounded bg-white"
+        disabled={isLoading}
+      />
+    </div>
+  );
+}
+
 // ── Component ───────────────────────────────
 
 export function TimeManagement() {
@@ -408,24 +477,23 @@ export function TimeManagement() {
   const [addPunchFor, setAddPunchFor] = useState<{ userId: string; date: string } | null>(null);
   const [newPunchIn, setNewPunchIn] = useState("09:00");
   const [newPunchOut, setNewPunchOut] = useState("17:00");
-
-  // ALL hooks must be called before any conditional return (React Rules of Hooks)
+  const [statusFilterPill, setStatusFilterPill] = useState<"all" | "draft" | "submitted" | "approved">("all");
 
   // Fetch all employees' live clock status
   const { data: clockStatuses = [] } = useQuery<EmployeeClockStatus[]>({
     queryKey: ["/api/timecards/admin/clock-status"],
     enabled: !!verifiedUser,
-    refetchInterval: 30000, // refresh every 30s
+    refetchInterval: 30000,
   });
 
   // Fetch all timecards for selected week
   const { data: allCards = [], isLoading } = useQuery<TimecardWithUser[]>({
-    queryKey: ["/api/timecards/admin/all", { weekStartDate: currentMonday, userId: userFilter !== "all" ? userFilter : undefined, status: statusFilter !== "all" ? statusFilter : undefined }],
+    queryKey: ["/api/timecards/admin/all", { weekStartDate: currentMonday, userId: userFilter !== "all" ? userFilter : undefined, status: statusFilterPill !== "all" ? statusFilterPill : undefined }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("weekStartDate", currentMonday);
       if (userFilter !== "all") params.set("userId", userFilter);
-      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (statusFilterPill !== "all") params.set("status", statusFilterPill);
       const res = await fetch(`/api/timecards/admin/all?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load");
       return res.json();
@@ -474,6 +542,18 @@ export function TimeManagement() {
       if (expandedCard) {
         queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
       }
+    },
+  });
+
+  // Mutation: create timecard entry (if doesn't exist)
+  const createTimecardEntry = useMutation({
+    mutationFn: async ({ userId, weekStartDate }: { userId: string; weekStartDate: string }) => {
+      const res = await fetch(`/api/timecards/admin/user/${userId}/${weekStartDate}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" }
+      });
+      if (!res.ok) throw new Error("Failed to create timecard");
+      return res.json();
     },
   });
 
@@ -549,7 +629,7 @@ export function TimeManagement() {
     },
   });
 
-  // Fetch all recipients (including inactive, for management)
+  // Fetch all recipients
   const { data: allRecipients = [], refetch: refetchRecipients } = useQuery<TimecardRecipient[]>({
     queryKey: ["/api/timecards/admin/recipients"],
     enabled: !!verifiedUser,
@@ -688,6 +768,33 @@ export function TimeManagement() {
     [adminEditEntry],
   );
 
+  const handleGridCellSave = useCallback(
+    async (timecardId: number | null, userId: string, entryDate: string, hours: number) => {
+      try {
+        let finalTimecardId = timecardId;
+
+        if (!timecardId) {
+          const response = await createTimecardEntry.mutateAsync({ userId, weekStartDate: currentMonday });
+          finalTimecardId = response.id;
+        }
+
+        const card = allCards.find(c => c.id === finalTimecardId);
+        const entry = card?.entries.find(e => e.entryDate === entryDate);
+
+        if (entry) {
+          adminEditEntry.mutate({
+            entryId: entry.id,
+            hours: hours.toString(),
+            notes: entry.notes,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to save cell", error);
+      }
+    },
+    [createTimecardEntry, currentMonday, allCards, adminEditEntry],
+  );
+
   // Redirect non-admins
   if (user && user.role !== "admin") {
     return (
@@ -698,7 +805,7 @@ export function TimeManagement() {
     );
   }
 
-  // Gate: require identity verification on every page visit
+  // Gate: require identity verification
   if (!verifiedUser) {
     return <AdminIdentityGate onVerified={setVerifiedUser} />;
   }
@@ -708,6 +815,13 @@ export function TimeManagement() {
   const approvedTimecards = allCards.filter(c => c.status === "approved");
   const clockedInCount = clockStatuses.filter(s => s.openPunch).length;
   const weekDays = Array.from({ length: 7 }, (_, i) => formatIso(addDays(new Date(currentMonday + "T12:00:00"), i)));
+  const today = formatIso(new Date());
+
+  // Filter employees: exclude admins from the grid
+  const gridEmployees = allCards.filter(card => {
+    const emp = employees.find(e => e.id === card.userId);
+    return !emp || emp.role !== "admin";
+  });
 
   return (
     <div className="space-y-6">
@@ -831,6 +945,32 @@ export function TimeManagement() {
           )}
         </div>
 
+        {activeTab === "status" && (
+          <div className="flex flex-wrap gap-3">
+            <div className="flex gap-2">
+              {(["all", "draft", "submitted", "approved"] as const).map((pill) => (
+                <button
+                  key={pill}
+                  onClick={() => setStatusFilterPill(pill)}
+                  className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
+                    statusFilterPill === pill
+                      ? "bg-primary text-white"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {pill === "all" ? "All" : pill.charAt(0).toUpperCase() + pill.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                Total Hours This Week: {weekTotalHours.toFixed(1)}h
+              </span>
+            </div>
+          </div>
+        )}
+
         {activeTab === "timecards" && (
           <div className="flex flex-wrap gap-3">
             <Select value={userFilter} onValueChange={setUserFilter}>
@@ -866,116 +1006,130 @@ export function TimeManagement() {
         )}
       </div>
 
-      {/* ═══ TIMECARD VIEW (Traditional Grid) ═══ */}
+      {/* ═══ TIMECARD VIEW (Weekly Grid) ═══ */}
       {activeTab === "status" && (
         <>
           {isLoading ? (
             <div className="text-center py-12 text-muted-foreground">Loading timecards…</div>
-          ) : allCards.length === 0 ? (
+          ) : gridEmployees.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">No timecards found for this week</div>
           ) : (
             <div className="bg-card border rounded-lg overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="text-left py-2.5 px-3 font-semibold w-44">Employee</th>
-                    <th className="text-center py-2.5 px-1 font-semibold w-16">Status</th>
-                    {weekDays.map((day) => (
-                      <th key={day} className="text-center py-2.5 px-1 font-medium w-16">
-                        <div className="text-xs">{formatShortDay(day)}</div>
-                        <div className="text-[10px] text-muted-foreground">{day.slice(5)}</div>
-                      </th>
-                    ))}
-                    <th className="text-center py-2.5 px-2 font-semibold w-16">Total</th>
-                    <th className="text-center py-2.5 px-2 font-semibold w-20">Actions</th>
+                    <th className="sticky left-0 z-10 bg-muted/50 text-left py-2.5 px-3 font-semibold w-48">Employee</th>
+                    {weekDays.map((day) => {
+                      const isToday = day === today;
+                      return (
+                        <th
+                          key={day}
+                          className={`text-center py-2.5 px-2 font-medium w-20 ${
+                            isToday ? "border-t-2 border-primary bg-primary/5" : ""
+                          }`}
+                        >
+                          <div className="text-xs">{formatShortDay(day)}</div>
+                          <div className="text-[10px] text-muted-foreground">{formatShortDate(day)}</div>
+                        </th>
+                      );
+                    })}
+                    <th className="text-center py-2.5 px-2 font-semibold w-20">Total</th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-24">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {allCards.map((card) => {
+                  {gridEmployees.map((card) => {
                     const clockStatus = clockStatuses.find(s => s.user.id === card.userId);
                     const isClockedIn = clockStatus?.openPunch != null;
-                    const isExpanded = expandedCard === card.id;
 
                     return (
                       <tr
                         key={card.id}
-                        className={`border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer ${isExpanded ? "bg-blue-50/50" : ""}`}
-                        onClick={() => setExpandedCard(isExpanded ? null : card.id)}
+                        className="border-b last:border-b-0 hover:bg-muted/20 transition-colors"
                       >
-                        <td className="py-2 px-3">
-                          <div className="flex items-center gap-2">
+                        <td className="sticky left-0 z-9 bg-white hover:bg-muted/20 py-2 px-3">
+                          <button
+                            onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
+                            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                          >
                             <div className="relative">
-                              <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+                              <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
                                 {initials(card.user.firstName, card.user.lastName)}
                               </div>
                               {isClockedIn && (
                                 <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-white" />
                               )}
                             </div>
-                            <div>
+                            <div className="text-left">
                               <div className="font-medium text-sm">{fullName(card.user)}</div>
                               {isClockedIn && (
                                 <div className="text-[10px] text-green-700">
-                                  Clocked in {formatTime(clockStatus!.openPunch!.clockIn)}
+                                  Clocked in
                                 </div>
                               )}
                             </div>
-                          </div>
+                          </button>
                         </td>
-                        <td className="text-center py-2 px-1">
-                          {statusBadge(card.status)}
-                          {card.recipient && (card.status === "submitted" || card.status === "approved") && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5">
-                              → {card.recipient.title ? `${card.recipient.name} (${card.recipient.title})` : card.recipient.name}
-                            </div>
-                          )}
-                        </td>
+
                         {weekDays.map((day) => {
+                          const isToday = day === today;
+                          const isWeekend = day.endsWith("-06") || day.endsWith("-07");
                           const entry = card.entries?.find(e => e.entryDate === day);
-                          const hrs = entry ? parseFloat(entry.hours || "0") : 0;
+
                           return (
-                            <td key={day} className="text-center py-2 px-1">
-                              <span className={`text-xs font-mono ${hrs > 0 ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                                {hrs > 0 ? hrs.toFixed(1) : "—"}
-                              </span>
+                            <td
+                              key={day}
+                              className={`text-center py-2 px-2 ${
+                                isToday ? "border-t-2 border-primary bg-primary/5" : ""
+                              } ${isWeekend ? "bg-muted/30" : ""}`}
+                            >
+                              <GridCellEditor
+                                entry={entry || null}
+                                userId={card.userId}
+                                entryDate={day}
+                                currentMonday={currentMonday}
+                                onSave={(hours) =>
+                                  handleGridCellSave(entry ? card.id : null, card.userId, day, hours)
+                                }
+                              />
                             </td>
                           );
                         })}
+
                         <td className="text-center py-2 px-2">
                           <span className="font-semibold text-sm">{parseFloat(card.totalHours || "0").toFixed(1)}</span>
                         </td>
-                        <td className="text-center py-2 px-2" onClick={(e) => e.stopPropagation()}>
-                          {card.status === "submitted" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-green-600 border-green-200 hover:bg-green-50 h-7 text-xs"
-                              onClick={() => approveTimecard.mutate(card.id)}
-                              disabled={approveTimecard.isPending}
-                            >
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Approve
-                            </Button>
-                          )}
-                          {card.totalMileage && parseFloat(card.totalMileage) > 0 && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {parseFloat(card.totalMileage).toFixed(1)} mi
-                            </Badge>
-                          )}
+
+                        <td className="text-center py-2 px-2">
+                          <div className="flex items-center justify-center gap-1">
+                            {statusBadge(card.status)}
+                            {card.status === "submitted" && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-xs text-green-600 hover:bg-green-50"
+                                onClick={() => approveTimecard.mutate(card.id)}
+                                disabled={approveTimecard.isPending}
+                              >
+                                <CheckCircle2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
+
                   {/* Totals row */}
-                  <tr className="bg-muted/50 font-semibold">
-                    <td className="py-2.5 px-3 text-sm" colSpan={2}>Totals</td>
+                  <tr className="bg-muted/50 font-semibold border-t-2">
+                    <td className="sticky left-0 z-9 bg-muted/50 py-2.5 px-3 text-sm">Total</td>
                     {weekDays.map((day) => {
-                      const dayTotal = allCards.reduce((sum, card) => {
+                      const dayTotal = gridEmployees.reduce((sum, card) => {
                         const entry = card.entries?.find(e => e.entryDate === day);
                         return sum + parseFloat(entry?.hours || "0");
                       }, 0);
                       return (
-                        <td key={day} className="text-center py-2.5 px-1 text-xs font-mono">
+                        <td key={day} className="text-center py-2.5 px-2 text-xs font-mono">
                           {dayTotal > 0 ? dayTotal.toFixed(1) : "—"}
                         </td>
                       );
@@ -995,7 +1149,7 @@ export function TimeManagement() {
                 <div className="flex items-center gap-2">
                   <Timer className="h-4 w-4 text-primary" />
                   <span className="font-semibold text-sm">
-                    {fullName(allCards.find(c => c.id === expandedCard)?.user || { firstName: null, lastName: null, email: "" })} — Punches & Entries
+                    {fullName(gridEmployees.find(c => c.id === expandedCard)?.user || { firstName: null, lastName: null, email: "" })} — Punches & Entries
                   </span>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => setExpandedCard(null)}>
@@ -1003,7 +1157,6 @@ export function TimeManagement() {
                 </Button>
               </div>
 
-              {/* Day-by-day entries with punches */}
               <div className="divide-y">
                 {expandedDetail.entries.map((entry: TimecardEntryWithMileage) => {
                   const dayPunches = expandedPunches.filter(p => p.punchDate === entry.entryDate);
@@ -1044,7 +1197,6 @@ export function TimeManagement() {
                         </div>
                       </div>
 
-                      {/* Punches for this day */}
                       {dayPunches.length > 0 && (
                         <div className="ml-4 space-y-0.5">
                           {dayPunches.map((punch) => (
@@ -1059,7 +1211,6 @@ export function TimeManagement() {
                         </div>
                       )}
 
-                      {/* Add punch form */}
                       {isAddingPunch && (
                         <div className="ml-4 mt-1 flex items-center gap-2 p-2 bg-blue-50 rounded">
                           <span className="text-xs text-muted-foreground">New punch:</span>
@@ -1102,7 +1253,6 @@ export function TimeManagement() {
                 })}
               </div>
 
-              {/* Audit log */}
               {expandedDetail.auditLog.length > 0 && (
                 <div className="border-t px-4 py-3">
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
@@ -1320,7 +1470,6 @@ export function TimeManagement() {
 
         {expandedEmployeesSection && (
           <div className="border-t px-4 py-3 space-y-4">
-            {/* Employees List */}
             {employees.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Current Employees</h3>
@@ -1374,7 +1523,6 @@ export function TimeManagement() {
               </div>
             )}
 
-            {/* Add Employee Form */}
             {!showAddEmployee ? (
               <Button
                 size="sm"
@@ -1496,7 +1644,6 @@ export function TimeManagement() {
 
         {expandedPayrollSection && (
           <div className="border-t px-4 py-3 space-y-4">
-            {/* Contacts List */}
             {payrollContacts.length > 0 && (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Current Contacts</h3>
@@ -1521,7 +1668,6 @@ export function TimeManagement() {
               </div>
             )}
 
-            {/* Add Contact Form */}
             {!showAddContact ? (
               <Button
                 size="sm"
@@ -1576,6 +1722,7 @@ export function TimeManagement() {
             )}
           </div>
         )}
+      </div>
 
       {/* ── Recipients Tab ── */}
       {activeTab === "recipients" && (
@@ -1711,8 +1858,6 @@ export function TimeManagement() {
           )}
         </div>
       )}
-
-      </div>
     </div>
   );
 }
