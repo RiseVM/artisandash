@@ -470,7 +470,7 @@ export function TimeManagement() {
   const [newEmployeeForm, setNewEmployeeForm] = useState({ firstName: "", lastName: "", email: "", password: "", mileageEnabled: false, mileageRate: 0 });
   const [newContactForm, setNewContactForm] = useState({ name: "", email: "" });
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<"timecards" | "status" | "recipients">("status");
+  const [activeTab, setActiveTab] = useState<"timecards" | "status" | "recipients" | "employees">("status");
   const [showAddRecipient, setShowAddRecipient] = useState(false);
   const [newRecipientForm, setNewRecipientForm] = useState({ name: "", email: "", title: "" });
   const [editingRecipient, setEditingRecipient] = useState<TimecardRecipient | null>(null);
@@ -478,6 +478,9 @@ export function TimeManagement() {
   const [newPunchIn, setNewPunchIn] = useState("09:00");
   const [newPunchOut, setNewPunchOut] = useState("17:00");
   const [statusFilterPill, setStatusFilterPill] = useState<"all" | "draft" | "submitted" | "approved">("all");
+  const [editingEmployee, setEditingEmployee] = useState<{ id: string; firstName: string; lastName: string; email: string; password: string; role: string } | null>(null);
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({ firstName: "", lastName: "", email: "", password: "", role: "staff" });
 
   // Fetch all employees' live clock status
   const { data: clockStatuses = [] } = useQuery<EmployeeClockStatus[]>({
@@ -528,6 +531,13 @@ export function TimeManagement() {
   // Fetch payroll contacts
   const { data: payrollContacts = [], refetch: refetchPayrollContacts } = useQuery<PayrollContact[]>({
     queryKey: ["/api/timecards/admin/payroll-contacts"],
+    enabled: !!verifiedUser,
+  });
+
+  // Fetch ALL users for employee management tab (includes inactive)
+  interface ManagedUser { id: string; firstName: string | null; lastName: string | null; email: string; role: string; isActive: string; createdAt: string; }
+  const { data: allUsers = [], refetch: refetchAllUsers } = useQuery<ManagedUser[]>({
+    queryKey: ["/api/users"],
     enabled: !!verifiedUser,
   });
 
@@ -626,6 +636,47 @@ export function TimeManagement() {
     },
     onSuccess: () => {
       refetchPayrollContacts();
+    },
+  });
+
+  // Mutation: create user via /api/users
+  const createUser = useMutation({
+    mutationFn: async (data: typeof newUserForm) => {
+      const res = await apiRequest("POST", "/api/users", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchAllUsers();
+      refetchEmployees();
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/users"] });
+      setNewUserForm({ firstName: "", lastName: "", email: "", password: "", role: "staff" });
+      setShowAddUserDialog(false);
+      setFeedback({ type: "success", message: "Employee created successfully" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+    onError: (err: any) => {
+      setFeedback({ type: "error", message: err?.message || "Failed to create employee" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+  });
+
+  // Mutation: update user via PATCH /api/users/:id
+  const updateUser = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; firstName?: string; lastName?: string; email?: string; password?: string; role?: string; isActive?: string }) => {
+      const res = await apiRequest("PATCH", `/api/users/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchAllUsers();
+      refetchEmployees();
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/users"] });
+      setEditingEmployee(null);
+      setFeedback({ type: "success", message: "Employee updated" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+    onError: () => {
+      setFeedback({ type: "error", message: "Failed to update employee" });
+      setTimeout(() => setFeedback(null), 3000);
     },
   });
 
@@ -817,10 +868,14 @@ export function TimeManagement() {
   const weekDays = Array.from({ length: 7 }, (_, i) => formatIso(addDays(new Date(currentMonday + "T12:00:00"), i)));
   const today = formatIso(new Date());
 
-  // Filter employees: exclude admins from the grid
-  const gridEmployees = allCards.filter(card => {
-    const emp = employees.find(e => e.id === card.userId);
-    return !emp || emp.role !== "admin";
+  // Build grid rows: one row per non-admin active employee, merged with timecard data
+  const nonAdminEmployees = employees.filter(e => e.role !== "admin");
+  const gridRows = nonAdminEmployees.map(emp => {
+    const card = allCards.find(c => c.userId === emp.id);
+    return {
+      employee: emp,
+      card,  // may be undefined if no timecard exists for this week
+    };
   });
 
   return (
@@ -918,6 +973,15 @@ export function TimeManagement() {
           <Users className="h-4 w-4 inline mr-1.5" />
           Recipients
         </button>
+        <button
+          onClick={() => setActiveTab("employees")}
+          className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+            activeTab === "employees" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <UserPlus className="h-4 w-4 inline mr-1.5" />
+          Employees
+        </button>
       </div>
 
       {/* Week Nav */}
@@ -1011,8 +1075,8 @@ export function TimeManagement() {
         <>
           {isLoading ? (
             <div className="text-center py-12 text-muted-foreground">Loading timecards…</div>
-          ) : gridEmployees.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">No timecards found for this week</div>
+          ) : gridRows.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">No employees found. Add employees in the Employees tab.</div>
           ) : (
             <div className="bg-card border rounded-lg overflow-x-auto">
               <table className="w-full text-sm border-collapse">
@@ -1038,30 +1102,32 @@ export function TimeManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {gridEmployees.map((card) => {
-                    const clockStatus = clockStatuses.find(s => s.user.id === card.userId);
+                  {gridRows.map(({ employee: emp, card }) => {
+                    const clockStatus = clockStatuses.find(s => s.user.id === emp.id);
                     const isClockedIn = clockStatus?.openPunch != null;
+                    const status = card?.status || "draft";
+                    const totalHrs = card ? parseFloat(card.totalHours || "0") : 0;
 
                     return (
                       <tr
-                        key={card.id}
+                        key={emp.id}
                         className="border-b last:border-b-0 hover:bg-muted/20 transition-colors"
                       >
                         <td className="sticky left-0 z-9 bg-white hover:bg-muted/20 py-2 px-3">
                           <button
-                            onClick={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
+                            onClick={() => card && setExpandedCard(expandedCard === card.id ? null : card.id)}
                             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                           >
                             <div className="relative">
                               <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
-                                {initials(card.user.firstName, card.user.lastName)}
+                                {initials(emp.firstName, emp.lastName)}
                               </div>
                               {isClockedIn && (
                                 <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-white" />
                               )}
                             </div>
                             <div className="text-left">
-                              <div className="font-medium text-sm">{fullName(card.user)}</div>
+                              <div className="font-medium text-sm">{fullName({ firstName: emp.firstName, lastName: emp.lastName, email: emp.email })}</div>
                               {isClockedIn && (
                                 <div className="text-[10px] text-green-700">
                                   Clocked in
@@ -1074,7 +1140,7 @@ export function TimeManagement() {
                         {weekDays.map((day) => {
                           const isToday = day === today;
                           const isWeekend = day.endsWith("-06") || day.endsWith("-07");
-                          const entry = card.entries?.find(e => e.entryDate === day);
+                          const entry = card?.entries?.find(e => e.entryDate === day);
 
                           return (
                             <td
@@ -1085,11 +1151,11 @@ export function TimeManagement() {
                             >
                               <GridCellEditor
                                 entry={entry || null}
-                                userId={card.userId}
+                                userId={emp.id}
                                 entryDate={day}
                                 currentMonday={currentMonday}
                                 onSave={(hours) =>
-                                  handleGridCellSave(entry ? card.id : null, card.userId, day, hours)
+                                  handleGridCellSave(entry && card ? card.id : null, emp.id, day, hours)
                                 }
                               />
                             </td>
@@ -1097,13 +1163,13 @@ export function TimeManagement() {
                         })}
 
                         <td className="text-center py-2 px-2">
-                          <span className="font-semibold text-sm">{parseFloat(card.totalHours || "0").toFixed(1)}</span>
+                          <span className="font-semibold text-sm">{totalHrs.toFixed(1)}</span>
                         </td>
 
                         <td className="text-center py-2 px-2">
                           <div className="flex items-center justify-center gap-1">
-                            {statusBadge(card.status)}
-                            {card.status === "submitted" && (
+                            {statusBadge(status)}
+                            {card && card.status === "submitted" && (
                               <Button
                                 size="sm"
                                 variant="ghost"
@@ -1124,8 +1190,8 @@ export function TimeManagement() {
                   <tr className="bg-muted/50 font-semibold border-t-2">
                     <td className="sticky left-0 z-9 bg-muted/50 py-2.5 px-3 text-sm">Total</td>
                     {weekDays.map((day) => {
-                      const dayTotal = gridEmployees.reduce((sum, card) => {
-                        const entry = card.entries?.find(e => e.entryDate === day);
+                      const dayTotal = gridRows.reduce((sum, { card }) => {
+                        const entry = card?.entries?.find(e => e.entryDate === day);
                         return sum + parseFloat(entry?.hours || "0");
                       }, 0);
                       return (
@@ -1149,7 +1215,7 @@ export function TimeManagement() {
                 <div className="flex items-center gap-2">
                   <Timer className="h-4 w-4 text-primary" />
                   <span className="font-semibold text-sm">
-                    {fullName(gridEmployees.find(c => c.id === expandedCard)?.user || { firstName: null, lastName: null, email: "" })} — Punches & Entries
+                    {(() => { const row = gridRows.find(r => r.card?.id === expandedCard); return row ? fullName({ firstName: row.employee.firstName, lastName: row.employee.lastName, email: row.employee.email }) : ""; })()} — Punches & Entries
                   </span>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => setExpandedCard(null)}>
@@ -1723,6 +1789,254 @@ export function TimeManagement() {
           </div>
         )}
       </div>
+
+      {/* ── Employees Tab ── */}
+      {activeTab === "employees" && (
+        <div className="bg-card border rounded-lg p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold">Employee Management</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Employees listed here have access to log timecards. Their email and password are also their dashboard login credentials.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setShowAddUserDialog(true)}>
+              <UserPlus className="h-4 w-4 mr-1" /> Add Employee
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left py-2.5 px-3 font-medium w-10"></th>
+                  <th className="text-left py-2.5 px-3 font-medium">Full Name</th>
+                  <th className="text-left py-2.5 px-3 font-medium">Email</th>
+                  <th className="text-left py-2.5 px-3 font-medium">Role</th>
+                  <th className="text-left py-2.5 px-3 font-medium">Status</th>
+                  <th className="text-right py-2.5 px-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allUsers
+                  .filter(u => u.role !== "admin")
+                  .map(u => {
+                    const isActive = u.isActive === "yes";
+                    return (
+                      <tr key={u.id} className={`border-b last:border-b-0 ${!isActive ? "opacity-50" : "hover:bg-muted/20"}`}>
+                        <td className="py-2 px-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
+                            {initials(u.firstName, u.lastName)}
+                          </div>
+                        </td>
+                        <td className="py-2 px-3 font-medium">{fullName(u)}</td>
+                        <td className="py-2 px-3 text-muted-foreground">{u.email}</td>
+                        <td className="py-2 px-3">
+                          <Badge variant="outline" className="text-xs capitalize">{u.role}</Badge>
+                        </td>
+                        <td className="py-2 px-3">
+                          {isActive ? (
+                            <Badge className="bg-green-100 text-green-700 text-xs">Active</Badge>
+                          ) : (
+                            <Badge className="bg-gray-100 text-gray-500 text-xs">Inactive</Badge>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setEditingEmployee({
+                                id: u.id,
+                                firstName: u.firstName || "",
+                                lastName: u.lastName || "",
+                                email: u.email,
+                                password: "",
+                                role: u.role,
+                              })}
+                            >
+                              <Pencil className="h-3 w-3 mr-1" /> Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={`h-7 px-2 text-xs ${isActive ? "text-red-500 hover:text-red-700" : "text-green-600 hover:text-green-700"}`}
+                              onClick={() => updateUser.mutate({ id: u.id, isActive: isActive ? "no" : "yes" })}
+                              disabled={updateUser.isPending}
+                            >
+                              {isActive ? "Deactivate" : "Reactivate"}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                {allUsers.filter(u => u.role !== "admin").length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                      No employees yet. Click "Add Employee" to get started.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Add Employee Dialog */}
+          {showAddUserDialog && (
+            <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
+              <h4 className="text-sm font-semibold">Add New Employee</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">First Name *</Label>
+                  <Input
+                    placeholder="First name"
+                    value={newUserForm.firstName}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, firstName: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Last Name</Label>
+                  <Input
+                    placeholder="Last name"
+                    value={newUserForm.lastName}
+                    onChange={(e) => setNewUserForm({ ...newUserForm, lastName: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Email *</Label>
+                <Input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Password *</Label>
+                <Input
+                  type="password"
+                  placeholder="Password"
+                  value={newUserForm.password}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Role</Label>
+                <Select value={newUserForm.role} onValueChange={(v) => setNewUserForm({ ...newUserForm, role: v })}>
+                  <SelectTrigger className="w-[160px] text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="staff">Staff</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => createUser.mutate(newUserForm)}
+                  disabled={createUser.isPending || !newUserForm.firstName || !newUserForm.email || !newUserForm.password}
+                >
+                  {createUser.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  Save Employee
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowAddUserDialog(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Employee Dialog */}
+          {editingEmployee && (
+            <div className="border rounded-lg p-4 space-y-3 bg-blue-50/50">
+              <h4 className="text-sm font-semibold">Edit Employee</h4>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs">First Name</Label>
+                  <Input
+                    value={editingEmployee.firstName}
+                    onChange={(e) => setEditingEmployee({ ...editingEmployee, firstName: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Last Name</Label>
+                  <Input
+                    value={editingEmployee.lastName}
+                    onChange={(e) => setEditingEmployee({ ...editingEmployee, lastName: e.target.value })}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Email</Label>
+                <Input
+                  type="email"
+                  value={editingEmployee.email}
+                  onChange={(e) => setEditingEmployee({ ...editingEmployee, email: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Password (leave blank to keep current)</Label>
+                <Input
+                  type="password"
+                  placeholder="New password (optional)"
+                  value={editingEmployee.password}
+                  onChange={(e) => setEditingEmployee({ ...editingEmployee, password: e.target.value })}
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Role</Label>
+                <Select value={editingEmployee.role} onValueChange={(v) => setEditingEmployee({ ...editingEmployee, role: v })}>
+                  <SelectTrigger className="w-[160px] text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="staff">Staff</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const payload: any = {
+                      id: editingEmployee.id,
+                      firstName: editingEmployee.firstName,
+                      lastName: editingEmployee.lastName,
+                      email: editingEmployee.email,
+                      role: editingEmployee.role,
+                    };
+                    if (editingEmployee.password) {
+                      payload.password = editingEmployee.password;
+                    }
+                    updateUser.mutate(payload);
+                  }}
+                  disabled={updateUser.isPending}
+                >
+                  {updateUser.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  Save Changes
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setEditingEmployee(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Recipients Tab ── */}
       {activeTab === "recipients" && (
