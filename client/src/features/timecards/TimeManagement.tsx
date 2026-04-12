@@ -1697,18 +1697,19 @@ function TimeManagementInner() {
                 mileageRate: editEmployeeForm.mileageRate,
               };
               if (editEmployeeForm.password) body.password = editEmployeeForm.password;
-              await fetch(`/api/users/${editingEmployee.id}`, {
+              const res = await fetch(`/api/users/${editingEmployee.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
                 body: JSON.stringify(body),
               });
-              await queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-              await queryClient.refetchQueries({ queryKey: ["/api/users"] });
-              await queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/users"] });
-              await queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/employees"] });
-              toast({ title: "Employee updated successfully" });
-              setEditEmployeeOpen(false);
+              if (res.ok) {
+                await queryClient.resetQueries();
+                setEditEmployeeOpen(false);
+                toast({ title: "Employee updated successfully" });
+              } else {
+                toast({ title: "Failed to update employee", variant: "destructive" });
+              }
             }}>
               Save Changes
             </Button>
