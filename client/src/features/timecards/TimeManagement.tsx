@@ -14,6 +14,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   ChevronLeft,
   ChevronRight,
   Users,
@@ -481,6 +487,7 @@ export function TimeManagement() {
   const [userFilter, setUserFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
   const [expandedEmployeesSection, setExpandedEmployeesSection] = useState(false);
   const [expandedPayrollSection, setExpandedPayrollSection] = useState(false);
@@ -863,6 +870,7 @@ export function TimeManagement() {
 
   const navigateWeek = useCallback((direction: -1 | 1) => {
     setExpandedCard(null);
+    setSelectedEmployeeId(null);
     setCurrentMonday((prev) => {
       const d = new Date(prev + "T12:00:00");
       return formatIso(addDays(d, direction * 7));
@@ -933,15 +941,45 @@ export function TimeManagement() {
   const weekDays = Array.from({ length: 7 }, (_, i) => formatIso(addDays(new Date(currentMonday + "T12:00:00"), i)));
   const today = formatIso(new Date());
 
-  // Build grid rows: one row per non-admin active employee, merged with timecard data
-  const nonAdminEmployees = employees.filter(e => e.role !== "admin");
-  const gridRows = nonAdminEmployees.map(emp => {
-    const card = allCards.find(c => c.userId === emp.id);
+  // Build grid rows: one row per non-admin active user, merged with timecard data
+  const nonAdminUsers = allUsers.filter(u => u.role !== "admin" && u.isActive === "yes");
+  const gridRows = nonAdminUsers.map(u => {
+    const card = allCards.find(c => c.userId === u.id);
+    const emp = employees.find(e => e.id === u.id);
     return {
-      employee: emp,
+      employee: { ...u, mileageEnabled: emp?.mileageEnabled || false, mileageRate: emp?.mileageRate || 0 },
       card,  // may be undefined if no timecard exists for this week
     };
   });
+
+  // Drawer: find the timecard for the selected employee (if any)
+  const selectedCard = selectedEmployeeId ? allCards.find(c => c.userId === selectedEmployeeId) : null;
+  const selectedTimecardId = selectedCard?.id ?? null;
+
+  // Fetch detail for the drawer's timecard
+  const { data: drawerDetail } = useQuery<TimecardDetail>({
+    queryKey: ["/api/timecards/admin/" + selectedTimecardId],
+    enabled: !!verifiedUser && selectedTimecardId !== null,
+  });
+
+  // Fetch punches for drawer
+  const { data: drawerPunches = [] } = useQuery<ClockPunch[]>({
+    queryKey: ["/api/timecards/" + selectedTimecardId + "/punches"],
+    enabled: !!verifiedUser && selectedTimecardId !== null,
+  });
+
+  // Fetch mileage for drawer
+  const { data: drawerMileage = [], refetch: refetchDrawerMileage } = useQuery<MileageEntry[]>({
+    queryKey: ["/api/timecards/admin/" + selectedTimecardId + "/mileage"],
+    queryFn: async () => {
+      const res = await fetch(`/api/timecards/admin/${selectedTimecardId}/mileage`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load mileage");
+      return res.json();
+    },
+    enabled: !!verifiedUser && selectedTimecardId !== null,
+  });
+
+  const selectedEmployee = selectedEmployeeId ? nonAdminUsers.find(u => u.id === selectedEmployeeId) : null;
 
   return (
     <div className="space-y-6">
@@ -1190,8 +1228,8 @@ export function TimeManagement() {
                       >
                         <td className="sticky left-0 z-9 bg-white hover:bg-muted/20 py-2 px-3">
                           <button
-                            onClick={() => card && setExpandedCard(expandedCard === card.id ? null : card.id)}
-                            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                            onClick={() => setSelectedEmployeeId(selectedEmployeeId === emp.id ? null : emp.id)}
+                            className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
                           >
                             <div className="relative">
                               <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
@@ -1342,119 +1380,144 @@ export function TimeManagement() {
             </div>
           )}
 
-          {/* Expanded Punch Detail Panel */}
-          {expandedCard && expandedDetail && expandedDetail.id === expandedCard && (
-            <div className="bg-card border rounded-lg overflow-hidden">
-              <div className="px-4 py-3 bg-muted/30 border-b flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Timer className="h-4 w-4 text-primary" />
-                  <span className="font-semibold text-sm">
-                    {(() => { const row = gridRows.find(r => r.card?.id === expandedCard); return row ? fullName({ firstName: row.employee.firstName, lastName: row.employee.lastName, email: row.employee.email }) : ""; })()} — Punches & Entries
-                  </span>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => setExpandedCard(null)}>
-                  <X className="h-4 w-4" />
+        </>
+      )}
+
+      {/* ═══ EMPLOYEE DETAIL DRAWER ═══ */}
+      <Sheet open={selectedEmployeeId !== null} onOpenChange={(open) => { if (!open) setSelectedEmployeeId(null); }}>
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              {selectedEmployee && (
+                <>
+                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                    {initials(selectedEmployee.firstName, selectedEmployee.lastName)}
+                  </div>
+                  <span>{fullName(selectedEmployee)}</span>
+                  <span className="text-sm font-normal text-muted-foreground ml-1">— {formatWeekLabel(currentMonday)}</span>
+                </>
+              )}
+            </SheetTitle>
+          </SheetHeader>
+
+          {selectedCard && (
+            <div className="flex items-center gap-2 mt-2 mb-4">
+              {statusBadge(selectedCard.status)}
+              {selectedCard.status === "submitted" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-green-600 border-green-200 hover:bg-green-50"
+                  onClick={() => approveTimecard.mutate(selectedCard.id)}
+                  disabled={approveTimecard.isPending}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                  Approve
                 </Button>
+              )}
+              <div className="ml-auto flex items-center gap-2 text-sm">
+                <span className="font-semibold">{parseFloat(selectedCard.totalHours || "0").toFixed(1)}h</span>
+                {parseFloat(selectedCard.totalOtHours || "0") > 0 && (
+                  <Badge className="bg-amber-100 text-amber-700 text-[10px]">OT {parseFloat(selectedCard.totalOtHours || "0").toFixed(1)}h</Badge>
+                )}
+                {parseFloat(selectedCard.totalPtoHours || "0") > 0 && (
+                  <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO {parseFloat(selectedCard.totalPtoHours || "0").toFixed(1)}h</Badge>
+                )}
+                {parseFloat(selectedCard.totalHolidayHours || "0") > 0 && (
+                  <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Hol {parseFloat(selectedCard.totalHolidayHours || "0").toFixed(1)}h</Badge>
+                )}
               </div>
+            </div>
+          )}
 
-              <div className="divide-y">
-                {expandedDetail.entries.map((entry: TimecardEntryWithMileage) => {
-                  const dayPunches = expandedPunches.filter(p => p.punchDate === entry.entryDate);
-                  const hrs = parseFloat(entry.hours || "0");
-                  const isAddingPunch = addPunchFor?.userId === expandedDetail.userId && addPunchFor?.date === entry.entryDate;
+          {!selectedCard && selectedEmployeeId && (
+            <p className="text-sm text-muted-foreground py-6 text-center">No timecard for this week yet.</p>
+          )}
 
-                  return (
-                    <div key={entry.id} className="px-4 py-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium w-28">{formatDayLabel(entry.entryDate)}</span>
-                          <span className={`text-sm font-mono ${hrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
-                            {hrs > 0 ? `${hrs.toFixed(1)}h` : "0.0h"}
-                          </span>
-                          {entry.mileage && parseFloat(entry.mileage) > 0 && (
-                            <Badge variant="secondary" className="text-[10px]">{parseFloat(entry.mileage).toFixed(1)} mi</Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            min="0"
-                            max="24"
-                            step="0.5"
-                            defaultValue={entry.hours}
-                            className="w-16 h-7 text-center text-xs"
-                            onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
-                            key={`ah-${entry.id}-${entry.hours}`}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <button
-                            onClick={() => setAddPunchFor({ userId: expandedDetail.userId, date: entry.entryDate })}
-                            className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                            title="Add punch"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
+          {/* Entries Table */}
+          {drawerDetail && drawerDetail.id === selectedTimecardId && (
+            <div className="space-y-4">
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left py-2 px-3 font-medium text-xs">Day</th>
+                      <th className="text-center py-2 px-2 font-medium text-xs">Type</th>
+                      <th className="text-center py-2 px-2 font-medium text-xs">Clock In</th>
+                      <th className="text-center py-2 px-2 font-medium text-xs">Clock Out</th>
+                      <th className="text-center py-2 px-2 font-medium text-xs">Reg Hrs</th>
+                      <th className="text-center py-2 px-2 font-medium text-xs text-amber-600">OT</th>
+                      <th className="text-left py-2 px-2 font-medium text-xs">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drawerDetail.entries.map((entry: TimecardEntryWithMileage) => {
+                      const hrs = parseFloat(entry.hours || "0");
+                      const otHrs = parseFloat(entry.otHours || "0");
+                      const ptoHrs = parseFloat(entry.ptoHours || "0");
+                      const holHrs = parseFloat(entry.holidayHours || "0");
+                      const wasAdminEdited = drawerDetail.auditLog.some(
+                        (l) => l.action === "admin_edit" && l.entryDate === entry.entryDate,
+                      );
+                      // Find clock punches for this day
+                      const dayPunches = drawerPunches.filter(p => p.punchDate === entry.entryDate);
+                      const clockInStr = dayPunches.length > 0 ? formatTime(dayPunches[0].clockIn) : "—";
+                      const lastPunch = dayPunches[dayPunches.length - 1];
+                      const clockOutStr = lastPunch?.clockOut ? formatTime(lastPunch.clockOut) : (dayPunches.length > 0 ? "Active" : "—");
 
-                      {dayPunches.length > 0 && (
-                        <div className="ml-4 space-y-0.5">
-                          {dayPunches.map((punch) => (
-                            <PunchEditRow
-                              key={punch.id}
-                              punch={punch}
-                              onSave={(punchId, clockIn, clockOut) => editPunch.mutate({ punchId, clockIn, clockOut })}
-                              onDelete={(punchId) => deletePunch.mutate(punchId)}
-                              isSaving={editPunch.isPending}
-                            />
-                          ))}
-                        </div>
-                      )}
-
-                      {isAddingPunch && (
-                        <div className="ml-4 mt-1 flex items-center gap-2 p-2 bg-blue-50 rounded">
-                          <span className="text-xs text-muted-foreground">New punch:</span>
-                          <input
-                            type="time"
-                            value={newPunchIn}
-                            onChange={(e) => setNewPunchIn(e.target.value)}
-                            className="border rounded px-2 py-0.5 text-xs w-24"
-                          />
-                          <span className="text-xs">→</span>
-                          <input
-                            type="time"
-                            value={newPunchOut}
-                            onChange={(e) => setNewPunchOut(e.target.value)}
-                            className="border rounded px-2 py-0.5 text-xs w-24"
-                          />
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => {
-                              addPunch.mutate({
-                                userId: expandedDetail.userId,
-                                punchDate: entry.entryDate,
-                                clockIn: `${entry.entryDate}T${newPunchIn}:00`,
-                                clockOut: newPunchOut ? `${entry.entryDate}T${newPunchOut}:00` : null,
-                              });
-                            }}
-                            disabled={addPunch.isPending}
-                          >
-                            {addPunch.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setAddPunchFor(null)}>
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      return (
+                        <tr key={entry.id} className={`border-b last:border-b-0 ${
+                          entry.entryType === "pto" ? "bg-blue-50/50" : entry.entryType === "holiday" ? "bg-indigo-50/50" : ""
+                        }`}>
+                          <td className="py-2 px-3 text-sm font-medium whitespace-nowrap">{formatDayLabel(entry.entryDate)}</td>
+                          <td className="py-2 px-2 text-center">
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                              entry.entryType === "pto" ? "bg-blue-100 text-blue-700"
+                                : entry.entryType === "holiday" ? "bg-indigo-100 text-indigo-700"
+                                : "bg-gray-100 text-gray-600"
+                            }`}>
+                              {entry.entryType === "pto" ? "PTO" : entry.entryType === "holiday" ? "Hol" : "Work"}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2 text-center text-xs font-mono">
+                            {entry.entryType === "work" ? clockInStr : "—"}
+                          </td>
+                          <td className="py-2 px-2 text-center text-xs font-mono">
+                            {entry.entryType === "work" ? (
+                              <span className={clockOutStr === "Active" ? "text-green-600 font-semibold" : ""}>{clockOutStr}</span>
+                            ) : "—"}
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            {entry.entryType === "work" ? (
+                              <span className={`text-sm font-mono ${hrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
+                                {hrs > 0 ? `${hrs.toFixed(1)}h` : "—"}
+                              </span>
+                            ) : entry.entryType === "pto" ? (
+                              <span className="text-sm font-mono font-semibold text-blue-600">{ptoHrs > 0 ? `${ptoHrs.toFixed(1)}h` : "—"}</span>
+                            ) : (
+                              <span className="text-sm font-mono font-semibold text-indigo-600">{holHrs > 0 ? `${holHrs.toFixed(1)}h` : "—"}</span>
+                            )}
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            <span className={`text-sm font-mono ${otHrs > 0 ? "font-semibold text-amber-600" : "text-muted-foreground"}`}>
+                              {otHrs > 0 ? `${otHrs.toFixed(1)}h` : "—"}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2 text-xs text-muted-foreground truncate max-w-[120px]">
+                            {entry.notes || "—"}
+                            {wasAdminEdited && (
+                              <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-orange-600 border-orange-200">Admin</Badge>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               {/* Mileage section */}
-              <div className="border-t px-4 py-3">
+              <div className="border rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                     <Car className="h-3 w-3" /> Mileage Log
@@ -1471,9 +1534,9 @@ export function TimeManagement() {
                     <Plus className="h-3 w-3 mr-1" /> Log Mileage
                   </Button>
                 </div>
-                {expandedMileage.length > 0 ? (
+                {drawerMileage.length > 0 ? (
                   <div className="space-y-1">
-                    {expandedMileage.map((m) => (
+                    {drawerMileage.map((m) => (
                       <div key={m.id} className="flex items-center gap-3 text-sm py-1 px-2 rounded hover:bg-muted/50 group">
                         <span className="text-xs text-muted-foreground w-28">{formatDayLabel(m.entryDate)}</span>
                         <span className="font-mono text-xs font-semibold">{parseFloat(m.miles).toFixed(1)} mi</span>
@@ -1488,14 +1551,14 @@ export function TimeManagement() {
                     ))}
                     <div className="flex items-center gap-3 text-sm py-1 px-2 font-semibold border-t mt-1 pt-1">
                       <span className="text-xs w-28">Total</span>
-                      <span className="font-mono text-xs">{expandedMileage.reduce((s, m) => s + parseFloat(m.miles), 0).toFixed(1)} mi</span>
+                      <span className="font-mono text-xs">{drawerMileage.reduce((s, m) => s + parseFloat(m.miles), 0).toFixed(1)} mi</span>
                     </div>
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">No mileage logged this week</p>
                 )}
-                {showAddMileage && (
-                  <div className="mt-2 flex items-center gap-2 p-2 bg-blue-50 rounded">
+                {showAddMileage && selectedTimecardId && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 p-2 bg-blue-50 rounded">
                     <select
                       value={newMileageDate}
                       onChange={(e) => setNewMileageDate(e.target.value)}
@@ -1519,16 +1582,16 @@ export function TimeManagement() {
                       placeholder="Purpose"
                       value={newMileagePurpose}
                       onChange={(e) => setNewMileagePurpose(e.target.value)}
-                      className="border rounded px-2 py-1 text-xs flex-1"
+                      className="border rounded px-2 py-1 text-xs flex-1 min-w-[100px]"
                     />
                     <Button
                       size="sm"
                       variant="ghost"
                       className="h-6 px-2 text-xs"
                       onClick={() => {
-                        if (expandedCard && newMileageMiles) {
+                        if (selectedTimecardId && newMileageMiles) {
                           addAdminMileage.mutate({
-                            timecardId: expandedCard,
+                            timecardId: selectedTimecardId,
                             entryDate: newMileageDate,
                             miles: parseFloat(newMileageMiles),
                             purpose: newMileagePurpose.trim(),
@@ -1546,13 +1609,14 @@ export function TimeManagement() {
                 )}
               </div>
 
-              {expandedDetail.auditLog.length > 0 && (
-                <div className="border-t px-4 py-3">
+              {/* Audit Log */}
+              {drawerDetail.auditLog.length > 0 && (
+                <div className="border rounded-lg p-3">
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
                     <History className="h-3 w-3" /> Audit Log
                   </p>
                   <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {expandedDetail.auditLog.map((log) => {
+                    {drawerDetail.auditLog.map((log) => {
                       const who = fullName(log.changedBy);
                       const when = new Date(log.changedAt).toLocaleString();
                       return (
@@ -1572,8 +1636,8 @@ export function TimeManagement() {
               )}
             </div>
           )}
-        </>
-      )}
+        </SheetContent>
+      </Sheet>
 
       {/* ═══ DETAIL VIEW (Original card-per-employee) ═══ */}
       {activeTab === "timecards" && (
