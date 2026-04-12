@@ -21,6 +21,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import {
   ChevronLeft,
   ChevronRight,
   Users,
@@ -39,6 +48,7 @@ import {
   X,
   Circle,
   Car,
+  Pencil,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -526,6 +536,7 @@ export function TimeManagement() {
 function TimeManagementInner() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // ── All useState ──
   const [currentMonday, setCurrentMonday] = useState(() => formatIso(getMonday(new Date())));
@@ -547,6 +558,11 @@ function TimeManagementInner() {
   const [newMileageMiles, setNewMileageMiles] = useState("");
   const [newMileagePurpose, setNewMileagePurpose] = useState("");
   const [drawerMilesInput, setDrawerMilesInput] = useState("");
+  const [editEmployeeOpen, setEditEmployeeOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [editEmployeeForm, setEditEmployeeForm] = useState({
+    firstName: "", lastName: "", email: "", password: "", role: "staff", mileageRate: "0.670",
+  });
   const [savingDrawerMileage, setSavingDrawerMileage] = useState(false);
   const [drawerMileageSaved, setDrawerMileageSaved] = useState(false);
 
@@ -1338,28 +1354,38 @@ function TimeManagementInner() {
                 {nonAdminUsers.map((u) => {
                   const emp = employees.find(e => e.id === u.id);
                   return (
-                    <div key={u.id} className="border rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
-                            {initials(u.firstName, u.lastName)}
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm">
-                              {u.firstName || u.lastName
-                                ? `${u.firstName || ""} ${u.lastName || ""}`.trim()
-                                : u.email}
-                            </div>
-                            <div className="text-xs text-muted-foreground">{u.email}</div>
-                          </div>
+                    <div
+                      key={u.id}
+                      className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => {
+                        setEditingEmployee(emp ?? { id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email, role: u.role, mileageEnabled: false, mileageRate: 0 });
+                        setEditEmployeeForm({
+                          firstName: u.firstName || "",
+                          lastName: u.lastName || "",
+                          email: u.email,
+                          password: "",
+                          role: u.role,
+                          mileageRate: String(emp?.mileageRate || "0.670"),
+                        });
+                        setEditEmployeeOpen(true);
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-sm font-medium">
+                          {(u.firstName?.[0] ?? u.email[0]).toUpperCase()}
                         </div>
-                        <Badge variant="secondary" className="text-xs">{u.role}</Badge>
+                        <div>
+                          <div className="font-medium">{u.firstName || ""} {u.lastName || ""}</div>
+                          <div className="text-sm text-muted-foreground">{u.email}</div>
+                        </div>
                       </div>
-                      {emp?.mileageEnabled && (
-                        <div className="text-xs text-muted-foreground">
-                          Mileage Rate: ${(emp.mileageRate ?? 0).toFixed(3)}/mi
-                        </div>
-                      )}
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-muted-foreground">
+                          ${parseFloat(String(emp?.mileageRate || "0.670")).toFixed(3)}/mi
+                        </span>
+                        <Badge variant="secondary">{u.role}</Badge>
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
                   );
                 })}
@@ -1592,6 +1618,99 @@ function TimeManagementInner() {
           </div>
         )}
       </div>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={editEmployeeOpen} onOpenChange={setEditEmployeeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Employee</DialogTitle>
+            <DialogDescription>Update employee details and mileage rate.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>First Name</Label>
+                <Input
+                  value={editEmployeeForm.firstName}
+                  onChange={e => setEditEmployeeForm(p => ({...p, firstName: e.target.value}))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Last Name</Label>
+                <Input
+                  value={editEmployeeForm.lastName}
+                  onChange={e => setEditEmployeeForm(p => ({...p, lastName: e.target.value}))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Email</Label>
+              <Input
+                value={editEmployeeForm.email}
+                onChange={e => setEditEmployeeForm(p => ({...p, email: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>New Password <span className="text-muted-foreground text-xs">(leave blank to keep current)</span></Label>
+              <Input
+                type="password"
+                value={editEmployeeForm.password}
+                onChange={e => setEditEmployeeForm(p => ({...p, password: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Role</Label>
+              <Select
+                value={editEmployeeForm.role}
+                onValueChange={v => setEditEmployeeForm(p => ({...p, role: v}))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Mileage Rate ($/mi)</Label>
+              <Input
+                type="number"
+                step="0.001"
+                placeholder="0.670"
+                value={editEmployeeForm.mileageRate}
+                onChange={e => setEditEmployeeForm(p => ({...p, mileageRate: e.target.value}))}
+              />
+              <p className="text-xs text-muted-foreground">IRS standard rate: $0.670/mi</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditEmployeeOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!editingEmployee) return;
+              const body: Record<string, string> = {
+                firstName: editEmployeeForm.firstName,
+                lastName: editEmployeeForm.lastName,
+                email: editEmployeeForm.email,
+                role: editEmployeeForm.role,
+                mileageRate: editEmployeeForm.mileageRate,
+              };
+              if (editEmployeeForm.password) body.password = editEmployeeForm.password;
+              await fetch(`/api/users/${editingEmployee.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(body),
+              });
+              queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/users"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/employees"] });
+              toast({ title: "Employee updated successfully" });
+              setEditEmployeeOpen(false);
+            }}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
