@@ -1157,7 +1157,20 @@ function TimeManagementInner() {
           )}
 
           {!selectedCard && selectedEmployeeId && (
-            <p className="text-sm text-muted-foreground py-6 text-center px-6">No timecard for this week yet.</p>
+            <div className="py-6 text-center px-6 space-y-3">
+              <p className="text-sm text-muted-foreground">No timecard for this week yet.</p>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await fetch(`/api/timecards/admin/user/${selectedEmployeeId}/${currentMonday}`, { credentials: "include" });
+                    queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+                  } catch { /* silent */ }
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Create Timecard
+              </Button>
+            </div>
           )}
 
           {drawerDetail && drawerDetail.id === selectedTimecardId && (
