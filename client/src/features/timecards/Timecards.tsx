@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -24,6 +31,54 @@ import {
   Car,
   Save,
 } from "lucide-react";
+
+// ── Time Dropdown ──────────────────────────
+
+const TIME_OPTIONS = Array.from({ length: 1440 }, (_, i) => {
+  const h = Math.floor(i / 60);
+  const m = i % 60;
+  const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const period = h < 12 ? "AM" : "PM";
+  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const label = `${displayH}:${String(m).padStart(2, "0")} ${period}`;
+  return { value, label };
+});
+
+function timeLabel(hhmm: string): string {
+  const opt = TIME_OPTIONS.find((o) => o.value === hhmm);
+  return opt ? opt.label : hhmm;
+}
+
+interface TimeDropdownProps {
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}
+
+function TimeDropdown({ value, onChange, disabled, placeholder }: TimeDropdownProps) {
+  return (
+    <Select
+      value={value || ""}
+      onValueChange={onChange}
+      disabled={disabled}
+    >
+      <SelectTrigger className="w-[130px] h-9 text-sm">
+        <SelectValue placeholder={placeholder ?? "Select..."} />
+      </SelectTrigger>
+      <SelectContent
+        className="max-h-60 overflow-y-auto"
+        position="popper"
+      >
+        {TIME_OPTIONS.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 // ── Helpers ─────────────────────────────────
 
@@ -403,6 +458,14 @@ function TimecardDayRow({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
 
+  // Debounce timer for auto-save on dropdown change
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs for latest values at debounce flush time
+  const latestClockIn = useRef(clockIn);
+  const latestClockOut = useRef(clockOut);
+  latestClockIn.current = clockIn;
+  latestClockOut.current = clockOut;
+
   // Server values for dirty tracking
   const serverRef = useRef({
     clockIn: entry.clockIn || "",
@@ -488,6 +551,50 @@ function TimecardDayRow({
     }
   };
 
+  // Debounced save for dropdown changes — fires with latest values
+  const debouncedSave = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const ci = latestClockIn.current;
+      const co = latestClockOut.current;
+      // Check if actually dirty vs server
+      if (ci === serverRef.current.clockIn && co === serverRef.current.clockOut) return;
+      setSaveState("saving");
+      setError(null);
+      try {
+        const body: Record<string, unknown> = { entryType: "work", clockIn: ci || null, clockOut: co || null };
+        console.log(`[Timecard] Debounced save entry ${entry.id}:`, body);
+        const result = await saveEntry(entry.id, body);
+        if (result.hours) setLocalHours(result.hours);
+        if (result.otHours) setLocalOtHours(result.otHours);
+        serverRef.current = {
+          ...serverRef.current,
+          clockIn: result.clockIn || "",
+          clockOut: result.clockOut || "",
+        };
+        setSaveState("saved");
+        setTimeout(() => setSaveState("idle"), 2000);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to save";
+        console.error(`[Timecard] Debounced save error entry ${entry.id}:`, err);
+        setError(msg);
+        setSaveState("idle");
+        setTimeout(() => setError(null), 5000);
+      }
+    }, 300);
+  }, [entry.id, saveEntry]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
+
+  const handleClockChange = (field: "clockIn" | "clockOut", val: string) => {
+    if (field === "clockIn") setClockIn(val);
+    else setClockOut(val);
+    debouncedSave();
+  };
+
   const hrs = parseFloat(localHours || "0");
   const otHrs = parseFloat(localOtHours || "0");
   const ptoHrs = parseFloat(ptoHours || "0");
@@ -538,21 +645,17 @@ function TimecardDayRow({
       {entryType === "work" ? (
         <>
           <td className="px-2 py-2.5 text-center">
-            <input
-              type="time"
+            <TimeDropdown
               value={clockIn}
-              onChange={(e) => setClockIn(e.target.value)}
-              onBlur={handleSave}
-              className="border rounded px-2 py-1.5 text-sm text-center w-28 bg-background"
+              onChange={(val) => handleClockChange("clockIn", val)}
+              placeholder="9:00 AM"
             />
           </td>
           <td className="px-2 py-2.5 text-center">
-            <input
-              type="time"
+            <TimeDropdown
               value={clockOut}
-              onChange={(e) => setClockOut(e.target.value)}
-              onBlur={handleSave}
-              className="border rounded px-2 py-1.5 text-sm text-center w-28 bg-background"
+              onChange={(val) => handleClockChange("clockOut", val)}
+              placeholder="5:00 PM"
             />
           </td>
           <td className="px-2 py-2.5 text-center">
@@ -653,6 +756,12 @@ function TimecardDayCard({
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestClockIn = useRef(clockIn);
+  const latestClockOut = useRef(clockOut);
+  latestClockIn.current = clockIn;
+  latestClockOut.current = clockOut;
+
   const serverRef = useRef({
     clockIn: entry.clockIn || "",
     clockOut: entry.clockOut || "",
@@ -727,6 +836,47 @@ function TimecardDayCard({
     }
   };
 
+  // Debounced save for dropdown changes — fires with latest values
+  const debouncedSave = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const ci = latestClockIn.current;
+      const co = latestClockOut.current;
+      if (ci === serverRef.current.clockIn && co === serverRef.current.clockOut) return;
+      setSaveState("saving");
+      setError(null);
+      try {
+        const body: Record<string, unknown> = { entryType: "work", clockIn: ci || null, clockOut: co || null };
+        const result = await saveEntry(entry.id, body);
+        if (result.hours) setLocalHours(result.hours);
+        if (result.otHours) setLocalOtHours(result.otHours);
+        serverRef.current = {
+          ...serverRef.current,
+          clockIn: result.clockIn || "",
+          clockOut: result.clockOut || "",
+        };
+        setSaveState("saved");
+        setTimeout(() => setSaveState("idle"), 2000);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to save";
+        setError(msg);
+        setSaveState("idle");
+        setTimeout(() => setError(null), 5000);
+      }
+    }, 300);
+  }, [entry.id, saveEntry]);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, []);
+
+  const handleClockChange = (field: "clockIn" | "clockOut", val: string) => {
+    if (field === "clockIn") setClockIn(val);
+    else setClockOut(val);
+    debouncedSave();
+  };
+
   const hrs = parseFloat(localHours || "0");
   const otHrs = parseFloat(localOtHours || "0");
   const ptoHrs = parseFloat(ptoHours || "0");
@@ -781,23 +931,11 @@ function TimecardDayCard({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Clock In</label>
-            <input
-              type="time"
-              value={clockIn}
-              onChange={(e) => setClockIn(e.target.value)}
-              onBlur={handleSave}
-              className="border rounded px-2 py-2 text-sm w-full bg-background"
-            />
+            <TimeDropdown value={clockIn} onChange={(val) => handleClockChange("clockIn", val)} placeholder="9:00 AM" />
           </div>
           <div>
             <label className="text-xs text-muted-foreground block mb-1">Clock Out</label>
-            <input
-              type="time"
-              value={clockOut}
-              onChange={(e) => setClockOut(e.target.value)}
-              onBlur={handleSave}
-              className="border rounded px-2 py-2 text-sm w-full bg-background"
-            />
+            <TimeDropdown value={clockOut} onChange={(val) => handleClockChange("clockOut", val)} placeholder="5:00 PM" />
           </div>
         </div>
       ) : (
