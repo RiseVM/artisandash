@@ -8,13 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -33,21 +26,22 @@ import {
   Save,
 } from "lucide-react";
 
-// ── Time Dropdown ──────────────────────────
+// ── Time Picker (compact hour / minute / AM-PM) ──────────────────────────
 
-const TIME_OPTIONS = Array.from({ length: 1440 }, (_, i) => {
-  const h = Math.floor(i / 60);
-  const m = i % 60;
-  const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-  const period = h < 12 ? "AM" : "PM";
-  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  const label = `${displayH}:${String(m).padStart(2, "0")} ${period}`;
-  return { value, label };
-});
+function parseTimeToComponents(time: string): { hour: string; minute: string; period: string } {
+  if (!time) return { hour: "", minute: "", period: "" };
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return { hour: String(hour12), minute: String(m).padStart(2, "0"), period };
+}
 
-function timeLabel(hhmm: string): string {
-  const opt = TIME_OPTIONS.find((o) => o.value === hhmm);
-  return opt ? opt.label : hhmm;
+function componentsToTime(hour: string, minute: string, period: string): string {
+  if (!hour || !minute) return "";
+  let h = parseInt(hour);
+  if (period === "PM" && h < 12) h += 12;
+  if (period === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${minute}`;
 }
 
 interface TimeDropdownProps {
@@ -57,29 +51,48 @@ interface TimeDropdownProps {
   placeholder?: string;
 }
 
-function TimeDropdown({ value, onChange, disabled, placeholder }: TimeDropdownProps) {
+function TimeDropdown({ value, onChange, disabled }: TimeDropdownProps) {
+  const { hour, minute, period } = parseTimeToComponents(value);
+
+  const update = (h: string, m: string, p: string) => {
+    if (h && m) onChange(componentsToTime(h, m, p || "AM"));
+  };
+
   return (
-    <Select
-      value={value === "" ? undefined : value}
-      onValueChange={(val) => {
-        if (val) onChange(val);
-      }}
-      disabled={disabled}
-    >
-      <SelectTrigger className="w-[130px] h-9 text-sm">
-        <SelectValue placeholder={placeholder ?? "Select..."} />
-      </SelectTrigger>
-      <SelectContent
-        className="max-h-60 overflow-y-auto"
-        position="popper"
+    <div className="flex gap-1">
+      <select
+        value={hour}
+        onChange={(e) => update(e.target.value, minute || "00", period || "AM")}
+        disabled={disabled}
+        className="border rounded px-1.5 h-9 text-sm w-[52px] bg-white"
       >
-        {TIME_OPTIONS.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
-            {opt.label}
-          </SelectItem>
+        <option value="">—</option>
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+          <option key={h} value={String(h)}>{h}</option>
         ))}
-      </SelectContent>
-    </Select>
+      </select>
+      <select
+        value={minute}
+        onChange={(e) => update(hour || "9", e.target.value, period || "AM")}
+        disabled={disabled}
+        className="border rounded px-1.5 h-9 text-sm w-[52px] bg-white"
+      >
+        <option value="">—</option>
+        {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((m) => (
+          <option key={m} value={m}>{m}</option>
+        ))}
+      </select>
+      <select
+        value={period}
+        onChange={(e) => update(hour || "9", minute || "00", e.target.value)}
+        disabled={disabled}
+        className="border rounded px-1.5 h-9 text-sm w-[52px] bg-white"
+      >
+        <option value="">—</option>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
   );
 }
 
