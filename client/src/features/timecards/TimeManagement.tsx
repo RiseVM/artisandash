@@ -269,7 +269,7 @@ function DrawerTimePicker({ value, onChange }: { value: string; onChange: (v: st
       <select
         value={hour}
         onChange={(e) => update(e.target.value, minute || "00", period)}
-        className="border rounded px-1 py-1 text-xs w-11 bg-white"
+        className="border rounded px-1 h-7 text-xs w-[44px] bg-white"
       >
         <option value="">—</option>
         {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
@@ -279,7 +279,7 @@ function DrawerTimePicker({ value, onChange }: { value: string; onChange: (v: st
       <select
         value={minute}
         onChange={(e) => update(hour || "9", e.target.value, period)}
-        className="border rounded px-1 py-1 text-xs w-12 bg-white"
+        className="border rounded px-1 h-7 text-xs w-[48px] bg-white"
       >
         <option value="">—</option>
         {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((m) => (
@@ -289,7 +289,7 @@ function DrawerTimePicker({ value, onChange }: { value: string; onChange: (v: st
       <select
         value={period}
         onChange={(e) => update(hour || "9", minute || "00", e.target.value)}
-        className="border rounded px-1 py-1 text-xs w-12 bg-white"
+        className="border rounded px-1 h-7 text-xs w-[44px] bg-white"
       >
         <option value="AM">AM</option>
         <option value="PM">PM</option>
@@ -343,31 +343,27 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
     <tr className={`border-b last:border-b-0 ${
       entry.entryType === "pto" ? "bg-blue-50/50" : entry.entryType === "holiday" ? "bg-indigo-50/50" : ""
     }`}>
-      <td className="py-2 px-3 text-sm font-medium whitespace-nowrap">{formatDayLabel(entry.entryDate)}</td>
-      <td className="py-2 px-2 text-center">
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-          entry.entryType === "pto" ? "bg-blue-100 text-blue-700"
-            : entry.entryType === "holiday" ? "bg-indigo-100 text-indigo-700"
-            : "bg-gray-100 text-gray-600"
-        }`}>
+      <td className="py-1 px-2 text-sm font-medium whitespace-nowrap">{formatDayLabel(entry.entryDate)}</td>
+      <td className="py-1 px-1 text-center w-[50px]">
+        <span className={`text-xs text-muted-foreground`}>
           {entry.entryType === "pto" ? "PTO" : entry.entryType === "holiday" ? "Hol" : "Work"}
         </span>
       </td>
-      <td className="py-2 px-1">
+      <td className="py-1 px-1">
         {isWork ? (
           <DrawerTimePicker value={clockIn} onChange={(v) => { setClockIn(v); }} />
         ) : (
           <span className="text-xs text-muted-foreground px-2">—</span>
         )}
       </td>
-      <td className="py-2 px-1">
+      <td className="py-1 px-1">
         {isWork ? (
           <DrawerTimePicker value={clockOut} onChange={(v) => { setClockOut(v); setTimeout(save, 100); }} />
         ) : (
           <span className="text-xs text-muted-foreground px-2">—</span>
         )}
       </td>
-      <td className="py-2 px-2 text-center">
+      <td className="py-1 px-1 text-center w-[60px]">
         {isWork ? (
           <span className={`text-sm font-mono ${displayReg > 0 ? "font-semibold" : "text-muted-foreground"}`}>
             {displayReg > 0 ? `${displayReg.toFixed(1)}` : "—"}
@@ -378,21 +374,21 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
           <span className="text-sm font-mono font-semibold text-indigo-600">{displayHol > 0 ? displayHol.toFixed(1) : "—"}</span>
         )}
       </td>
-      <td className="py-2 px-2 text-center">
+      <td className="py-1 px-1 text-center w-[60px]">
         <span className={`text-sm font-mono ${displayOt > 0 ? "font-semibold text-amber-600" : "text-muted-foreground"}`}>
           {displayOt > 0 ? `${displayOt.toFixed(1)}` : "—"}
         </span>
       </td>
-      <td className="py-2 px-1">
+      <td className="py-1 px-1">
         <input
-          className="border rounded px-2 py-1 text-xs w-full min-w-[80px] bg-white"
+          className="border rounded px-1.5 py-0.5 text-xs h-7 w-full min-w-[70px] bg-white"
           placeholder="Notes..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           onBlur={save}
         />
       </td>
-      <td className="py-2 px-2 w-16 text-center">
+      <td className="py-1 px-1 w-12 text-center">
         {saving ? (
           <Loader2 className="h-3 w-3 animate-spin inline text-muted-foreground" />
         ) : saved ? (
@@ -1006,8 +1002,8 @@ function TimeManagementInner() {
 
       {/* Sheet Drawer */}
       <Sheet open={!!selectedEmployeeId} onOpenChange={(open) => !open && setSelectedEmployeeId(null)}>
-        <SheetContent className="w-full sm:w-[700px] flex flex-col max-h-screen">
-          <SheetHeader>
+        <SheetContent className="w-full sm:max-w-[900px] overflow-y-auto p-0">
+          <SheetHeader className="px-6 pt-6">
             <SheetTitle className="flex items-center gap-2">
               {selectedEmployee && (
                 <>
@@ -1023,7 +1019,7 @@ function TimeManagementInner() {
 
           {/* Status + Approve + Summary */}
           {selectedCard && (
-            <div className="flex items-center gap-2 mt-2 mb-4">
+            <div className="flex items-center gap-2 mt-2 mb-4 px-6">
               {statusBadge(selectedCard.status)}
               {(selectedCard.status === "draft" || selectedCard.status === "submitted") && (
                 <Button
@@ -1053,24 +1049,24 @@ function TimeManagementInner() {
           )}
 
           {!selectedCard && selectedEmployeeId && (
-            <p className="text-sm text-muted-foreground py-6 text-center">No timecard for this week yet.</p>
+            <p className="text-sm text-muted-foreground py-6 text-center px-6">No timecard for this week yet.</p>
           )}
 
           {drawerDetail && drawerDetail.id === selectedTimecardId && (
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+            <div className="flex-1 overflow-y-auto space-y-4 px-6 pb-6">
               {/* Editable Entries Table */}
               <div className="border rounded-lg overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
+                <table className="w-full min-w-[860px] text-sm border-collapse">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="text-left py-2 px-3 font-medium text-xs">Day</th>
-                      <th className="text-center py-2 px-2 font-medium text-xs">Type</th>
-                      <th className="text-left py-2 px-1 font-medium text-xs">Clock In</th>
-                      <th className="text-left py-2 px-1 font-medium text-xs">Clock Out</th>
-                      <th className="text-center py-2 px-2 font-medium text-xs">Reg</th>
-                      <th className="text-center py-2 px-2 font-medium text-xs text-amber-600">OT</th>
-                      <th className="text-left py-2 px-1 font-medium text-xs">Notes</th>
-                      <th className="py-2 px-2 w-12"></th>
+                      <th className="text-left py-1.5 px-2 font-medium text-xs">Day</th>
+                      <th className="text-center py-1.5 px-1 font-medium text-xs w-[50px]">Type</th>
+                      <th className="text-left py-1.5 px-1 font-medium text-xs">Clock In</th>
+                      <th className="text-left py-1.5 px-1 font-medium text-xs">Clock Out</th>
+                      <th className="text-center py-1.5 px-1 font-medium text-xs w-[60px]">Reg</th>
+                      <th className="text-center py-1.5 px-1 font-medium text-xs w-[60px] text-amber-600">OT</th>
+                      <th className="text-left py-1.5 px-1 font-medium text-xs">Notes</th>
+                      <th className="py-1.5 px-1 w-12"></th>
                     </tr>
                   </thead>
                   <tbody>
