@@ -997,20 +997,31 @@ function TimecardDayCard({
   );
 }
 
-// ── Component ───────────────────────────────
+// ── Wrapper (handles admin redirect before inner hooks) ──
 
 export function Timecards() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [, navigate] = useLocation();
-  const queryClient = useQueryClient();
-  const [currentMonday, setCurrentMonday] = useState(() => formatIso(getMonday(new Date())));
 
-  // Redirect admin users to the admin time management page
   useEffect(() => {
-    if (user && user.role === "admin") {
+    if (!authLoading && user && user.role === "admin") {
       navigate("/time-management");
     }
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
+
+  if (authLoading) return null;
+  if (!user) return null;
+  if (user.role === "admin") return null;
+
+  return <TimecardsInner />;
+}
+
+// ── Component ───────────────────────────────
+
+function TimecardsInner() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [currentMonday, setCurrentMonday] = useState(() => formatIso(getMonday(new Date())));
   const [historyOpen, setHistoryOpen] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
   const [showAddMileage, setShowAddMileage] = useState(false);
@@ -1093,9 +1104,6 @@ export function Timecards() {
     setCurrentMonday(weekStart);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
-
-  // Admin users get redirected — render nothing while redirect happens
-  if (user && user.role === "admin") return null;
 
   // Gate: require identity verification
   if (!verifiedUser) {
