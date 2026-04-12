@@ -760,4 +760,14 @@ export function registerTimecardRoutes(app: Express) {
       }
     }),
   );
+
+  // POST one-time migration: recalc all entries to weekly OT model
+  app.post(
+    "/api/timecards/admin/recalc-weekly-ot",
+    isAdmin,
+    asyncHandler(async (_req: any, res) => {
+      const result = await timecardStorage.recalcAllWeeklyOt();
+      res.json(result);
+    }),
+  );
 }

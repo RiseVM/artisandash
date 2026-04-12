@@ -28,9 +28,8 @@ function calcHours(clockIn: string, clockOut: string): { regular: number; ot: nu
   const [outH, outM] = clockOut.split(":").map(Number);
   const totalMins = Math.max(0, (outH * 60 + outM) - (inH * 60 + inM));
   const totalHrs = parseFloat((totalMins / 60).toFixed(2));
-  const regular = Math.min(totalHrs, 8);
-  const ot = parseFloat(Math.max(0, totalHrs - 8).toFixed(2));
-  return { regular, ot };
+  // OT is weekly (over 40h), not daily — store full hours per entry
+  return { regular: totalHrs, ot: 0 };
 }
 
 /** Return Monday-based ISO date strings for a 7-day week */
@@ -394,10 +393,13 @@ export const timecardStorage = {
       .from(timecardEntries)
       .where(eq(timecardEntries.timecardId, timecardId));
 
-    const totalHours = allEntries.reduce((sum, e) => sum + parseFloat(e.hours || "0"), 0);
-    const totalOtHours = allEntries.reduce((sum, e) => sum + parseFloat(e.otHours || "0"), 0);
+    const rawHours = allEntries.reduce((sum, e) => sum + parseFloat(e.hours || "0"), 0);
     const totalPtoHours = allEntries.reduce((sum, e) => sum + parseFloat(e.ptoHours || "0"), 0);
     const totalHolidayHours = allEntries.reduce((sum, e) => sum + parseFloat(e.holidayHours || "0"), 0);
+
+    // OT is weekly: hours over 40 (work hours only, PTO/holiday don't count toward OT threshold)
+    const totalHours = Math.min(rawHours, 40);
+    const totalOtHours = Math.max(0, rawHours - 40);
 
     // Sum mileage from the timecardMileage table (not timecardEntries)
     const mileageRows = await db
@@ -417,6 +419,35 @@ export const timecardStorage = {
         updatedAt: new Date(),
       })
       .where(eq(timecards.id, timecardId));
+  },
+
+  /** One-time migration: recalc all entries to remove daily 8h OT cap, then recalc all timecards */
+  async recalcAllWeeklyOt(): Promise<{ entriesFixed: number; timecardsFixed: number }> {
+    // Fix all work entries: set hours to full clock diff, otHours to 0
+    const allEntries = await db.select().from(timecardEntries);
+    let entriesFixed = 0;
+    for (const entry of allEntries) {
+      if (entry.clockIn && entry.clockOut) {
+        const { regular } = calcHours(entry.clockIn, entry.clockOut);
+        if (entry.hours !== String(regular) || entry.otHours !== "0") {
+          await db.update(timecardEntries)
+            .set({ hours: String(regular), otHours: "0", updatedAt: new Date() })
+            .where(eq(timecardEntries.id, entry.id));
+          entriesFixed++;
+        }
+      } else if (parseFloat(entry.otHours || "0") !== 0) {
+        await db.update(timecardEntries)
+          .set({ otHours: "0", updatedAt: new Date() })
+          .where(eq(timecardEntries.id, entry.id));
+        entriesFixed++;
+      }
+    }
+    // Recalc all timecard totals
+    const allCards = await db.select().from(timecards);
+    for (const card of allCards) {
+      await this.recalcTimecardTotals(card.id);
+    }
+    return { entriesFixed, timecardsFixed: allCards.length };
   },
 
   // ── SUBMIT ────────────────────────────────

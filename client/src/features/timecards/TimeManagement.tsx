@@ -246,7 +246,8 @@ function clientCalcHours(clockIn: string, clockOut: string) {
   const [outH, outM] = clockOut.split(":").map(Number);
   const totalMins = Math.max(0, (outH * 60 + outM) - (inH * 60 + inM));
   const totalHrs = parseFloat((totalMins / 60).toFixed(2));
-  return { regular: Math.min(totalHrs, 8), ot: parseFloat(Math.max(0, totalHrs - 8).toFixed(2)) };
+  // OT is weekly (over 40h), not daily — show full hours per entry
+  return { regular: totalHrs, ot: 0 };
 }
 
 function parseTimeToComponents(time: string): { hour: string; minute: string; period: string } {
