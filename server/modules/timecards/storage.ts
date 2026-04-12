@@ -503,6 +503,32 @@ export const timecardStorage = {
     return updated;
   },
 
+  /** Revert a timecard to draft status */
+  async unapproveTimecard(
+    timecardId: number,
+    adminId: string,
+  ): Promise<Timecard> {
+    const [updated] = await db
+      .update(timecards)
+      .set({
+        status: "draft",
+        approvedAt: null,
+        approvedById: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(timecards.id, timecardId))
+      .returning();
+
+    await db.insert(timecardAuditLog).values({
+      timecardId,
+      changedById: adminId,
+      action: "unapproved",
+      description: "Timecard reverted to draft",
+    });
+
+    return updated;
+  },
+
   // ── AUDIT LOG ─────────────────────────────
 
   async getTimecardAuditLog(

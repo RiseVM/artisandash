@@ -326,7 +326,9 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
   const displayPto = parseFloat(entry.ptoHours || "0");
   const displayHol = parseFloat(entry.holidayHours || "0");
 
-  const save = async () => {
+  const hasHours = clockIn || clockOut || displayReg > 0 || displayPto > 0 || displayHol > 0;
+
+  const save = async (overrideClockIn?: string | null, overrideClockOut?: string | null) => {
     setSaving(true);
     try {
       await fetch(`/api/timecards/admin/entries/${entry.id}`, {
@@ -334,8 +336,8 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          clockIn: clockIn || null,
-          clockOut: clockOut || null,
+          clockIn: overrideClockIn !== undefined ? overrideClockIn : (clockIn || null),
+          clockOut: overrideClockOut !== undefined ? overrideClockOut : (clockOut || null),
           notes: notes || null,
         }),
       });
@@ -347,6 +349,13 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
     } finally {
       setSaving(false);
     }
+  };
+
+  const clearEntry = async () => {
+    setClockIn("");
+    setClockOut("");
+    setNotes("");
+    await save(null, null);
   };
 
   const isWork = entry.entryType === "work" || !entry.entryType;
@@ -370,7 +379,7 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
       </td>
       <td className="py-1 px-1">
         {isWork ? (
-          <DrawerTimePicker value={clockOut} onChange={(v) => { setClockOut(v); setTimeout(save, 100); }} />
+          <DrawerTimePicker value={clockOut} onChange={(v) => { setClockOut(v); setTimeout(() => save(), 100); }} />
         ) : (
           <span className="text-xs text-muted-foreground px-2">—</span>
         )}
@@ -397,14 +406,22 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
           placeholder="Notes..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          onBlur={save}
+          onBlur={() => save()}
         />
       </td>
-      <td className="py-1 px-1 w-12 text-center">
+      <td className="py-1 px-1 w-16 text-center">
         {saving ? (
           <Loader2 className="h-3 w-3 animate-spin inline text-muted-foreground" />
         ) : saved ? (
           <span className="text-[10px] text-green-600 font-medium">Saved</span>
+        ) : hasHours ? (
+          <button
+            onClick={clearEntry}
+            className="text-[10px] text-red-400 hover:text-red-600 font-medium"
+            title="Clear hours"
+          >
+            Clear
+          </button>
         ) : null}
       </td>
     </tr>
@@ -683,6 +700,21 @@ function TimeManagementInner() {
         queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + selectedTimecardId] });
       }
       setFeedback({ type: "success", message: "Timecard approved" });
+      setTimeout(() => setFeedback(null), 3000);
+    },
+  });
+
+  const unapproveTimecard = useMutation({
+    mutationFn: async (timecardId: number) => {
+      const res = await apiRequest("POST", `/api/timecards/admin/${timecardId}/unapprove`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      if (selectedTimecardId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + selectedTimecardId] });
+      }
+      setFeedback({ type: "success", message: "Timecard reverted to draft" });
       setTimeout(() => setFeedback(null), 3000);
     },
   });
@@ -1107,22 +1139,26 @@ function TimeManagementInner() {
             </SheetTitle>
           </SheetHeader>
 
-          {/* Status + Approve + Summary */}
+          {/* Status + Summary */}
           {selectedCard && (
             <div className="flex items-center gap-2 mt-2 mb-4 px-6">
-              {statusBadge(selectedCard.status)}
-              {(selectedCard.status === "draft" || selectedCard.status === "submitted") && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-green-600 border-green-200 hover:bg-green-50"
-                  onClick={() => approveTimecard.mutate(selectedCard.id)}
-                  disabled={approveTimecard.isPending}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                  {approveTimecard.isPending ? "Approving..." : "Approve"}
-                </Button>
-              )}
+              <select
+                value={selectedCard.status}
+                onChange={(e) => {
+                  const newStatus = e.target.value;
+                  if (newStatus === "approved") approveTimecard.mutate(selectedCard.id);
+                  else if (newStatus === "draft") unapproveTimecard.mutate(selectedCard.id);
+                }}
+                disabled={approveTimecard.isPending || unapproveTimecard.isPending}
+                className={`text-xs font-medium capitalize rounded-full px-2.5 py-1 border-0 cursor-pointer ${
+                  selectedCard.status === "approved" ? "bg-green-100 text-green-700" :
+                  selectedCard.status === "submitted" ? "bg-blue-100 text-blue-700" :
+                  "bg-gray-100 text-gray-700"
+                }`}
+              >
+                <option value="draft">Draft</option>
+                <option value="approved">Approved</option>
+              </select>
               <div className="ml-auto flex items-center gap-2 text-sm">
                 <span className="font-semibold">{parseFloat(selectedCard.totalHours || "0").toFixed(1)}h</span>
                 {parseFloat(selectedCard.totalOtHours || "0") > 0 && (

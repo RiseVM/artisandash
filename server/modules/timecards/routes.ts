@@ -454,6 +454,22 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // POST unapprove / revert timecard to draft (admin)
+  app.post(
+    "/api/timecards/admin/:id/unapprove",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const adminId = req.user?.id;
+      if (!adminId) return res.status(401).json({ error: "Unauthorized" });
+
+      const timecardId = parseInt(req.params.id, 10);
+      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
+
+      const updated = await timecardStorage.unapproveTimecard(timecardId, adminId);
+      res.json(updated);
+    }),
+  );
+
   // ── ADMIN MILEAGE ──────────────────────────
 
   // GET mileage for any timecard
