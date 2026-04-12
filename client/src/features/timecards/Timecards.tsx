@@ -611,8 +611,10 @@ function TimecardDayRow({
     debouncedSave();
   };
 
-  const hrs = parseFloat(localHours || "0");
-  const otHrs = parseFloat(localOtHours || "0");
+  // If work entry has no clock times, force hours to 0 (ignore stale DB data)
+  const noClockTimes = entryType === "work" && !clockIn && !clockOut;
+  const hrs = noClockTimes ? 0 : parseFloat(localHours || "0");
+  const otHrs = noClockTimes ? 0 : parseFloat(localOtHours || "0");
   const ptoHrs = parseFloat(ptoHours || "0");
   const holHrs = parseFloat(holidayHours || "0");
 
@@ -897,8 +899,10 @@ function TimecardDayCard({
     debouncedSave();
   };
 
-  const hrs = parseFloat(localHours || "0");
-  const otHrs = parseFloat(localOtHours || "0");
+  // If work entry has no clock times, force hours to 0 (ignore stale DB data)
+  const noClockTimes = entryType === "work" && !clockIn && !clockOut;
+  const hrs = noClockTimes ? 0 : parseFloat(localHours || "0");
+  const otHrs = noClockTimes ? 0 : parseFloat(localOtHours || "0");
   const ptoHrs = parseFloat(ptoHours || "0");
   const holHrs = parseFloat(holidayHours || "0");
 
