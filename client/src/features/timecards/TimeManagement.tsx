@@ -1383,7 +1383,7 @@ function TimeManagementInner() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-muted-foreground">
-                          ${parseFloat(String(emp?.mileageRate || "0.670")).toFixed(3)}/mi
+                          ${parseFloat(String(u.mileageRate ?? emp?.mileageRate ?? "0.670")).toFixed(3)}/mi
                         </span>
                         <Badge variant="secondary">{u.role}</Badge>
                         <Pencil className="h-4 w-4 text-muted-foreground" />
@@ -1706,7 +1706,7 @@ function TimeManagementInner() {
               if (res.ok) {
                 setEditEmployeeOpen(false);
                 toast({ title: "Employee updated successfully" });
-                await refetchAllUsers();
+                await Promise.all([refetchAllUsers(), refetchEmployees()]);
               } else {
                 toast({ title: "Failed to update employee", variant: "destructive" });
               }
