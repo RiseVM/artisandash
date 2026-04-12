@@ -945,6 +945,8 @@ function TimeManagementInner() {
                   </th>
                 ))}
                 <th className="px-4 py-2 text-center text-xs font-semibold text-muted-foreground">Total</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Miles</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Mileage $</th>
                 <th className="px-4 py-2 text-center text-xs font-semibold text-muted-foreground">Actions</th>
               </tr>
             </thead>
@@ -986,6 +988,23 @@ function TimeManagementInner() {
                     {card ? parseFloat(card.totalHours || "0").toFixed(1) : "—"}
                   </td>
 
+                  {/* Miles */}
+                  <td className="px-3 py-3 text-right text-sm border-l border-muted/30">
+                    {card && parseFloat(card.totalMileage || "0") > 0
+                      ? `${parseFloat(card.totalMileage || "0").toFixed(1)}`
+                      : <span className="text-muted-foreground">—</span>}
+                  </td>
+
+                  {/* Mileage $ */}
+                  <td className="px-3 py-3 text-right text-sm font-medium border-l border-muted/30">
+                    {(() => {
+                      const miles = card ? parseFloat(card.totalMileage || "0") : 0;
+                      const rate = employee.mileageRate || 0;
+                      const payout = miles * rate;
+                      return payout > 0 ? `$${payout.toFixed(2)}` : <span className="text-muted-foreground">—</span>;
+                    })()}
+                  </td>
+
                   {/* Approve Button */}
                   <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     {card && card.status === "submitted" && (
@@ -1022,6 +1041,21 @@ function TimeManagementInner() {
                   {weekTotalOtHours > 0 && (
                     <span className="text-amber-600 ml-1 text-xs">+{weekTotalOtHours.toFixed(1)} OT</span>
                   )}
+                </td>
+                <td className="px-3 py-2 text-right text-sm border-l border-muted/30">
+                  {(() => {
+                    const totalMi = gridRows.reduce((s, { card }) => s + parseFloat(card?.totalMileage || "0"), 0);
+                    return totalMi > 0 ? `${totalMi.toFixed(1)}` : "—";
+                  })()}
+                </td>
+                <td className="px-3 py-2 text-right text-sm font-medium border-l border-muted/30">
+                  {(() => {
+                    const totalPayout = gridRows.reduce((s, { employee, card }) => {
+                      const miles = parseFloat(card?.totalMileage || "0");
+                      return s + miles * (employee.mileageRate || 0);
+                    }, 0);
+                    return totalPayout > 0 ? `$${totalPayout.toFixed(2)}` : "—";
+                  })()}
                 </td>
                 <td className="px-4 py-2"></td>
               </tr>
