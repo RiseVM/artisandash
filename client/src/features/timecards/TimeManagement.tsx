@@ -240,7 +240,7 @@ function clientCalcHours(clockIn: string, clockOut: string) {
 }
 
 function parseTimeToComponents(time: string): { hour: string; minute: string; period: string } {
-  if (!time) return { hour: "", minute: "", period: "AM" };
+  if (!time) return { hour: "", minute: "", period: "" };
   const [h, m] = time.split(":").map(Number);
   const period = h >= 12 ? "PM" : "AM";
   const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
@@ -261,7 +261,7 @@ function DrawerTimePicker({ value, onChange }: { value: string; onChange: (v: st
   const { hour, minute, period } = parseTimeToComponents(value);
 
   const update = (h: string, m: string, p: string) => {
-    if (h && m) onChange(componentsToTime(h, m, p));
+    if (h && m) onChange(componentsToTime(h, m, p || "AM"));
   };
 
   return (
@@ -291,6 +291,7 @@ function DrawerTimePicker({ value, onChange }: { value: string; onChange: (v: st
         onChange={(e) => update(hour || "9", minute || "00", e.target.value)}
         className="border rounded px-1 h-7 text-xs w-[44px] bg-white"
       >
+        <option value="">—</option>
         <option value="AM">AM</option>
         <option value="PM">PM</option>
       </select>
@@ -541,7 +542,6 @@ function TimeManagementInner() {
   const [showAddRecipient, setShowAddRecipient] = useState(false);
   const [newRecipientForm, setNewRecipientForm] = useState({ name: "", email: "", title: "" });
   const [editingRecipient, setEditingRecipient] = useState<TimecardRecipient | null>(null);
-  const [statusFilterPill, setStatusFilterPill] = useState<"all" | "draft" | "submitted" | "approved">("all");
   const [showAddMileage, setShowAddMileage] = useState(false);
   const [newMileageDate, setNewMileageDate] = useState("");
   const [newMileageMiles, setNewMileageMiles] = useState("");
@@ -558,11 +558,10 @@ function TimeManagementInner() {
   });
 
   const { data: allCards = [], isLoading } = useQuery<TimecardWithUser[]>({
-    queryKey: ["/api/timecards/admin/all", { weekStartDate: currentMonday, status: statusFilterPill !== "all" ? statusFilterPill : undefined }],
+    queryKey: ["/api/timecards/admin/all", { weekStartDate: currentMonday }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.set("weekStartDate", currentMonday);
-      if (statusFilterPill !== "all") params.set("status", statusFilterPill);
       const res = await fetch(`/api/timecards/admin/all?${params.toString()}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load");
       return res.json();
@@ -920,30 +919,6 @@ function TimeManagementInner() {
           )}
         </div>
 
-        {/* Status Filter Pills */}
-        <div className="flex flex-wrap gap-3">
-          <div className="flex gap-2">
-            {(["all", "draft", "submitted", "approved"] as const).map((pill) => (
-              <button
-                key={pill}
-                onClick={() => setStatusFilterPill(pill)}
-                className={`px-3 py-1.5 text-xs rounded-full font-medium transition-colors ${
-                  statusFilterPill === pill
-                    ? "bg-primary text-white"
-                    : "bg-muted text-foreground hover:bg-muted/80"
-                }`}
-              >
-                {pill === "all" ? "All" : pill.charAt(0).toUpperCase() + pill.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Total Hours Text */}
-        <div className="text-sm text-muted-foreground border-t pt-3">
-          <strong>Week Total:</strong> {weekTotalHours.toFixed(1)}h
-          {weekTotalOtHours > 0 && ` + ${weekTotalOtHours.toFixed(1)}h OT`}
-        </div>
       </div>
 
       {/* Employee Grid – Always Visible */}
@@ -1027,6 +1002,29 @@ function TimeManagementInner() {
                   </td>
                 </tr>
               ))}
+              {/* Totals Footer Row */}
+              <tr className="bg-muted/50 border-t-2 font-semibold">
+                <td className="px-4 py-2 text-sm">Total</td>
+                <td className="px-4 py-2"></td>
+                {weekDays.map((day) => {
+                  const dayTotal = gridRows.reduce((sum, { card }) => {
+                    const entry = card?.entries?.find(e => e.entryDate === day);
+                    return sum + parseFloat(entry?.hours || "0");
+                  }, 0);
+                  return (
+                    <td key={day} className="px-2 py-2 text-center text-xs font-mono border-l border-muted/30">
+                      {dayTotal > 0 ? dayTotal.toFixed(1) : "—"}
+                    </td>
+                  );
+                })}
+                <td className="px-4 py-2 text-center text-sm border-l border-muted/30">
+                  {weekTotalHours.toFixed(1)}h
+                  {weekTotalOtHours > 0 && (
+                    <span className="text-amber-600 ml-1 text-xs">+{weekTotalOtHours.toFixed(1)} OT</span>
+                  )}
+                </td>
+                <td className="px-4 py-2"></td>
+              </tr>
             </tbody>
           </table>
         )}
@@ -1139,7 +1137,7 @@ function TimeManagementInner() {
               )}
 
               {/* Mileage Section */}
-              {(() => { const emp = employees.find(e => e.id === selectedEmployeeId); return emp?.mileageEnabled; })() && (
+              {selectedTimecardId && (
                 <div className="border rounded-lg p-4 space-y-3">
                   <h4 className="font-semibold text-sm flex items-center gap-2">
                     <Car className="h-4 w-4" /> Mileage This Week
