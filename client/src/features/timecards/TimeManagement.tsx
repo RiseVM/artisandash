@@ -1220,12 +1220,16 @@ function TimeManagementInner() {
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <div>Rate: <span className="font-medium">${(() => {
+                      const u = allUsers.find(u => u.id === selectedEmployeeId);
                       const emp = employees.find(e => e.id === selectedEmployeeId);
-                      return (emp?.mileageRate ?? 0.67).toFixed(3);
+                      const r = parseFloat(String(u?.mileageRate ?? emp?.mileageRate ?? "0"));
+                      return (isNaN(r) || r === 0 ? 0.67 : r).toFixed(3);
                     })()}/mi</span></div>
                     <div>Mileage Payout: <span className="font-semibold text-foreground">${(() => {
+                      const u = allUsers.find(u => u.id === selectedEmployeeId);
                       const emp = employees.find(e => e.id === selectedEmployeeId);
-                      const rate = emp?.mileageRate ?? 0.67;
+                      const r = parseFloat(String(u?.mileageRate ?? emp?.mileageRate ?? "0"));
+                      const rate = isNaN(r) || r === 0 ? 0.67 : r;
                       const miles = parseFloat(drawerMilesInput || "0");
                       return (miles * rate).toFixed(2);
                     })()}</span></div>
