@@ -60,7 +60,9 @@ function TimeDropdown({ value, onChange, disabled, placeholder }: TimeDropdownPr
   return (
     <Select
       value={value || ""}
-      onValueChange={onChange}
+      onValueChange={(val) => {
+        if (val) onChange(val);
+      }}
       disabled={disabled}
     >
       <SelectTrigger className="w-[130px] h-9 text-sm">
@@ -552,18 +554,20 @@ function TimecardDayRow({
   };
 
   // Debounced save for dropdown changes — fires with latest values
+  // Only saves when BOTH clockIn and clockOut are non-empty
   const debouncedSave = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const ci = latestClockIn.current;
       const co = latestClockOut.current;
+      // Don't save unless both times are selected
+      if (!ci || !co) return;
       // Check if actually dirty vs server
       if (ci === serverRef.current.clockIn && co === serverRef.current.clockOut) return;
       setSaveState("saving");
       setError(null);
       try {
-        const body: Record<string, unknown> = { entryType: "work", clockIn: ci || null, clockOut: co || null };
-        console.log(`[Timecard] Debounced save entry ${entry.id}:`, body);
+        const body: Record<string, unknown> = { entryType: "work", clockIn: ci, clockOut: co };
         const result = await saveEntry(entry.id, body);
         if (result.hours) setLocalHours(result.hours);
         if (result.otHours) setLocalOtHours(result.otHours);
@@ -576,7 +580,6 @@ function TimecardDayRow({
         setTimeout(() => setSaveState("idle"), 2000);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Failed to save";
-        console.error(`[Timecard] Debounced save error entry ${entry.id}:`, err);
         setError(msg);
         setSaveState("idle");
         setTimeout(() => setError(null), 5000);
@@ -590,6 +593,7 @@ function TimecardDayRow({
   }, []);
 
   const handleClockChange = (field: "clockIn" | "clockOut", val: string) => {
+    if (!val) return;
     if (field === "clockIn") setClockIn(val);
     else setClockOut(val);
     debouncedSave();
@@ -837,16 +841,19 @@ function TimecardDayCard({
   };
 
   // Debounced save for dropdown changes — fires with latest values
+  // Only saves when BOTH clockIn and clockOut are non-empty
   const debouncedSave = useCallback(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const ci = latestClockIn.current;
       const co = latestClockOut.current;
+      // Don't save unless both times are selected
+      if (!ci || !co) return;
       if (ci === serverRef.current.clockIn && co === serverRef.current.clockOut) return;
       setSaveState("saving");
       setError(null);
       try {
-        const body: Record<string, unknown> = { entryType: "work", clockIn: ci || null, clockOut: co || null };
+        const body: Record<string, unknown> = { entryType: "work", clockIn: ci, clockOut: co };
         const result = await saveEntry(entry.id, body);
         if (result.hours) setLocalHours(result.hours);
         if (result.otHours) setLocalOtHours(result.otHours);
@@ -872,6 +879,7 @@ function TimecardDayCard({
   }, []);
 
   const handleClockChange = (field: "clockIn" | "clockOut", val: string) => {
+    if (!val) return;
     if (field === "clockIn") setClockIn(val);
     else setClockOut(val);
     debouncedSave();
