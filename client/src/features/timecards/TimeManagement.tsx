@@ -983,8 +983,17 @@ function TimeManagementInner() {
                   })}
 
                   {/* Total Hours */}
-                  <td className="px-4 py-3 text-center text-sm font-semibold border-l border-muted/30">
-                    {card ? parseFloat(card.totalHours || "0").toFixed(1) : "—"}
+                  <td className="px-3 py-3 text-right font-bold text-sm border-l border-muted/30">
+                    {(() => {
+                      if (!card) return "—";
+                      const reg = parseFloat(String(card.totalHours ?? "0"));
+                      const ot = parseFloat(String(card.totalOtHours ?? "0"));
+                      const total = reg + ot;
+                      if (total === 0) return "—";
+                      return ot > 0
+                        ? <span>{reg.toFixed(1)} <span className="text-amber-600 text-xs">+{ot.toFixed(1)} OT</span></span>
+                        : `${total.toFixed(1)}h`;
+                    })()}
                   </td>
 
                   {/* Miles */}
@@ -998,9 +1007,12 @@ function TimeManagementInner() {
                   <td className="px-3 py-3 text-right text-sm font-medium border-l border-muted/30">
                     {(() => {
                       if (!card) return <span className="text-muted-foreground">—</span>;
-                      const miles = parseFloat(String(card.totalMileage ?? 0));
-                      const rate = parseFloat(String(employee.mileageRate ?? "0.67"));
-                      if (isNaN(miles) || isNaN(rate) || miles === 0) return <span className="text-muted-foreground">—</span>;
+                      const miles = parseFloat(String(card.totalMileage ?? "0"));
+                      const rate = (() => {
+                        const r = parseFloat(String(employee.mileageRate ?? "0"));
+                        return (isNaN(r) || r === 0) ? 0.67 : r;
+                      })();
+                      if (isNaN(miles) || miles === 0) return <span className="text-muted-foreground">—</span>;
                       return `$${(miles * rate).toFixed(2)}`;
                     })()}
                   </td>
@@ -1021,11 +1033,16 @@ function TimeManagementInner() {
                     </td>
                   );
                 })}
-                <td className="px-4 py-2 text-center text-sm border-l border-muted/30">
-                  {weekTotalHours.toFixed(1)}h
-                  {weekTotalOtHours > 0 && (
-                    <span className="text-amber-600 ml-1 text-xs">+{weekTotalOtHours.toFixed(1)} OT</span>
-                  )}
+                <td className="px-3 py-2 text-right text-sm font-bold border-l border-muted/30">
+                  {(() => {
+                    const reg = gridRows.reduce((s, { card }) => s + parseFloat(String(card?.totalHours ?? "0")), 0);
+                    const ot = gridRows.reduce((s, { card }) => s + parseFloat(String(card?.totalOtHours ?? "0")), 0);
+                    const total = reg + ot;
+                    if (total === 0) return "—";
+                    return ot > 0
+                      ? <span>{reg.toFixed(1)} <span className="text-amber-600 text-xs">+{ot.toFixed(1)} OT</span></span>
+                      : `${total.toFixed(1)}h`;
+                  })()}
                 </td>
                 <td className="px-3 py-2 text-right text-sm border-l border-muted/30">
                   {(() => {
@@ -1037,9 +1054,12 @@ function TimeManagementInner() {
                   {(() => {
                     const total = gridRows.reduce((sum, { employee, card }) => {
                       if (!card) return sum;
-                      const miles = parseFloat(String(card.totalMileage ?? 0));
-                      const rate = parseFloat(String(employee.mileageRate ?? "0.67"));
-                      if (isNaN(miles) || isNaN(rate)) return sum;
+                      const miles = parseFloat(String(card.totalMileage ?? "0"));
+                      const rate = (() => {
+                        const r = parseFloat(String(employee.mileageRate ?? "0"));
+                        return (isNaN(r) || r === 0) ? 0.67 : r;
+                      })();
+                      if (isNaN(miles)) return sum;
                       return sum + miles * rate;
                     }, 0);
                     return total > 0 ? `$${total.toFixed(2)}` : "—";
