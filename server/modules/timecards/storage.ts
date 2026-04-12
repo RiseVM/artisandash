@@ -387,7 +387,7 @@ export const timecardStorage = {
     return updated;
   },
 
-  /** Recalculate all totals on a timecard from its entries */
+  /** Recalculate all totals on a timecard from its entries + mileage table */
   async recalcTimecardTotals(timecardId: number): Promise<void> {
     const allEntries = await db
       .select()
@@ -398,7 +398,13 @@ export const timecardStorage = {
     const totalOtHours = allEntries.reduce((sum, e) => sum + parseFloat(e.otHours || "0"), 0);
     const totalPtoHours = allEntries.reduce((sum, e) => sum + parseFloat(e.ptoHours || "0"), 0);
     const totalHolidayHours = allEntries.reduce((sum, e) => sum + parseFloat(e.holidayHours || "0"), 0);
-    const totalMileage = allEntries.reduce((sum, e) => sum + parseFloat(e.mileage || "0"), 0);
+
+    // Sum mileage from the timecardMileage table (not timecardEntries)
+    const mileageRows = await db
+      .select()
+      .from(timecardMileage)
+      .where(eq(timecardMileage.timecardId, timecardId));
+    const totalMileage = mileageRows.reduce((sum, r) => sum + parseFloat(r.miles || "0"), 0);
 
     await db
       .update(timecards)
@@ -1059,6 +1065,24 @@ export const timecardStorage = {
       return updated;
     }
 
+    const [created] = await db
+      .insert(timecardMileage)
+      .values({ timecardId, entryDate, miles, purpose })
+      .returning();
+    return created;
+  },
+
+  /** Replace all mileage entries for a timecard with a single weekly total */
+  async replaceWeeklyMileage(
+    timecardId: number,
+    entryDate: string,
+    miles: string,
+    purpose: string | null,
+  ): Promise<TimecardMileage> {
+    // Delete all existing mileage entries for this timecard
+    await db.delete(timecardMileage).where(eq(timecardMileage.timecardId, timecardId));
+
+    // Insert single weekly total entry
     const [created] = await db
       .insert(timecardMileage)
       .values({ timecardId, entryDate, miles, purpose })

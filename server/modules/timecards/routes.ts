@@ -245,6 +245,8 @@ export function registerTimecardRoutes(app: Express) {
         String(miles),
         purpose || null,
       );
+      // Recalc so card.totalMileage stays current
+      await timecardStorage.recalcTimecardTotals(timecardId);
       res.json(entry);
     }),
   );
@@ -478,7 +480,10 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(400).json({ error: "entryDate and miles are required" });
       }
 
-      const entry = await timecardStorage.upsertMileageEntry(timecardId, entryDate, String(miles), purpose || null);
+      // Replace all mileage entries with single weekly total (prevents accumulation bug)
+      const entry = await timecardStorage.replaceWeeklyMileage(timecardId, entryDate, String(miles), purpose || null);
+      // Recalc so card.totalMileage is updated for the grid
+      await timecardStorage.recalcTimecardTotals(timecardId);
       res.json(entry);
     }),
   );
