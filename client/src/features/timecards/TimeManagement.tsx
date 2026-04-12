@@ -844,8 +844,10 @@ function TimeManagementInner() {
   const gridRows = nonAdminUsers.map(u => {
     const card = allCards.find(c => c.userId === u.id);
     const emp = employees.find(e => e.id === u.id);
+    // mileageRate: prefer allUsers field (from /api/users), fallback to employees query, then 0
+    const rate = parseFloat(String(u.mileageRate ?? emp?.mileageRate ?? "0"));
     return {
-      employee: { ...u, mileageEnabled: emp?.mileageEnabled || false, mileageRate: emp?.mileageRate || 0 },
+      employee: { ...u, mileageEnabled: emp?.mileageEnabled || false, mileageRate: isNaN(rate) ? 0 : rate },
       card,  // may be undefined if no timecard exists for this week
     };
   });
