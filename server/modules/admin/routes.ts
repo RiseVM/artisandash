@@ -38,6 +38,7 @@ export function registerAdminRoutes(app: Express) {
           role: u.role,
           isActive: u.isActive,
           createdAt: u.createdAt,
+          mileageRate: u.mileageRate,
         })),
       );
     }),
@@ -146,6 +147,7 @@ export function registerAdminRoutes(app: Express) {
         lastName: user!.lastName,
         role: user!.role,
         isActive: user!.isActive,
+        mileageRate: user!.mileageRate,
       });
     }),
   );

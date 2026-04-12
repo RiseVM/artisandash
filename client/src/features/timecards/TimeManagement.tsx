@@ -600,7 +600,7 @@ function TimeManagementInner() {
     enabled: !!verifiedUser,
   });
 
-  interface ManagedUser { id: string; firstName: string | null; lastName: string | null; email: string; role: string; isActive: string; createdAt: string; }
+  interface ManagedUser { id: string; firstName: string | null; lastName: string | null; email: string; role: string; isActive: string; createdAt: string; mileageRate: string | null; }
   const { data: allUsers = [], refetch: refetchAllUsers } = useQuery<ManagedUser[]>({
     queryKey: ["/api/users"],
     enabled: !!verifiedUser,
@@ -1701,8 +1701,10 @@ function TimeManagementInner() {
                 credentials: "include",
                 body: JSON.stringify(body),
               });
-              queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/users"] });
-              queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/employees"] });
+              await queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+              await queryClient.refetchQueries({ queryKey: ["/api/users"] });
+              await queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/users"] });
+              await queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/employees"] });
               toast({ title: "Employee updated successfully" });
               setEditEmployeeOpen(false);
             }}>
