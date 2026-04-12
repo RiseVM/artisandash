@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, FormEvent } from "react";
+import { useState, useCallback, useEffect, useRef, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
@@ -313,6 +313,24 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // Refs for latest values (avoids stale closure in setTimeout)
+  const latestClockIn = useRef(clockIn);
+  const latestClockOut = useRef(clockOut);
+  const latestNotes = useRef(notes);
+  latestClockIn.current = clockIn;
+  latestClockOut.current = clockOut;
+  latestNotes.current = notes;
+
+  // Sync from server when entry data changes (after refetch)
+  const serverClockIn = entry.clockIn ?? "";
+  const serverClockOut = entry.clockOut ?? "";
+  const serverNotes = entry.notes ?? "";
+  useEffect(() => {
+    setClockIn(serverClockIn);
+    setClockOut(serverClockOut);
+    setNotes(serverNotes);
+  }, [serverClockIn, serverClockOut, serverNotes]);
+
   // Client-side hours preview
   const calculated = (clockIn && clockOut) ? clientCalcHours(clockIn, clockOut) : null;
   const displayReg = calculated?.regular ?? parseFloat(entry.hours || "0");
@@ -323,6 +341,8 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
   const hasHours = clockIn || clockOut || displayReg > 0 || displayPto > 0 || displayHol > 0;
 
   const save = async (overrideClockIn?: string | null, overrideClockOut?: string | null) => {
+    const ci = overrideClockIn !== undefined ? overrideClockIn : (latestClockIn.current || null);
+    const co = overrideClockOut !== undefined ? overrideClockOut : (latestClockOut.current || null);
     setSaving(true);
     try {
       await fetch(`/api/timecards/admin/entries/${entry.id}`, {
@@ -330,9 +350,9 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          clockIn: overrideClockIn !== undefined ? overrideClockIn : (clockIn || null),
-          clockOut: overrideClockOut !== undefined ? overrideClockOut : (clockOut || null),
-          notes: notes || null,
+          clockIn: ci,
+          clockOut: co,
+          notes: latestNotes.current || null,
         }),
       });
       setSaved(true);
@@ -349,6 +369,9 @@ function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () 
     setClockIn("");
     setClockOut("");
     setNotes("");
+    latestClockIn.current = "";
+    latestClockOut.current = "";
+    latestNotes.current = "";
     await save(null, null);
   };
 
@@ -1157,7 +1180,7 @@ function TimeManagementInner() {
                   <tbody>
                     {drawerDetail.entries.map((entry: TimecardEntryWithMileage) => (
                       <DrawerEntryRow
-                        key={`${entry.id}-${entry.clockIn}-${entry.clockOut}-${entry.hours}`}
+                        key={entry.id}
                         entry={entry}
                         onSaved={() => {
                           queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + selectedTimecardId] });
