@@ -867,6 +867,11 @@ function TimeManagementInner() {
     };
   });
 
+  const allEmployeesApproved = nonAdminUsers.length > 0 && nonAdminUsers.every(u => {
+    const card = allCards.find(c => c.userId === u.id);
+    return card?.status === "approved";
+  });
+
   const selectedEmployee = selectedEmployeeId ? nonAdminUsers.find(u => u.id === selectedEmployeeId) : null;
 
   return (
@@ -939,7 +944,7 @@ function TimeManagementInner() {
           <Button variant="ghost" size="icon" onClick={() => navigateWeek(1)}>
             <ChevronRight className="h-5 w-5" />
           </Button>
-          {approvedTimecards.length > 0 && allRecipients.filter(r => r.isActive === "yes").length > 0 && (
+          {allEmployeesApproved && allRecipients.filter(r => r.isActive === "yes").length > 0 && (
             <Button
               size="sm"
               className="ml-4 bg-blue-600 hover:bg-blue-700 text-white"
