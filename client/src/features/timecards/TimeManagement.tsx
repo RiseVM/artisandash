@@ -131,6 +131,8 @@ interface TimecardEntry {
   holidayHours: string;
   entryType: string;
   notes: string | null;
+  clockIn?: string | null;
+  clockOut?: string | null;
 }
 
 interface AuditLogEntry {
@@ -225,6 +227,180 @@ interface MileageEntry {
   entryDate: string;
   miles: string;
   purpose: string | null;
+}
+
+// ── Clock Time Helpers ─────────────────────
+
+function clientCalcHours(clockIn: string, clockOut: string) {
+  const [inH, inM] = clockIn.split(":").map(Number);
+  const [outH, outM] = clockOut.split(":").map(Number);
+  const totalMins = Math.max(0, (outH * 60 + outM) - (inH * 60 + inM));
+  const totalHrs = parseFloat((totalMins / 60).toFixed(2));
+  return { regular: Math.min(totalHrs, 8), ot: parseFloat(Math.max(0, totalHrs - 8).toFixed(2)) };
+}
+
+function parseTimeToComponents(time: string): { hour: string; minute: string; period: string } {
+  if (!time) return { hour: "", minute: "", period: "AM" };
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return { hour: String(hour12), minute: String(m).padStart(2, "0"), period };
+}
+
+function componentsToTime(hour: string, minute: string, period: string): string {
+  if (!hour || !minute) return "";
+  let h = parseInt(hour);
+  if (period === "PM" && h < 12) h += 12;
+  if (period === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${minute}`;
+}
+
+// ── Drawer Time Picker ─────────────────────
+
+function DrawerTimePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { hour, minute, period } = parseTimeToComponents(value);
+
+  const update = (h: string, m: string, p: string) => {
+    if (h && m) onChange(componentsToTime(h, m, p));
+  };
+
+  return (
+    <div className="flex gap-0.5">
+      <select
+        value={hour}
+        onChange={(e) => update(e.target.value, minute || "00", period)}
+        className="border rounded px-1 py-1 text-xs w-11 bg-white"
+      >
+        <option value="">—</option>
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+          <option key={h} value={String(h)}>{h}</option>
+        ))}
+      </select>
+      <select
+        value={minute}
+        onChange={(e) => update(hour || "9", e.target.value, period)}
+        className="border rounded px-1 py-1 text-xs w-12 bg-white"
+      >
+        <option value="">—</option>
+        {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((m) => (
+          <option key={m} value={m}>{m}</option>
+        ))}
+      </select>
+      <select
+        value={period}
+        onChange={(e) => update(hour || "9", minute || "00", e.target.value)}
+        className="border rounded px-1 py-1 text-xs w-12 bg-white"
+      >
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
+}
+
+// ── Drawer Entry Row ───────────────────────
+
+function DrawerEntryRow({ entry, onSaved }: { entry: TimecardEntry; onSaved: () => void }) {
+  const [clockIn, setClockIn] = useState(entry.clockIn ?? "");
+  const [clockOut, setClockOut] = useState(entry.clockOut ?? "");
+  const [notes, setNotes] = useState(entry.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Client-side hours preview
+  const calculated = (clockIn && clockOut) ? clientCalcHours(clockIn, clockOut) : null;
+  const displayReg = calculated?.regular ?? parseFloat(entry.hours || "0");
+  const displayOt = calculated?.ot ?? parseFloat(entry.otHours || "0");
+  const displayPto = parseFloat(entry.ptoHours || "0");
+  const displayHol = parseFloat(entry.holidayHours || "0");
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch(`/api/timecards/admin/entries/${entry.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          clockIn: clockIn || null,
+          clockOut: clockOut || null,
+          notes: notes || null,
+        }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      onSaved();
+    } catch {
+      // silent fail — network error
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isWork = entry.entryType === "work" || !entry.entryType;
+
+  return (
+    <tr className={`border-b last:border-b-0 ${
+      entry.entryType === "pto" ? "bg-blue-50/50" : entry.entryType === "holiday" ? "bg-indigo-50/50" : ""
+    }`}>
+      <td className="py-2 px-3 text-sm font-medium whitespace-nowrap">{formatDayLabel(entry.entryDate)}</td>
+      <td className="py-2 px-2 text-center">
+        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+          entry.entryType === "pto" ? "bg-blue-100 text-blue-700"
+            : entry.entryType === "holiday" ? "bg-indigo-100 text-indigo-700"
+            : "bg-gray-100 text-gray-600"
+        }`}>
+          {entry.entryType === "pto" ? "PTO" : entry.entryType === "holiday" ? "Hol" : "Work"}
+        </span>
+      </td>
+      <td className="py-2 px-1">
+        {isWork ? (
+          <DrawerTimePicker value={clockIn} onChange={(v) => { setClockIn(v); }} />
+        ) : (
+          <span className="text-xs text-muted-foreground px-2">—</span>
+        )}
+      </td>
+      <td className="py-2 px-1">
+        {isWork ? (
+          <DrawerTimePicker value={clockOut} onChange={(v) => { setClockOut(v); setTimeout(save, 100); }} />
+        ) : (
+          <span className="text-xs text-muted-foreground px-2">—</span>
+        )}
+      </td>
+      <td className="py-2 px-2 text-center">
+        {isWork ? (
+          <span className={`text-sm font-mono ${displayReg > 0 ? "font-semibold" : "text-muted-foreground"}`}>
+            {displayReg > 0 ? `${displayReg.toFixed(1)}` : "—"}
+          </span>
+        ) : entry.entryType === "pto" ? (
+          <span className="text-sm font-mono font-semibold text-blue-600">{displayPto > 0 ? displayPto.toFixed(1) : "—"}</span>
+        ) : (
+          <span className="text-sm font-mono font-semibold text-indigo-600">{displayHol > 0 ? displayHol.toFixed(1) : "—"}</span>
+        )}
+      </td>
+      <td className="py-2 px-2 text-center">
+        <span className={`text-sm font-mono ${displayOt > 0 ? "font-semibold text-amber-600" : "text-muted-foreground"}`}>
+          {displayOt > 0 ? `${displayOt.toFixed(1)}` : "—"}
+        </span>
+      </td>
+      <td className="py-2 px-1">
+        <input
+          className="border rounded px-2 py-1 text-xs w-full min-w-[80px] bg-white"
+          placeholder="Notes..."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          onBlur={save}
+        />
+      </td>
+      <td className="py-2 px-2 w-16 text-center">
+        {saving ? (
+          <Loader2 className="h-3 w-3 animate-spin inline text-muted-foreground" />
+        ) : saved ? (
+          <span className="text-[10px] text-green-600 font-medium">Saved</span>
+        ) : null}
+      </td>
+    </tr>
+  );
 }
 
 // ── Identity Verification Gate ──────────────
@@ -830,46 +1006,102 @@ function TimeManagementInner() {
 
       {/* Sheet Drawer */}
       <Sheet open={!!selectedEmployeeId} onOpenChange={(open) => !open && setSelectedEmployeeId(null)}>
-        <SheetContent className="w-full sm:w-[600px] flex flex-col max-h-screen">
+        <SheetContent className="w-full sm:w-[700px] flex flex-col max-h-screen">
           <SheetHeader>
-            <SheetTitle>
-              {selectedEmployee
-                ? `${selectedEmployee.firstName || ""} ${selectedEmployee.lastName || ""}`.trim() || selectedEmployee.email
-                : "Loading..."}
+            <SheetTitle className="flex items-center gap-2">
+              {selectedEmployee && (
+                <>
+                  <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                    {initials(selectedEmployee.firstName, selectedEmployee.lastName)}
+                  </div>
+                  <span>{fullName(selectedEmployee)}</span>
+                  <span className="text-sm font-normal text-muted-foreground ml-1">— {formatWeekLabel(currentMonday)}</span>
+                </>
+              )}
             </SheetTitle>
           </SheetHeader>
 
-          {drawerDetail && (
-            <div className="flex-1 overflow-y-auto space-y-6 pr-4">
-              {/* Entries Section */}
-              <div>
-                <h3 className="text-sm font-semibold mb-3">Hours Worked</h3>
-                <div className="space-y-2">
-                  {drawerDetail.entries.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No entries this week</p>
-                  ) : (
-                    drawerDetail.entries.map((entry) => (
-                      <div key={entry.id} className="flex items-center justify-between p-2 bg-muted/40 rounded text-xs">
-                        <span>{formatDayLabel(entry.entryDate)}</span>
-                        <span className="font-mono font-semibold">{parseFloat(entry.hours).toFixed(2)}h</span>
-                      </div>
-                    ))
-                  )}
-                </div>
+          {/* Status + Approve + Summary */}
+          {selectedCard && (
+            <div className="flex items-center gap-2 mt-2 mb-4">
+              {statusBadge(selectedCard.status)}
+              {(selectedCard.status === "draft" || selectedCard.status === "submitted") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-green-600 border-green-200 hover:bg-green-50"
+                  onClick={() => approveTimecard.mutate(selectedCard.id)}
+                  disabled={approveTimecard.isPending}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                  {approveTimecard.isPending ? "Approving..." : "Approve"}
+                </Button>
+              )}
+              <div className="ml-auto flex items-center gap-2 text-sm">
+                <span className="font-semibold">{parseFloat(selectedCard.totalHours || "0").toFixed(1)}h</span>
+                {parseFloat(selectedCard.totalOtHours || "0") > 0 && (
+                  <Badge className="bg-amber-100 text-amber-700 text-[10px]">OT {parseFloat(selectedCard.totalOtHours || "0").toFixed(1)}h</Badge>
+                )}
+                {parseFloat(selectedCard.totalPtoHours || "0") > 0 && (
+                  <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO {parseFloat(selectedCard.totalPtoHours || "0").toFixed(1)}h</Badge>
+                )}
+                {parseFloat(selectedCard.totalHolidayHours || "0") > 0 && (
+                  <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Hol {parseFloat(selectedCard.totalHolidayHours || "0").toFixed(1)}h</Badge>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!selectedCard && selectedEmployeeId && (
+            <p className="text-sm text-muted-foreground py-6 text-center">No timecard for this week yet.</p>
+          )}
+
+          {drawerDetail && drawerDetail.id === selectedTimecardId && (
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+              {/* Editable Entries Table */}
+              <div className="border rounded-lg overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left py-2 px-3 font-medium text-xs">Day</th>
+                      <th className="text-center py-2 px-2 font-medium text-xs">Type</th>
+                      <th className="text-left py-2 px-1 font-medium text-xs">Clock In</th>
+                      <th className="text-left py-2 px-1 font-medium text-xs">Clock Out</th>
+                      <th className="text-center py-2 px-2 font-medium text-xs">Reg</th>
+                      <th className="text-center py-2 px-2 font-medium text-xs text-amber-600">OT</th>
+                      <th className="text-left py-2 px-1 font-medium text-xs">Notes</th>
+                      <th className="py-2 px-2 w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drawerDetail.entries.map((entry: TimecardEntryWithMileage) => (
+                      <DrawerEntryRow
+                        key={`${entry.id}-${entry.clockIn}-${entry.clockOut}-${entry.hours}`}
+                        entry={entry}
+                        onSaved={() => {
+                          queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + selectedTimecardId] });
+                          queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Punches Section */}
+              {/* Clock Punches Section */}
               {drawerPunches.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold mb-3">Clock Punches</h3>
+                <div className="border rounded-lg p-3">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                    <Clock className="h-3 w-3" /> Clock Punches
+                  </p>
                   <div className="space-y-1">
                     {drawerPunches.map((punch) => (
-                      <div key={punch.id} className="flex items-center justify-between p-2 bg-muted/40 rounded text-xs">
-                        <span className="text-muted-foreground">{formatDayLabel(punch.punchDate)}</span>
-                        <span className="font-mono text-xs">
-                          {formatTime(punch.clockIn)} → {punch.clockOut ? formatTime(punch.clockOut) : <span className="text-green-600">Active</span>}
+                      <div key={punch.id} className="flex items-center gap-3 text-xs py-1 px-2 rounded hover:bg-muted/50">
+                        <span className="text-muted-foreground w-24">{formatDayLabel(punch.punchDate)}</span>
+                        <span className="font-mono">
+                          {formatTime(punch.clockIn)} → {punch.clockOut ? formatTime(punch.clockOut) : <span className="text-green-600 font-medium">Active</span>}
                         </span>
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground ml-auto">
                           {punch.hours ? `${parseFloat(punch.hours).toFixed(1)}h` : "—"}
                         </span>
                       </div>
@@ -880,115 +1112,121 @@ function TimeManagementInner() {
 
               {/* Mileage Section */}
               {(() => { const emp = employees.find(e => e.id === selectedEmployeeId); return emp?.mileageEnabled; })() && (
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <Car className="h-4 w-4" />
-                      Mileage
-                    </h3>
+                <div className="border rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <Car className="h-3 w-3" /> Mileage Log
+                    </p>
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => setShowAddMileage(!showAddMileage)}
-                      className="h-7 px-2 text-xs"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        setShowAddMileage(true);
+                        setNewMileageDate(weekDays[0]);
+                      }}
                     >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Add
+                      <Plus className="h-3 w-3 mr-1" /> Log Mileage
                     </Button>
                   </div>
-
-                  {showAddMileage && (
-                    <div className="space-y-2 p-3 bg-blue-50 rounded mb-3">
-                      <Input
-                        type="date"
-                        value={newMileageDate}
-                        onChange={(e) => setNewMileageDate(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Miles"
-                        value={newMileageMiles}
-                        onChange={(e) => setNewMileageMiles(e.target.value)}
-                        step="0.1"
-                        className="h-8 text-xs"
-                      />
-                      <Input
-                        placeholder="Purpose"
-                        value={newMileagePurpose}
-                        onChange={(e) => setNewMileagePurpose(e.target.value)}
-                        className="h-8 text-xs"
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            if (!newMileageDate || !newMileageMiles || !selectedTimecardId) return;
-                            addAdminMileage.mutate({
-                              timecardId: selectedTimecardId,
-                              entryDate: newMileageDate,
-                              miles: parseFloat(newMileageMiles),
-                              purpose: newMileagePurpose,
-                            });
-                          }}
-                          disabled={addAdminMileage.isPending}
-                          className="h-7 text-xs"
-                        >
-                          Add
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setShowAddMileage(false)}
-                          className="h-7 text-xs"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {drawerMileage.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No mileage entries this week</p>
-                  ) : (
+                  {drawerMileage.length > 0 ? (
                     <div className="space-y-1">
                       {drawerMileage.map((m) => (
-                        <div key={m.id} className="flex items-center justify-between p-2 bg-muted/40 rounded text-xs group">
-                          <div>
-                            <div className="text-muted-foreground">{formatDayLabel(m.entryDate)}</div>
-                            <div className="text-[10px] text-muted-foreground">{m.purpose || "—"}</div>
-                          </div>
-                          <span className="font-mono font-semibold">{parseFloat(m.miles).toFixed(1)}mi</span>
+                        <div key={m.id} className="flex items-center gap-3 text-sm py-1 px-2 rounded hover:bg-muted/50 group">
+                          <span className="text-xs text-muted-foreground w-28">{formatDayLabel(m.entryDate)}</span>
+                          <span className="font-mono text-xs font-semibold">{parseFloat(m.miles).toFixed(1)} mi</span>
+                          {m.purpose && <span className="text-xs text-muted-foreground truncate flex-1">{m.purpose}</span>}
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteAdminMileage.mutate(m.id);
-                            }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
+                            onClick={() => deleteAdminMileage.mutate(m.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded ml-auto"
                           >
                             <Trash2 className="h-3 w-3 text-red-500" />
                           </button>
                         </div>
                       ))}
+                      <div className="flex items-center gap-3 text-sm py-1 px-2 font-semibold border-t mt-1 pt-1">
+                        <span className="text-xs w-28">Total</span>
+                        <span className="font-mono text-xs">{drawerMileage.reduce((s, m) => s + parseFloat(m.miles), 0).toFixed(1)} mi</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No mileage logged this week</p>
+                  )}
+                  {showAddMileage && selectedTimecardId && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 p-2 bg-blue-50 rounded">
+                      <select
+                        value={newMileageDate}
+                        onChange={(e) => setNewMileageDate(e.target.value)}
+                        className="border rounded px-2 py-1 text-xs"
+                      >
+                        {weekDays.map((d) => (
+                          <option key={d} value={d}>{formatDayLabel(d)}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        placeholder="Miles"
+                        value={newMileageMiles}
+                        onChange={(e) => setNewMileageMiles(e.target.value)}
+                        className="border rounded px-2 py-1 text-xs w-20"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Purpose"
+                        value={newMileagePurpose}
+                        onChange={(e) => setNewMileagePurpose(e.target.value)}
+                        className="border rounded px-2 py-1 text-xs flex-1 min-w-[100px]"
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => {
+                          if (selectedTimecardId && newMileageMiles) {
+                            addAdminMileage.mutate({
+                              timecardId: selectedTimecardId,
+                              entryDate: newMileageDate,
+                              miles: parseFloat(newMileageMiles),
+                              purpose: newMileagePurpose.trim(),
+                            });
+                          }
+                        }}
+                        disabled={addAdminMileage.isPending || !newMileageMiles}
+                      >
+                        {addAdminMileage.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setShowAddMileage(false)}>
+                        <X className="h-3 w-3" />
+                      </Button>
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Audit Log Section */}
+              {/* Audit Log */}
               {drawerDetail.auditLog.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold mb-3">Audit Log</h3>
-                  <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                    {drawerDetail.auditLog.map((log) => (
-                      <div key={log.id} className="text-[10px] p-1.5 bg-muted/30 rounded">
-                        <div className="font-medium">{log.action}</div>
-                        {log.description && <div className="text-muted-foreground">{log.description}</div>}
-                        <div className="text-muted-foreground">
-                          {new Date(log.changedAt).toLocaleDateString()} by {fullName(log.changedBy)}
+                <div className="border rounded-lg p-3">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1 mb-2">
+                    <History className="h-3 w-3" /> Audit Log
+                  </p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {drawerDetail.auditLog.map((log) => {
+                      const who = fullName(log.changedBy);
+                      const when = new Date(log.changedAt).toLocaleString();
+                      return (
+                        <div key={log.id} className="text-xs">
+                          <span className="text-muted-foreground">{when}</span>
+                          <span className="mx-1">·</span>
+                          <span className="font-medium">{who}</span>
+                          {(log.action === "admin_edit" || log.action === "admin_edit_punch" || log.action === "admin_add_punch" || log.action === "admin_delete_punch") && (
+                            <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-orange-600 border-orange-200">Admin</Badge>
+                          )}
+                          <p className="text-muted-foreground">{log.description}</p>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
