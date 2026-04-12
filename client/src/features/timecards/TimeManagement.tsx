@@ -1331,29 +1331,38 @@ function TimeManagementInner() {
               </div>
             )}
 
-            {employees.length === 0 ? (
+            {nonAdminUsers.length === 0 ? (
               <p className="text-sm text-muted-foreground">No employees</p>
             ) : (
               <div className="space-y-2">
-                {employees.map((emp) => (
-                  <div key={emp.id} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium text-sm">
-                          {emp.firstName || emp.lastName
-                            ? `${emp.firstName || ""} ${emp.lastName || ""}`.trim()
-                            : emp.email}
+                {nonAdminUsers.map((u) => {
+                  const emp = employees.find(e => e.id === u.id);
+                  return (
+                    <div key={u.id} className="border rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-semibold text-primary">
+                            {initials(u.firstName, u.lastName)}
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">
+                              {u.firstName || u.lastName
+                                ? `${u.firstName || ""} ${u.lastName || ""}`.trim()
+                                : u.email}
+                            </div>
+                            <div className="text-xs text-muted-foreground">{u.email}</div>
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">{emp.email}</div>
+                        <Badge variant="secondary" className="text-xs">{u.role}</Badge>
                       </div>
+                      {emp?.mileageEnabled && (
+                        <div className="text-xs text-muted-foreground">
+                          Mileage Rate: ${(emp.mileageRate ?? 0).toFixed(3)}/mi
+                        </div>
+                      )}
                     </div>
-                    {emp.mileageEnabled && (
-                      <div className="text-xs text-muted-foreground">
-                        Mileage Rate: ${emp.mileageRate.toFixed(2)}/mi
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
