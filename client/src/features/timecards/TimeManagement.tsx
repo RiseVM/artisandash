@@ -947,7 +947,6 @@ function TimeManagementInner() {
                 <th className="px-4 py-2 text-center text-xs font-semibold text-muted-foreground">Total</th>
                 <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Miles</th>
                 <th className="px-3 py-2 text-right text-xs font-semibold text-muted-foreground">Mileage $</th>
-                <th className="px-4 py-2 text-center text-xs font-semibold text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -998,26 +997,12 @@ function TimeManagementInner() {
                   {/* Mileage $ */}
                   <td className="px-3 py-3 text-right text-sm font-medium border-l border-muted/30">
                     {(() => {
-                      const miles = card ? parseFloat(card.totalMileage || "0") : 0;
-                      const rate = employee.mileageRate || 0;
-                      const payout = miles * rate;
-                      return payout > 0 ? `$${payout.toFixed(2)}` : <span className="text-muted-foreground">—</span>;
+                      if (!card) return <span className="text-muted-foreground">—</span>;
+                      const miles = parseFloat(String(card.totalMileage ?? 0));
+                      const rate = parseFloat(String(employee.mileageRate ?? "0.67"));
+                      if (isNaN(miles) || isNaN(rate) || miles === 0) return <span className="text-muted-foreground">—</span>;
+                      return `$${(miles * rate).toFixed(2)}`;
                     })()}
-                  </td>
-
-                  {/* Approve Button */}
-                  <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                    {card && card.status === "submitted" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs text-green-600 hover:bg-green-50"
-                        onClick={() => approveTimecard.mutate(card.id)}
-                        disabled={approveTimecard.isPending}
-                      >
-                        <CheckCircle2 className="h-3 w-3" />
-                      </Button>
-                    )}
                   </td>
                 </tr>
               ))}
@@ -1050,14 +1035,16 @@ function TimeManagementInner() {
                 </td>
                 <td className="px-3 py-2 text-right text-sm font-medium border-l border-muted/30">
                   {(() => {
-                    const totalPayout = gridRows.reduce((s, { employee, card }) => {
-                      const miles = parseFloat(card?.totalMileage || "0");
-                      return s + miles * (employee.mileageRate || 0);
+                    const total = gridRows.reduce((sum, { employee, card }) => {
+                      if (!card) return sum;
+                      const miles = parseFloat(String(card.totalMileage ?? 0));
+                      const rate = parseFloat(String(employee.mileageRate ?? "0.67"));
+                      if (isNaN(miles) || isNaN(rate)) return sum;
+                      return sum + miles * rate;
                     }, 0);
-                    return totalPayout > 0 ? `$${totalPayout.toFixed(2)}` : "—";
+                    return total > 0 ? `$${total.toFixed(2)}` : "—";
                   })()}
                 </td>
-                <td className="px-4 py-2"></td>
               </tr>
             </tbody>
           </table>
