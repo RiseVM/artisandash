@@ -5,6 +5,7 @@ import {
   timecardAuditLog,
   timecardPunches,
   timecardRecipients,
+  timecardMileage,
   payrollContacts,
   users,
 } from "@shared/schema";
@@ -13,6 +14,7 @@ import type {
   TimecardEntry,
   TimecardPunch,
   TimecardRecipient,
+  TimecardMileage,
   PayrollContact,
   TimecardWithEntries,
   TimecardWithUser,
@@ -959,5 +961,73 @@ export const timecardStorage = {
     });
 
     return updated;
+  },
+
+  // ── MILEAGE ──────────────────────────────
+
+  async getMileageForTimecard(timecardId: number): Promise<TimecardMileage[]> {
+    return db
+      .select()
+      .from(timecardMileage)
+      .where(eq(timecardMileage.timecardId, timecardId))
+      .orderBy(timecardMileage.entryDate);
+  },
+
+  async upsertMileageEntry(
+    timecardId: number,
+    entryDate: string,
+    miles: string,
+    purpose: string | null,
+  ): Promise<TimecardMileage> {
+    // Check if entry exists for this date
+    const [existing] = await db
+      .select()
+      .from(timecardMileage)
+      .where(
+        and(
+          eq(timecardMileage.timecardId, timecardId),
+          eq(timecardMileage.entryDate, entryDate),
+        ),
+      );
+
+    if (existing) {
+      const [updated] = await db
+        .update(timecardMileage)
+        .set({ miles, purpose, updatedAt: new Date() })
+        .where(eq(timecardMileage.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(timecardMileage)
+      .values({ timecardId, entryDate, miles, purpose })
+      .returning();
+    return created;
+  },
+
+  async deleteMileageEntry(id: number): Promise<void> {
+    await db.delete(timecardMileage).where(eq(timecardMileage.id, id));
+  },
+
+  async getMileageEntryById(id: number): Promise<TimecardMileage | undefined> {
+    const [row] = await db.select().from(timecardMileage).where(eq(timecardMileage.id, id));
+    return row;
+  },
+
+  async getTotalMileageForTimecard(timecardId: number): Promise<number> {
+    const rows = await db
+      .select()
+      .from(timecardMileage)
+      .where(eq(timecardMileage.timecardId, timecardId));
+    return rows.reduce((sum, r) => sum + parseFloat(r.miles || "0"), 0);
+  },
+
+  async getUserMileageRate(userId: string): Promise<number> {
+    const [user] = await db
+      .select({ mileageRate: users.mileageRate })
+      .from(users)
+      .where(eq(users.id, userId));
+    return user?.mileageRate ? parseFloat(user.mileageRate) : 0.67;
   },
 };

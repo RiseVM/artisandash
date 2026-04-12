@@ -99,7 +99,7 @@ export function registerAdminRoutes(app: Express) {
     requirePermission("manage_users"),
     asyncHandler(async (req: any, res) => {
       const { id } = req.params;
-      const { email, password, firstName, lastName, role, isActive } = req.body;
+      const { email, password, firstName, lastName, role, isActive, mileageRate } = req.body;
 
       const existingUser = await storage.getUser(id);
       if (!existingUser) {
@@ -122,6 +122,7 @@ export function registerAdminRoutes(app: Express) {
       if (lastName !== undefined) updates.lastName = lastName;
       if (role !== undefined) updates.role = role;
       if (isActive !== undefined) updates.isActive = isActive;
+      if (mileageRate !== undefined) updates.mileageRate = String(mileageRate);
       if (password) {
         updates.passwordHash = await hashPassword(password);
       }

@@ -19,6 +19,9 @@ import {
   LogOut,
   Timer,
   Check,
+  Plus,
+  Trash2,
+  Car,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -124,6 +127,14 @@ interface ClockStatus {
   clockedIn: boolean;
   openPunch: ClockPunch | null;
   todayPunches: ClockPunch[];
+}
+
+interface MileageEntry {
+  id: number;
+  timecardId: number;
+  entryDate: string;
+  miles: string;
+  purpose: string | null;
 }
 
 // ── Clock In / Out Widget ──────────────────
@@ -359,6 +370,10 @@ export function Timecards() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
   const [savedEntryId, setSavedEntryId] = useState<number | null>(null);
+  const [showAddMileage, setShowAddMileage] = useState(false);
+  const [mileageDate, setMileageDate] = useState(() => todayIso());
+  const [mileageMiles, setMileageMiles] = useState("");
+  const [mileagePurpose, setMileagePurpose] = useState("");
 
   // Fetch current week's timecard
   const { data: timecard, isLoading } = useQuery<TimecardData>({
@@ -370,6 +385,43 @@ export function Timecards() {
   const { data: pastTimecards } = useQuery<PastTimecard[]>({
     queryKey: ["/api/timecards/my"],
     enabled: !!verifiedUser,
+  });
+
+  // Fetch mileage for current timecard
+  const { data: mileageEntries = [] } = useQuery<MileageEntry[]>({
+    queryKey: ["/api/timecards/" + timecard?.id + "/mileage"],
+    queryFn: async () => {
+      if (!timecard) return [];
+      const res = await fetch(`/api/timecards/${timecard.id}/mileage`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!verifiedUser && !!timecard,
+  });
+
+  // Mutation: add mileage
+  const addMileage = useMutation({
+    mutationFn: async ({ timecardId, entryDate, miles, purpose }: { timecardId: number; entryDate: string; miles: string; purpose: string }) => {
+      const res = await apiRequest("POST", `/api/timecards/${timecardId}/mileage`, { entryDate, miles: parseFloat(miles), purpose });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/" + timecard?.id + "/mileage"] });
+      setShowAddMileage(false);
+      setMileageMiles("");
+      setMileagePurpose("");
+    },
+  });
+
+  // Mutation: delete mileage
+  const deleteMileage = useMutation({
+    mutationFn: async (mileageId: number) => {
+      const res = await apiRequest("DELETE", `/api/timecards/mileage/${mileageId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/" + timecard?.id + "/mileage"] });
+    },
   });
 
   // Mutation: update an entry with clockIn/clockOut
@@ -650,6 +702,133 @@ export function Timecards() {
         <div className="text-center py-12 text-muted-foreground">No timecard data</div>
       )}
 
+      {/* Mileage Section */}
+      {timecard && (
+        <div className="bg-card border rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <Car className="h-4 w-4 text-primary" /> Mileage This Week
+            </h3>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setMileageDate(todayIso());
+                setShowAddMileage(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Log Mileage
+            </Button>
+          </div>
+
+          {mileageEntries.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Date</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">Miles</th>
+                    <th className="text-left py-2 px-3 font-medium text-muted-foreground">Purpose</th>
+                    <th className="py-2 px-3 w-16"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mileageEntries.map((m) => (
+                    <tr key={m.id} className="border-b last:border-b-0">
+                      <td className="py-2 px-3">{formatDayLabel(m.entryDate)}</td>
+                      <td className="py-2 px-3 text-right font-mono">{parseFloat(m.miles).toFixed(1)}</td>
+                      <td className="py-2 px-3 text-muted-foreground">{m.purpose || "—"}</td>
+                      <td className="py-2 px-3">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-red-500 hover:text-red-700"
+                          onClick={() => deleteMileage.mutate(m.id)}
+                          disabled={deleteMileage.isPending}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-muted/30 font-semibold border-t-2">
+                    <td className="py-2 px-3">Total</td>
+                    <td className="py-2 px-3 text-right font-mono">
+                      {mileageEntries.reduce((sum, m) => sum + parseFloat(m.miles || "0"), 0).toFixed(1)} miles
+                    </td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-2">No mileage logged this week</p>
+          )}
+
+          {showAddMileage && (
+            <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
+              <h4 className="text-sm font-medium">Log Mileage</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs">Date</Label>
+                  <select
+                    value={mileageDate}
+                    onChange={(e) => setMileageDate(e.target.value)}
+                    className="w-full border rounded px-3 py-2 text-sm bg-background"
+                  >
+                    {timecard.entries.map((entry) => (
+                      <option key={entry.entryDate} value={entry.entryDate}>
+                        {formatDayLabel(entry.entryDate)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-xs">Miles</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="0.0"
+                    value={mileageMiles}
+                    onChange={(e) => setMileageMiles(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">Purpose *</Label>
+                  <Input
+                    type="text"
+                    placeholder="Client site visit, supply run…"
+                    value={mileagePurpose}
+                    onChange={(e) => setMileagePurpose(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => addMileage.mutate({
+                    timecardId: timecard.id,
+                    entryDate: mileageDate,
+                    miles: mileageMiles,
+                    purpose: mileagePurpose,
+                  })}
+                  disabled={addMileage.isPending || !mileageMiles || !mileagePurpose.trim()}
+                >
+                  {addMileage.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                  Save
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowAddMileage(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Edit History */}
       {timecard && timecard.auditLog && timecard.auditLog.length > 0 && (
         <div className="bg-card border rounded-lg">
@@ -699,8 +878,8 @@ export function Timecards() {
                   className="bg-card border rounded-lg p-4 text-left hover:bg-muted/50 transition-colors cursor-pointer"
                 >
                   <div className="font-medium text-sm">{formatWeekLabel(card.weekStartDate)}</div>
-                  <div className="mt-2 text-sm text-muted-foreground">
-                    {parseFloat(card.totalHours || "0").toFixed(1)} hrs
+                  <div className="mt-2 text-sm text-muted-foreground flex items-center gap-3">
+                    <span>{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
                   </div>
                 </button>
               ))}

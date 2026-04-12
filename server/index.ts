@@ -165,6 +165,17 @@ declare module "http" {
       // Clock in/out columns on timecard entries
       `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS clock_in VARCHAR`,
       `ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS clock_out VARCHAR`,
+      // Mileage log table
+      `CREATE TABLE IF NOT EXISTS timecard_mileage (
+        id SERIAL PRIMARY KEY,
+        timecard_id INTEGER NOT NULL REFERENCES timecards(id) ON DELETE CASCADE,
+        entry_date VARCHAR NOT NULL,
+        miles NUMERIC(6, 2) NOT NULL DEFAULT '0',
+        purpose TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS "IDX_timecard_mileage_timecard_id" ON timecard_mileage(timecard_id)`,
       // Add recipient_id column to timecards
       `ALTER TABLE timecards ADD COLUMN IF NOT EXISTS recipient_id INTEGER REFERENCES timecard_recipients(id)`,
       // Seed default recipient (Claudia — HR Manager) if none exist

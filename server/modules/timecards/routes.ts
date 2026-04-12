@@ -188,6 +188,85 @@ export function registerTimecardRoutes(app: Express) {
 
   // (Submit and recipient selection routes removed — employees auto-save, no submit flow)
 
+  // ── EMPLOYEE MILEAGE ──────────────────────
+
+  // GET mileage entries for own timecard
+  app.get(
+    "/api/timecards/:id/mileage",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const timecardId = parseInt(req.params.id, 10);
+      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
+
+      const card = await timecardStorage.getTimecardWithEntries(timecardId);
+      if (card.userId !== userId) {
+        return res.status(403).json({ error: "Not your timecard" });
+      }
+
+      const mileage = await timecardStorage.getMileageForTimecard(timecardId);
+      res.json(mileage);
+    }),
+  );
+
+  // POST upsert mileage entry for own timecard
+  app.post(
+    "/api/timecards/:id/mileage",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const timecardId = parseInt(req.params.id, 10);
+      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
+
+      const card = await timecardStorage.getTimecardWithEntries(timecardId);
+      if (card.userId !== userId) {
+        return res.status(403).json({ error: "Not your timecard" });
+      }
+
+      const { entryDate, miles, purpose } = req.body;
+      if (!entryDate || miles === undefined) {
+        return res.status(400).json({ error: "entryDate and miles are required" });
+      }
+
+      const entry = await timecardStorage.upsertMileageEntry(
+        timecardId,
+        entryDate,
+        String(miles),
+        purpose || null,
+      );
+      res.json(entry);
+    }),
+  );
+
+  // DELETE own mileage entry
+  app.delete(
+    "/api/timecards/mileage/:id",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const mileageId = parseInt(req.params.id, 10);
+      if (isNaN(mileageId)) return res.status(400).json({ error: "Invalid mileage ID" });
+
+      const entry = await timecardStorage.getMileageEntryById(mileageId);
+      if (!entry) return res.status(404).json({ error: "Mileage entry not found" });
+
+      // Verify ownership via timecard
+      const card = await timecardStorage.getTimecardWithEntries(entry.timecardId);
+      if (card.userId !== userId) {
+        return res.status(403).json({ error: "Not your timecard" });
+      }
+
+      await timecardStorage.deleteMileageEntry(mileageId);
+      res.json({ success: true });
+    }),
+  );
+
   // ── RECIPIENT CRUD ───────────────────────
 
   // GET all active recipients (any authenticated user)
@@ -359,6 +438,50 @@ export function registerTimecardRoutes(app: Express) {
 
       const updated = await timecardStorage.approveTimecard(timecardId, adminId);
       res.json(updated);
+    }),
+  );
+
+  // ── ADMIN MILEAGE ──────────────────────────
+
+  // GET mileage for any timecard
+  app.get(
+    "/api/timecards/admin/:id/mileage",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const timecardId = parseInt(req.params.id, 10);
+      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
+      const mileage = await timecardStorage.getMileageForTimecard(timecardId);
+      res.json(mileage);
+    }),
+  );
+
+  // POST upsert mileage for any timecard
+  app.post(
+    "/api/timecards/admin/:id/mileage",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const timecardId = parseInt(req.params.id, 10);
+      if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
+
+      const { entryDate, miles, purpose } = req.body;
+      if (!entryDate || miles === undefined) {
+        return res.status(400).json({ error: "entryDate and miles are required" });
+      }
+
+      const entry = await timecardStorage.upsertMileageEntry(timecardId, entryDate, String(miles), purpose || null);
+      res.json(entry);
+    }),
+  );
+
+  // DELETE any mileage entry
+  app.delete(
+    "/api/timecards/admin/mileage/:id",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const mileageId = parseInt(req.params.id, 10);
+      if (isNaN(mileageId)) return res.status(400).json({ error: "Invalid mileage ID" });
+      await timecardStorage.deleteMileageEntry(mileageId);
+      res.json({ success: true });
     }),
   );
 

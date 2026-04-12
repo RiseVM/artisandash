@@ -33,6 +33,7 @@ import {
   Plus,
   X,
   Circle,
+  Car,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -206,6 +207,14 @@ interface EmployeeClockStatus {
   user: CardUser;
   openPunch: ClockPunch | null;
   todayHours: number;
+}
+
+interface MileageEntry {
+  id: number;
+  timecardId: number;
+  entryDate: string;
+  miles: string;
+  purpose: string | null;
 }
 
 // ── Identity Verification Gate ──────────────
@@ -478,7 +487,7 @@ export function TimeManagement() {
   const [newPunchIn, setNewPunchIn] = useState("09:00");
   const [newPunchOut, setNewPunchOut] = useState("17:00");
   const [statusFilterPill, setStatusFilterPill] = useState<"all" | "draft" | "submitted" | "approved">("all");
-  const [editingEmployee, setEditingEmployee] = useState<{ id: string; firstName: string; lastName: string; email: string; password: string; role: string } | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<{ id: string; firstName: string; lastName: string; email: string; password: string; role: string; mileageRate: string } | null>(null);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [newUserForm, setNewUserForm] = useState({ firstName: "", lastName: "", email: "", password: "", role: "staff" });
 
@@ -539,6 +548,51 @@ export function TimeManagement() {
   const { data: allUsers = [], refetch: refetchAllUsers } = useQuery<ManagedUser[]>({
     queryKey: ["/api/users"],
     enabled: !!verifiedUser,
+  });
+
+  // Fetch mileage entries for expanded card
+  const { data: expandedMileage = [], refetch: refetchExpandedMileage } = useQuery<MileageEntry[]>({
+    queryKey: ["/api/timecards/admin/" + expandedCard + "/mileage"],
+    queryFn: async () => {
+      const res = await fetch(`/api/timecards/admin/${expandedCard}/mileage`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load mileage");
+      return res.json();
+    },
+    enabled: !!verifiedUser && expandedCard !== null,
+  });
+
+  // Mileage add state
+  const [showAddMileage, setShowAddMileage] = useState(false);
+  const [newMileageDate, setNewMileageDate] = useState("");
+  const [newMileageMiles, setNewMileageMiles] = useState("");
+  const [newMileagePurpose, setNewMileagePurpose] = useState("");
+
+  // Mutation: admin add mileage
+  const addAdminMileage = useMutation({
+    mutationFn: async ({ timecardId, entryDate, miles, purpose }: { timecardId: number; entryDate: string; miles: number; purpose: string }) => {
+      const res = await apiRequest("POST", `/api/timecards/admin/${timecardId}/mileage`, { entryDate, miles, purpose });
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchExpandedMileage();
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      setShowAddMileage(false);
+      setNewMileageMiles("");
+      setNewMileagePurpose("");
+      setNewMileageDate("");
+    },
+  });
+
+  // Mutation: admin delete mileage
+  const deleteAdminMileage = useMutation({
+    mutationFn: async (mileageId: number) => {
+      const res = await apiRequest("DELETE", `/api/timecards/admin/mileage/${mileageId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchExpandedMileage();
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+    },
   });
 
   // Mutation: admin edit entry
@@ -1097,7 +1151,9 @@ export function TimeManagement() {
                         </th>
                       );
                     })}
-                    <th className="text-center py-2.5 px-2 font-semibold w-20">Total</th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-20">Total Hrs</th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-20">Miles</th>
+                    <th className="text-center py-2.5 px-2 font-semibold w-24">Mileage $</th>
                     <th className="text-center py-2.5 px-2 font-semibold w-24">Status</th>
                   </tr>
                 </thead>
@@ -1107,6 +1163,8 @@ export function TimeManagement() {
                     const isClockedIn = clockStatus?.openPunch != null;
                     const status = card?.status || "draft";
                     const totalHrs = card ? parseFloat(card.totalHours || "0") : 0;
+                    const totalMiles = card ? parseFloat(card.totalMileage || "0") : 0;
+                    const mileagePayout = totalMiles * (emp.mileageRate || 0);
 
                     return (
                       <tr
@@ -1167,6 +1225,14 @@ export function TimeManagement() {
                         </td>
 
                         <td className="text-center py-2 px-2">
+                          <span className="text-sm text-muted-foreground">{totalMiles > 0 ? totalMiles.toFixed(1) : "—"}</span>
+                        </td>
+
+                        <td className="text-center py-2 px-2">
+                          <span className="text-sm text-muted-foreground">{mileagePayout > 0 ? `$${mileagePayout.toFixed(2)}` : "—"}</span>
+                        </td>
+
+                        <td className="text-center py-2 px-2">
                           <div className="flex items-center justify-center gap-1">
                             {statusBadge(status)}
                             {card && card.status === "submitted" && (
@@ -1201,6 +1267,21 @@ export function TimeManagement() {
                       );
                     })}
                     <td className="text-center py-2.5 px-2 text-sm">{weekTotalHours.toFixed(1)}</td>
+                    <td className="text-center py-2.5 px-2 text-xs font-mono">
+                      {(() => {
+                        const totalMi = gridRows.reduce((sum, { card }) => sum + parseFloat(card?.totalMileage || "0"), 0);
+                        return totalMi > 0 ? totalMi.toFixed(1) : "—";
+                      })()}
+                    </td>
+                    <td className="text-center py-2.5 px-2 text-xs font-mono">
+                      {(() => {
+                        const totalPayout = gridRows.reduce((sum, { employee: emp, card }) => {
+                          const miles = parseFloat(card?.totalMileage || "0");
+                          return sum + miles * (emp.mileageRate || 0);
+                        }, 0);
+                        return totalPayout > 0 ? `$${totalPayout.toFixed(2)}` : "—";
+                      })()}
+                    </td>
                     <td className="py-2.5 px-2"></td>
                   </tr>
                 </tbody>
@@ -1317,6 +1398,99 @@ export function TimeManagement() {
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Mileage section */}
+              <div className="border-t px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Car className="h-3 w-3" /> Mileage Log
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => {
+                      setShowAddMileage(true);
+                      setNewMileageDate(weekDays[0]);
+                    }}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Log Mileage
+                  </Button>
+                </div>
+                {expandedMileage.length > 0 ? (
+                  <div className="space-y-1">
+                    {expandedMileage.map((m) => (
+                      <div key={m.id} className="flex items-center gap-3 text-sm py-1 px-2 rounded hover:bg-muted/50 group">
+                        <span className="text-xs text-muted-foreground w-28">{formatDayLabel(m.entryDate)}</span>
+                        <span className="font-mono text-xs font-semibold">{parseFloat(m.miles).toFixed(1)} mi</span>
+                        {m.purpose && <span className="text-xs text-muted-foreground truncate flex-1">{m.purpose}</span>}
+                        <button
+                          onClick={() => deleteAdminMileage.mutate(m.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded ml-auto"
+                        >
+                          <Trash2 className="h-3 w-3 text-red-500" />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-3 text-sm py-1 px-2 font-semibold border-t mt-1 pt-1">
+                      <span className="text-xs w-28">Total</span>
+                      <span className="font-mono text-xs">{expandedMileage.reduce((s, m) => s + parseFloat(m.miles), 0).toFixed(1)} mi</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">No mileage logged this week</p>
+                )}
+                {showAddMileage && (
+                  <div className="mt-2 flex items-center gap-2 p-2 bg-blue-50 rounded">
+                    <select
+                      value={newMileageDate}
+                      onChange={(e) => setNewMileageDate(e.target.value)}
+                      className="border rounded px-2 py-1 text-xs"
+                    >
+                      {weekDays.map((d) => (
+                        <option key={d} value={d}>{formatDayLabel(d)}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="Miles"
+                      value={newMileageMiles}
+                      onChange={(e) => setNewMileageMiles(e.target.value)}
+                      className="border rounded px-2 py-1 text-xs w-20"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Purpose"
+                      value={newMileagePurpose}
+                      onChange={(e) => setNewMileagePurpose(e.target.value)}
+                      className="border rounded px-2 py-1 text-xs flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-xs"
+                      onClick={() => {
+                        if (expandedCard && newMileageMiles) {
+                          addAdminMileage.mutate({
+                            timecardId: expandedCard,
+                            entryDate: newMileageDate,
+                            miles: parseFloat(newMileageMiles),
+                            purpose: newMileagePurpose.trim(),
+                          });
+                        }
+                      }}
+                      disabled={addAdminMileage.isPending || !newMileageMiles}
+                    >
+                      {addAdminMileage.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setShowAddMileage(false)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {expandedDetail.auditLog.length > 0 && (
@@ -1813,6 +1987,7 @@ export function TimeManagement() {
                   <th className="text-left py-2.5 px-3 font-medium">Full Name</th>
                   <th className="text-left py-2.5 px-3 font-medium">Email</th>
                   <th className="text-left py-2.5 px-3 font-medium">Role</th>
+                  <th className="text-center py-2.5 px-3 font-medium">Mileage Rate</th>
                   <th className="text-left py-2.5 px-3 font-medium">Status</th>
                   <th className="text-right py-2.5 px-3 font-medium">Actions</th>
                 </tr>
@@ -1834,6 +2009,13 @@ export function TimeManagement() {
                         <td className="py-2 px-3">
                           <Badge variant="outline" className="text-xs capitalize">{u.role}</Badge>
                         </td>
+                        <td className="py-2 px-3 text-center">
+                          {(() => {
+                            const emp = employees.find(e => e.id === u.id);
+                            if (!emp || !emp.mileageEnabled) return <span className="text-xs text-muted-foreground">—</span>;
+                            return <span className="text-xs font-mono">${emp.mileageRate.toFixed(3)}/mi</span>;
+                          })()}
+                        </td>
                         <td className="py-2 px-3">
                           {isActive ? (
                             <Badge className="bg-green-100 text-green-700 text-xs">Active</Badge>
@@ -1847,14 +2029,18 @@ export function TimeManagement() {
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2 text-xs"
-                              onClick={() => setEditingEmployee({
-                                id: u.id,
-                                firstName: u.firstName || "",
-                                lastName: u.lastName || "",
-                                email: u.email,
-                                password: "",
-                                role: u.role,
-                              })}
+                              onClick={() => {
+                                const emp = employees.find(e => e.id === u.id);
+                                setEditingEmployee({
+                                  id: u.id,
+                                  firstName: u.firstName || "",
+                                  lastName: u.lastName || "",
+                                  email: u.email,
+                                  password: "",
+                                  role: u.role,
+                                  mileageRate: emp?.mileageRate?.toString() || "0",
+                                });
+                              }}
                             >
                               <Pencil className="h-3 w-3 mr-1" /> Edit
                             </Button>
@@ -1874,7 +2060,7 @@ export function TimeManagement() {
                   })}
                 {allUsers.filter(u => u.role !== "admin").length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
                       No employees yet. Click "Add Employee" to get started.
                     </td>
                   </tr>
@@ -2008,6 +2194,18 @@ export function TimeManagement() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label className="text-xs">Mileage Rate ($/mile)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.001"
+                  placeholder="0.670"
+                  value={editingEmployee.mileageRate}
+                  onChange={(e) => setEditingEmployee({ ...editingEmployee, mileageRate: e.target.value })}
+                  className="text-sm w-[160px]"
+                />
+              </div>
               <div className="flex gap-2">
                 <Button
                   size="sm"
@@ -2018,6 +2216,7 @@ export function TimeManagement() {
                       lastName: editingEmployee.lastName,
                       email: editingEmployee.email,
                       role: editingEmployee.role,
+                      mileageRate: parseFloat(editingEmployee.mileageRate) || 0,
                     };
                     if (editingEmployee.password) {
                       payload.password = editingEmployee.password;

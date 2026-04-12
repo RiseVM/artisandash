@@ -1651,6 +1651,19 @@ export const timecardPunches = pgTable("timecard_punches", {
   index("IDX_punches_user_date").on(table.userId, table.punchDate),
 ]);
 
+// Mileage log entries (separate from time entries, one per trip/date)
+export const timecardMileage = pgTable("timecard_mileage", {
+  id: serial("id").primaryKey(),
+  timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
+  entryDate: varchar("entry_date").notNull(),
+  miles: numeric("miles", { precision: 6, scale: 2 }).notNull().default("0"),
+  purpose: text("purpose"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_timecard_mileage_timecard_id").on(table.timecardId),
+]);
+
 // Payroll contacts (who receives weekly timecard emails)
 export const payrollContacts = pgTable("payroll_contacts", {
   id: serial("id").primaryKey(),
@@ -1687,6 +1700,15 @@ export const insertTimecardRecipientSchema = createInsertSchema(timecardRecipien
 
 export type InsertTimecardRecipient = z.infer<typeof insertTimecardRecipientSchema>;
 export type TimecardRecipient = typeof timecardRecipients.$inferSelect;
+
+export const insertTimecardMileageSchema = createInsertSchema(timecardMileage).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertTimecardMileage = z.infer<typeof insertTimecardMileageSchema>;
+export type TimecardMileage = typeof timecardMileage.$inferSelect;
 
 // Insert schemas
 export const insertTimecardPunchSchema = createInsertSchema(timecardPunches).omit({
