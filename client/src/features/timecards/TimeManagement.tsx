@@ -211,12 +211,6 @@ interface Employee {
   mileageRate: number;
 }
 
-interface PayrollContact {
-  id: number;
-  name: string;
-  email: string;
-}
-
 interface TimecardRecipient {
   id: number;
   name: string;
@@ -561,12 +555,9 @@ function TimeManagementInner() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
   const [expandedEmployeesSection, setExpandedEmployeesSection] = useState(false);
-  const [expandedPayrollSection, setExpandedPayrollSection] = useState(false);
   const [expandedRecipientsSection, setExpandedRecipientsSection] = useState(false);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
-  const [showAddContact, setShowAddContact] = useState(false);
   const [newEmployeeForm, setNewEmployeeForm] = useState({ firstName: "", lastName: "", email: "", password: "", mileageEnabled: false, mileageRate: 0 });
-  const [newContactForm, setNewContactForm] = useState({ name: "", email: "" });
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [showAddRecipient, setShowAddRecipient] = useState(false);
   const [newRecipientForm, setNewRecipientForm] = useState({ name: "", email: "", title: "" });
@@ -610,11 +601,6 @@ function TimeManagementInner() {
 
   const { data: employees = [], refetch: refetchEmployees } = useQuery<Employee[]>({
     queryKey: ["/api/timecards/admin/employees"],
-    enabled: !!verifiedUser,
-  });
-
-  const { data: payrollContacts = [], refetch: refetchPayrollContacts } = useQuery<PayrollContact[]>({
-    queryKey: ["/api/timecards/admin/payroll-contacts"],
     enabled: !!verifiedUser,
   });
 
@@ -743,33 +729,6 @@ function TimeManagementInner() {
     },
     onSuccess: () => {
       refetchEmployees();
-    },
-  });
-
-  const addPayrollContact = useMutation({
-    mutationFn: async (data: typeof newContactForm) => {
-      const res = await apiRequest("POST", "/api/timecards/admin/payroll-contacts", data);
-      return res.json();
-    },
-    onSuccess: () => {
-      refetchPayrollContacts();
-      setNewContactForm({ name: "", email: "" });
-      setShowAddContact(false);
-      setFeedback({ type: "success", message: "Contact added successfully" });
-      setTimeout(() => setFeedback(null), 3000);
-    },
-    onError: () => {
-      setFeedback({ type: "error", message: "Failed to add contact" });
-    },
-  });
-
-  const deletePayrollContact = useMutation({
-    mutationFn: async (contactId: number) => {
-      const res = await apiRequest("DELETE", `/api/timecards/admin/payroll-contacts/${contactId}`);
-      return res.json();
-    },
-    onSuccess: () => {
-      refetchPayrollContacts();
     },
   });
 
@@ -957,7 +916,7 @@ function TimeManagementInner() {
           <Button variant="ghost" size="icon" onClick={() => navigateWeek(1)}>
             <ChevronRight className="h-5 w-5" />
           </Button>
-          {approvedTimecards.length > 0 && payrollContacts.length > 0 && (
+          {approvedTimecards.length > 0 && allRecipients.filter(r => r.isActive === "yes").length > 0 && (
             <Button
               size="sm"
               className="ml-4 bg-blue-600 hover:bg-blue-700 text-white"
@@ -1438,94 +1397,13 @@ function TimeManagementInner() {
         )}
       </div>
 
-      {/* Payroll Contacts Section */}
-      <div className="bg-card border rounded-lg">
-        <button
-          onClick={() => setExpandedPayrollSection(!expandedPayrollSection)}
-          className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
-        >
-          <h2 className="text-lg font-semibold">Payroll Contacts</h2>
-          {expandedPayrollSection ? (
-            <ChevronUp className="h-5 w-5" />
-          ) : (
-            <ChevronDown className="h-5 w-5" />
-          )}
-        </button>
-
-        {expandedPayrollSection && (
-          <div className="border-t p-4 space-y-4">
-            <Button
-              onClick={() => setShowAddContact(!showAddContact)}
-              className="w-full"
-              variant="outline"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Contact
-            </Button>
-
-            {showAddContact && (
-              <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
-                <Input
-                  placeholder="Name"
-                  value={newContactForm.name}
-                  onChange={(e) => setNewContactForm({ ...newContactForm, name: e.target.value })}
-                />
-                <Input
-                  placeholder="Email"
-                  type="email"
-                  value={newContactForm.email}
-                  onChange={(e) => setNewContactForm({ ...newContactForm, email: e.target.value })}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => addPayrollContact.mutate(newContactForm)}
-                    disabled={addPayrollContact.isPending}
-                    className="flex-1"
-                  >
-                    {addPayrollContact.isPending ? "Adding..." : "Add Contact"}
-                  </Button>
-                  <Button
-                    onClick={() => setShowAddContact(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {payrollContacts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No payroll contacts</p>
-            ) : (
-              <div className="space-y-2">
-                {payrollContacts.map((contact) => (
-                  <div key={contact.id} className="flex items-center justify-between p-3 border rounded-lg group">
-                    <div>
-                      <div className="font-medium text-sm">{contact.name}</div>
-                      <div className="text-xs text-muted-foreground">{contact.email}</div>
-                    </div>
-                    <button
-                      onClick={() => deletePayrollContact.mutate(contact.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Timecard Recipients Section */}
+      {/* Payroll Recipients Section */}
       <div className="bg-card border rounded-lg">
         <button
           onClick={() => setExpandedRecipientsSection(!expandedRecipientsSection)}
           className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
         >
-          <h2 className="text-lg font-semibold">Timecard Recipients</h2>
+          <h2 className="text-lg font-semibold">Payroll Recipients</h2>
           {expandedRecipientsSection ? (
             <ChevronUp className="h-5 w-5" />
           ) : (

@@ -711,10 +711,9 @@ export function registerTimecardRoutes(app: Express) {
       const { weekStartDate } = req.body;
       if (!weekStartDate) return res.status(400).json({ error: "weekStartDate required" });
 
-      const contacts = await timecardStorage.getPayrollContacts();
-      const activeContacts = contacts.filter((c) => c.isActive === "yes");
-      if (activeContacts.length === 0) {
-        return res.status(400).json({ error: "No active payroll contacts. Please add a payroll contact first." });
+      const recipients = await timecardStorage.getRecipients();
+      if (recipients.length === 0) {
+        return res.status(400).json({ error: "No active payroll recipients. Please add a recipient first." });
       }
 
       const cards = await timecardStorage.getApprovedTimecardsForWeek(weekStartDate);
@@ -757,7 +756,7 @@ export function registerTimecardRoutes(app: Express) {
         const { getResendClient } = await import("../../services/emailService");
         const { client, fromEmail } = await getResendClient();
 
-        const toList = activeContacts.map((c) => c.email);
+        const toList = recipients.map((r: any) => r.email);
 
         await client.emails.send({
           from: fromEmail,
