@@ -59,7 +59,7 @@ interface TimeDropdownProps {
 function TimeDropdown({ value, onChange, disabled, placeholder }: TimeDropdownProps) {
   return (
     <Select
-      value={value || ""}
+      value={value === "" ? undefined : value}
       onValueChange={(val) => {
         if (val) onChange(val);
       }}
@@ -524,13 +524,11 @@ function TimecardDayRow({
       }
       if (notes !== serverRef.current.notes) body.notes = notes || null;
 
-      console.log(`[Timecard] Saving entry ${entry.id}:`, body);
       const result = await saveEntry(entry.id, body);
-      console.log(`[Timecard] Save OK entry ${entry.id}:`, result);
 
-      // Update local display from response
-      if (result.hours) setLocalHours(result.hours);
-      if (result.otHours) setLocalOtHours(result.otHours);
+      // Update local display from response — always set, even if "0"
+      setLocalHours(result.hours ?? "0");
+      setLocalOtHours(result.otHours ?? "0");
 
       // Update server ref to mark as clean
       serverRef.current = {
@@ -569,8 +567,8 @@ function TimecardDayRow({
       try {
         const body: Record<string, unknown> = { entryType: "work", clockIn: ci, clockOut: co };
         const result = await saveEntry(entry.id, body);
-        if (result.hours) setLocalHours(result.hours);
-        if (result.otHours) setLocalOtHours(result.otHours);
+        setLocalHours(result.hours ?? "0");
+        setLocalOtHours(result.otHours ?? "0");
         serverRef.current = {
           ...serverRef.current,
           clockIn: result.clockIn || "",
@@ -820,8 +818,8 @@ function TimecardDayCard({
       if (notes !== serverRef.current.notes) body.notes = notes || null;
 
       const result = await saveEntry(entry.id, body);
-      if (result.hours) setLocalHours(result.hours);
-      if (result.otHours) setLocalOtHours(result.otHours);
+      setLocalHours(result.hours ?? "0");
+      setLocalOtHours(result.otHours ?? "0");
       serverRef.current = {
         clockIn: result.clockIn || "",
         clockOut: result.clockOut || "",
@@ -855,8 +853,8 @@ function TimecardDayCard({
       try {
         const body: Record<string, unknown> = { entryType: "work", clockIn: ci, clockOut: co };
         const result = await saveEntry(entry.id, body);
-        if (result.hours) setLocalHours(result.hours);
-        if (result.otHours) setLocalOtHours(result.otHours);
+        setLocalHours(result.hours ?? "0");
+        setLocalOtHours(result.otHours ?? "0");
         serverRef.current = {
           ...serverRef.current,
           clockIn: result.clockIn || "",
