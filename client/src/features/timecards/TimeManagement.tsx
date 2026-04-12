@@ -604,6 +604,33 @@ function TimeManagementInner() {
   const [newMileageMiles, setNewMileageMiles] = useState("");
   const [newMileagePurpose, setNewMileagePurpose] = useState("");
 
+  // Drawer: find the timecard for the selected employee (if any)
+  const selectedCard = selectedEmployeeId ? allCards.find(c => c.userId === selectedEmployeeId) : null;
+  const selectedTimecardId = selectedCard?.id ?? null;
+
+  // Fetch detail for the drawer's timecard
+  const { data: drawerDetail } = useQuery<TimecardDetail>({
+    queryKey: ["/api/timecards/admin/" + selectedTimecardId],
+    enabled: !!verifiedUser && selectedTimecardId !== null,
+  });
+
+  // Fetch punches for drawer
+  const { data: drawerPunches = [] } = useQuery<ClockPunch[]>({
+    queryKey: ["/api/timecards/" + selectedTimecardId + "/punches"],
+    enabled: !!verifiedUser && selectedTimecardId !== null,
+  });
+
+  // Fetch mileage for drawer
+  const { data: drawerMileage = [], refetch: refetchDrawerMileage } = useQuery<MileageEntry[]>({
+    queryKey: ["/api/timecards/admin/" + selectedTimecardId + "/mileage"],
+    queryFn: async () => {
+      const res = await fetch(`/api/timecards/admin/${selectedTimecardId}/mileage`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load mileage");
+      return res.json();
+    },
+    enabled: !!verifiedUser && selectedTimecardId !== null,
+  });
+
   // Mutation: admin add mileage
   const addAdminMileage = useMutation({
     mutationFn: async ({ timecardId, entryDate, miles, purpose }: { timecardId: number; entryDate: string; miles: number; purpose: string }) => {
@@ -960,33 +987,6 @@ function TimeManagementInner() {
       employee: { ...u, mileageEnabled: emp?.mileageEnabled || false, mileageRate: emp?.mileageRate || 0 },
       card,  // may be undefined if no timecard exists for this week
     };
-  });
-
-  // Drawer: find the timecard for the selected employee (if any)
-  const selectedCard = selectedEmployeeId ? allCards.find(c => c.userId === selectedEmployeeId) : null;
-  const selectedTimecardId = selectedCard?.id ?? null;
-
-  // Fetch detail for the drawer's timecard
-  const { data: drawerDetail } = useQuery<TimecardDetail>({
-    queryKey: ["/api/timecards/admin/" + selectedTimecardId],
-    enabled: !!verifiedUser && selectedTimecardId !== null,
-  });
-
-  // Fetch punches for drawer
-  const { data: drawerPunches = [] } = useQuery<ClockPunch[]>({
-    queryKey: ["/api/timecards/" + selectedTimecardId + "/punches"],
-    enabled: !!verifiedUser && selectedTimecardId !== null,
-  });
-
-  // Fetch mileage for drawer
-  const { data: drawerMileage = [], refetch: refetchDrawerMileage } = useQuery<MileageEntry[]>({
-    queryKey: ["/api/timecards/admin/" + selectedTimecardId + "/mileage"],
-    queryFn: async () => {
-      const res = await fetch(`/api/timecards/admin/${selectedTimecardId}/mileage`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load mileage");
-      return res.json();
-    },
-    enabled: !!verifiedUser && selectedTimecardId !== null,
   });
 
   const selectedEmployee = selectedEmployeeId ? nonAdminUsers.find(u => u.id === selectedEmployeeId) : null;
