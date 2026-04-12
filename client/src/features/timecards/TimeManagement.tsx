@@ -546,6 +546,9 @@ function TimeManagementInner() {
   const [newMileageDate, setNewMileageDate] = useState("");
   const [newMileageMiles, setNewMileageMiles] = useState("");
   const [newMileagePurpose, setNewMileagePurpose] = useState("");
+  const [drawerMilesInput, setDrawerMilesInput] = useState("");
+  const [savingDrawerMileage, setSavingDrawerMileage] = useState(false);
+  const [drawerMileageSaved, setDrawerMileageSaved] = useState(false);
 
   // ── All useQuery ──
   const { data: clockStatuses = [] } = useQuery<EmployeeClockStatus[]>({
@@ -617,6 +620,14 @@ function TimeManagementInner() {
     },
     enabled: !!verifiedUser && selectedTimecardId !== null,
   });
+
+  // ── Sync drawer mileage input ──
+  useEffect(() => {
+    if (drawerMileage) {
+      const total = drawerMileage.reduce((sum, m) => sum + parseFloat(m.miles || "0"), 0);
+      setDrawerMilesInput(total > 0 ? total.toFixed(1) : "");
+    }
+  }, [drawerMileage]);
 
   // ── All useMutation ──
   const addAdminMileage = useMutation({
@@ -778,6 +789,27 @@ function TimeManagementInner() {
       return formatIso(addDays(d, direction * 7));
     });
   }, []);
+
+  const saveDrawerMileage = useCallback(async () => {
+    if (!selectedTimecardId || !drawerMilesInput) return;
+    setSavingDrawerMileage(true);
+    try {
+      await fetch(`/api/timecards/admin/${selectedTimecardId}/mileage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ entryDate: currentMonday, miles: parseFloat(drawerMilesInput), purpose: "Weekly mileage" }),
+      });
+      refetchDrawerMileage();
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      setDrawerMileageSaved(true);
+      setTimeout(() => setDrawerMileageSaved(false), 2000);
+    } catch {
+      // silent
+    } finally {
+      setSavingDrawerMileage(false);
+    }
+  }, [selectedTimecardId, drawerMilesInput, currentMonday, refetchDrawerMileage, queryClient]);
 
   // ── Identity gate ──
   if (!verifiedUser) {
@@ -1108,96 +1140,39 @@ function TimeManagementInner() {
 
               {/* Mileage Section */}
               {(() => { const emp = employees.find(e => e.id === selectedEmployeeId); return emp?.mileageEnabled; })() && (
-                <div className="border rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                      <Car className="h-3 w-3" /> Mileage Log
-                    </p>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-xs"
-                      onClick={() => {
-                        setShowAddMileage(true);
-                        setNewMileageDate(weekDays[0]);
-                      }}
-                    >
-                      <Plus className="h-3 w-3 mr-1" /> Log Mileage
-                    </Button>
-                  </div>
-                  {drawerMileage.length > 0 ? (
-                    <div className="space-y-1">
-                      {drawerMileage.map((m) => (
-                        <div key={m.id} className="flex items-center gap-3 text-sm py-1 px-2 rounded hover:bg-muted/50 group">
-                          <span className="text-xs text-muted-foreground w-28">{formatDayLabel(m.entryDate)}</span>
-                          <span className="font-mono text-xs font-semibold">{parseFloat(m.miles).toFixed(1)} mi</span>
-                          {m.purpose && <span className="text-xs text-muted-foreground truncate flex-1">{m.purpose}</span>}
-                          <button
-                            onClick={() => deleteAdminMileage.mutate(m.id)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 rounded ml-auto"
-                          >
-                            <Trash2 className="h-3 w-3 text-red-500" />
-                          </button>
-                        </div>
-                      ))}
-                      <div className="flex items-center gap-3 text-sm py-1 px-2 font-semibold border-t mt-1 pt-1">
-                        <span className="text-xs w-28">Total</span>
-                        <span className="font-mono text-xs">{drawerMileage.reduce((s, m) => s + parseFloat(m.miles), 0).toFixed(1)} mi</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">No mileage logged this week</p>
-                  )}
-                  {showAddMileage && selectedTimecardId && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 p-2 bg-blue-50 rounded">
-                      <select
-                        value={newMileageDate}
-                        onChange={(e) => setNewMileageDate(e.target.value)}
-                        className="border rounded px-2 py-1 text-xs"
-                      >
-                        {weekDays.map((d) => (
-                          <option key={d} value={d}>{formatDayLabel(d)}</option>
-                        ))}
-                      </select>
+                <div className="border rounded-lg p-4 space-y-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Car className="h-4 w-4" /> Mileage This Week
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-muted-foreground">Total Miles:</label>
                       <input
                         type="number"
-                        min="0"
                         step="0.1"
-                        placeholder="Miles"
-                        value={newMileageMiles}
-                        onChange={(e) => setNewMileageMiles(e.target.value)}
-                        className="border rounded px-2 py-1 text-xs w-20"
+                        min="0"
+                        className="border rounded px-2 py-1 text-sm w-[90px]"
+                        value={drawerMilesInput}
+                        onChange={(e) => setDrawerMilesInput(e.target.value)}
                       />
-                      <input
-                        type="text"
-                        placeholder="Purpose"
-                        value={newMileagePurpose}
-                        onChange={(e) => setNewMileagePurpose(e.target.value)}
-                        className="border rounded px-2 py-1 text-xs flex-1 min-w-[100px]"
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => {
-                          if (selectedTimecardId && newMileageMiles) {
-                            addAdminMileage.mutate({
-                              timecardId: selectedTimecardId,
-                              entryDate: newMileageDate,
-                              miles: parseFloat(newMileageMiles),
-                              purpose: newMileagePurpose.trim(),
-                            });
-                          }
-                        }}
-                        disabled={addAdminMileage.isPending || !newMileageMiles}
-                      >
-                        {addAdminMileage.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setShowAddMileage(false)}>
-                        <X className="h-3 w-3" />
-                      </Button>
                     </div>
-                  )}
+                    <Button size="sm" onClick={saveDrawerMileage} disabled={savingDrawerMileage}>
+                      {savingDrawerMileage ? "Saving..." : "Save"}
+                    </Button>
+                    {drawerMileageSaved && <span className="text-xs text-green-600">Saved</span>}
+                  </div>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <div>Rate: <span className="font-medium">${(() => {
+                      const emp = employees.find(e => e.id === selectedEmployeeId);
+                      return (emp?.mileageRate ?? 0.67).toFixed(3);
+                    })()}/mi</span></div>
+                    <div>Mileage Payout: <span className="font-semibold text-foreground">${(() => {
+                      const emp = employees.find(e => e.id === selectedEmployeeId);
+                      const rate = emp?.mileageRate ?? 0.67;
+                      const miles = parseFloat(drawerMilesInput || "0");
+                      return (miles * rate).toFixed(2);
+                    })()}</span></div>
+                  </div>
                 </div>
               )}
 
