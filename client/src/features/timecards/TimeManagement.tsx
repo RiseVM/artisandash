@@ -1367,7 +1367,7 @@ function TimeManagementInner() {
                           email: u.email,
                           password: "",
                           role: u.role,
-                          mileageRate: String(emp?.mileageRate || "0.670"),
+                          mileageRate: String(u.mileageRate ?? emp?.mileageRate ?? "0.670"),
                         });
                         setEditEmployeeOpen(true);
                       }}
