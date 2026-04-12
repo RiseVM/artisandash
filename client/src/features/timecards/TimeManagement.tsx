@@ -1704,7 +1704,11 @@ function TimeManagementInner() {
                 body: JSON.stringify(body),
               });
               if (res.ok) {
-                await queryClient.resetQueries();
+                const updated = await res.json();
+                queryClient.setQueryData(["/api/users"], (old: ManagedUser[] | undefined) => {
+                  if (!Array.isArray(old)) return old;
+                  return old.map(u => u.id === editingEmployee.id ? { ...u, ...updated } : u);
+                });
                 setEditEmployeeOpen(false);
                 toast({ title: "Employee updated successfully" });
               } else {
