@@ -584,6 +584,7 @@ function TimeManagementInner() {
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [showAddRecipient, setShowAddRecipient] = useState(false);
   const [newRecipientForm, setNewRecipientForm] = useState({ name: "", email: "", title: "" });
+  const [recipientFormError, setRecipientFormError] = useState<string | null>(null);
   const [editingRecipient, setEditingRecipient] = useState<TimecardRecipient | null>(null);
   const [showAddMileage, setShowAddMileage] = useState(false);
   const [newMileageDate, setNewMileageDate] = useState("");
@@ -763,12 +764,13 @@ function TimeManagementInner() {
     onSuccess: () => {
       refetchRecipients();
       setNewRecipientForm({ name: "", email: "", title: "" });
+      setRecipientFormError(null);
       setShowAddRecipient(false);
       setFeedback({ type: "success", message: "Recipient added" });
       setTimeout(() => setFeedback(null), 3000);
     },
-    onError: () => {
-      setFeedback({ type: "error", message: "Failed to add recipient" });
+    onError: (err: Error) => {
+      setRecipientFormError(err.message || "Failed to add recipient");
     },
   });
 
@@ -1465,16 +1467,19 @@ function TimeManagementInner() {
 
             {showAddRecipient && (
               <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                {recipientFormError && (
+                  <div className="p-2 rounded text-sm bg-red-50 text-red-700">{recipientFormError}</div>
+                )}
                 <Input
                   placeholder="Name"
                   value={newRecipientForm.name}
-                  onChange={(e) => setNewRecipientForm({ ...newRecipientForm, name: e.target.value })}
+                  onChange={(e) => { setNewRecipientForm({ ...newRecipientForm, name: e.target.value }); setRecipientFormError(null); }}
                 />
                 <Input
                   placeholder="Email"
                   type="email"
                   value={newRecipientForm.email}
-                  onChange={(e) => setNewRecipientForm({ ...newRecipientForm, email: e.target.value })}
+                  onChange={(e) => { setNewRecipientForm({ ...newRecipientForm, email: e.target.value }); setRecipientFormError(null); }}
                 />
                 <Input
                   placeholder="Title (Optional)"
@@ -1483,18 +1488,25 @@ function TimeManagementInner() {
                 />
                 <div className="flex gap-2">
                   <Button
-                    onClick={() => createRecipient.mutate({
-                      name: newRecipientForm.name,
-                      email: newRecipientForm.email,
-                      title: newRecipientForm.title || undefined,
-                    })}
+                    onClick={() => {
+                      if (!newRecipientForm.name.trim() || !newRecipientForm.email.trim()) {
+                        setRecipientFormError("Name and email are required");
+                        return;
+                      }
+                      setRecipientFormError(null);
+                      createRecipient.mutate({
+                        name: newRecipientForm.name.trim(),
+                        email: newRecipientForm.email.trim(),
+                        title: newRecipientForm.title.trim() || undefined,
+                      });
+                    }}
                     disabled={createRecipient.isPending}
                     className="flex-1"
                   >
                     {createRecipient.isPending ? "Adding..." : "Add Recipient"}
                   </Button>
                   <Button
-                    onClick={() => setShowAddRecipient(false)}
+                    onClick={() => { setShowAddRecipient(false); setRecipientFormError(null); }}
                     variant="outline"
                     className="flex-1"
                   >
