@@ -586,6 +586,7 @@ function TimeManagementInner() {
   const [newRecipientForm, setNewRecipientForm] = useState({ name: "", email: "", title: "" });
   const [recipientFormError, setRecipientFormError] = useState<string | null>(null);
   const [editingRecipient, setEditingRecipient] = useState<TimecardRecipient | null>(null);
+  const [confirmDeleteRecipientId, setConfirmDeleteRecipientId] = useState<number | null>(null);
   const [showAddMileage, setShowAddMileage] = useState(false);
   const [newMileageDate, setNewMileageDate] = useState("");
   const [newMileageMiles, setNewMileageMiles] = useState("");
@@ -1571,20 +1572,47 @@ function TimeManagementInner() {
                         <div className="text-xs text-muted-foreground">{recipient.title}</div>
                       )}
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => setEditingRecipient(recipient)}
-                        className="p-1 hover:bg-muted rounded"
-                      >
-                        <Trash2 className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                      <button
-                        onClick={() => deactivateRecipient.mutate(recipient.id)}
-                        className="p-1 hover:bg-red-50 rounded"
-                      >
-                        <X className="h-4 w-4 text-red-500" />
-                      </button>
-                    </div>
+                    {confirmDeleteRecipientId === recipient.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-red-600">Delete?</span>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => {
+                            deactivateRecipient.mutate(recipient.id);
+                            setConfirmDeleteRecipientId(null);
+                          }}
+                        >
+                          Yes
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => setConfirmDeleteRecipientId(null)}
+                        >
+                          No
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => setEditingRecipient(recipient)}
+                          className="p-1 hover:bg-muted rounded"
+                          title="Edit"
+                        >
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteRecipientId(recipient.id)}
+                          className="p-1 hover:bg-red-50 rounded"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
