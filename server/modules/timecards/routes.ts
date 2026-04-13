@@ -360,6 +360,18 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // GET count of employee notes for a week (for sidebar badge)
+  app.get(
+    "/api/timecards/admin/notes-count",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { weekStartDate } = req.query;
+      if (!weekStartDate) return res.json({ count: 0 });
+      const count = await timecardStorage.getEmployeeNotesCount(weekStartDate as string);
+      res.json({ count });
+    }),
+  );
+
   // GET all active users (for admin dropdowns)
   app.get(
     "/api/timecards/admin/users",

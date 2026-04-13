@@ -20,7 +20,7 @@ import type {
   TimecardWithUser,
   TimecardAuditLogWithUser,
 } from "@shared/schema";
-import { eq, and, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, isNull, isNotNull, sql } from "drizzle-orm";
 
 /** Calculate regular + OT hours from HH:MM clockIn/clockOut strings */
 function calcHours(clockIn: string, clockOut: string): { regular: number; ot: number } {
@@ -745,6 +745,24 @@ export const timecardStorage = {
         ),
       )
       .orderBy(timecardPunches.clockIn);
+  },
+
+  // ── EMPLOYEE NOTES COUNT ─────────────────
+  async getEmployeeNotesCount(weekStartDate: string): Promise<number> {
+    const rows = await db
+      .select({ id: timecardEntries.id })
+      .from(timecardEntries)
+      .innerJoin(timecards, eq(timecards.id, timecardEntries.timecardId))
+      .innerJoin(users, eq(users.id, timecards.userId))
+      .where(
+        and(
+          eq(timecards.weekStartDate, weekStartDate),
+          isNotNull(timecardEntries.notes),
+          sql`trim(${timecardEntries.notes}) != ''`,
+          sql`${users.role} != 'admin'`,
+        ),
+      );
+    return rows.length;
   },
 
   // ── PAYROLL CONTACTS ─────────────────────

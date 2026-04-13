@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   PlusCircle,
@@ -24,9 +25,31 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/hooks";
 
+function getCurrentMonday(): string {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d.toISOString().split("T")[0];
+}
+
 export function Sidebar() {
   const [location, setLocation] = useLocation();
   const { user, hasPermission, logout } = useAuth();
+  const isAdmin = user?.role === "admin";
+
+  // Fetch employee notes count for sidebar badge (admin only)
+  const { data: notesData } = useQuery<{ count: number }>({
+    queryKey: ["/api/timecards/admin/notes-count", { weekStartDate: getCurrentMonday() }],
+    queryFn: async () => {
+      const res = await fetch(`/api/timecards/admin/notes-count?weekStartDate=${getCurrentMonday()}`, { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      return res.json();
+    },
+    enabled: isAdmin,
+    refetchInterval: 60000,
+  });
+  const notesCount = notesData?.count || 0;
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -103,6 +126,7 @@ export function Sidebar() {
               {visibleAdminItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location === item.href;
+                const badge = item.href === "/time-management" && notesCount > 0 ? notesCount : 0;
                 return (
                   <Link key={item.href} href={item.href}>
                     <div
@@ -115,6 +139,11 @@ export function Sidebar() {
                     >
                       <Icon className="h-4 w-4" />
                       {item.label}
+                      {badge > 0 && (
+                        <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+                          {badge}
+                        </span>
+                      )}
                     </div>
                   </Link>
                 );

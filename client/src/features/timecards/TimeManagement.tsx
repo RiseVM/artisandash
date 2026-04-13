@@ -49,6 +49,7 @@ import {
   Circle,
   Car,
   Pencil,
+  MessageSquare,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -877,6 +878,21 @@ function TimeManagementInner() {
 
   const selectedEmployee = selectedEmployeeId ? nonAdminUsers.find(u => u.id === selectedEmployeeId) : null;
 
+  // Collect all employee notes for the current week
+  const employeeNotes = allCards.flatMap(card => {
+    const emp = nonAdminUsers.find(u => u.id === card.userId);
+    if (!emp) return [];
+    return card.entries
+      .filter(e => e.notes && e.notes.trim())
+      .map(e => ({
+        entryId: e.id,
+        date: e.entryDate,
+        notes: e.notes!,
+        employeeName: [emp.firstName, emp.lastName].filter(Boolean).join(" ") || emp.email,
+        employeeId: emp.id,
+      }));
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -890,6 +906,37 @@ function TimeManagementInner() {
       {feedback && (
         <div className={`p-4 rounded-lg text-sm font-medium ${feedback.type === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
           {feedback.message}
+        </div>
+      )}
+
+      {/* Employee Notes Alert */}
+      {employeeNotes.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquare className="h-4 w-4 text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800">
+              Employee Notes ({employeeNotes.length})
+            </span>
+          </div>
+          <div className="space-y-2">
+            {employeeNotes.map((note) => (
+              <div
+                key={note.entryId}
+                className="flex items-start gap-3 bg-white/70 rounded-md px-3 py-2 cursor-pointer hover:bg-white transition-colors"
+                onClick={() => setSelectedEmployeeId(note.employeeId)}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 text-xs text-amber-700">
+                    <span className="font-semibold">{note.employeeName}</span>
+                    <span className="text-amber-500">·</span>
+                    <span>{formatDayLabel(note.date)}</span>
+                  </div>
+                  <p className="text-sm text-amber-900 mt-0.5">"{note.notes}"</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-amber-400 shrink-0 mt-1" />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
