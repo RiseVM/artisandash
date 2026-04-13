@@ -132,7 +132,7 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
-  // PATCH own entry (clock in/out times)
+  // PATCH own entry (notes only — employees cannot edit times, only admins can)
   app.patch(
     "/api/timecards/entries/:entryId",
     isAuthenticated,
@@ -151,28 +151,16 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(403).json({ error: "Not your timecard" });
       }
 
-      const { clockIn, clockOut, entryType, ptoHours, holidayHours, notes } = req.body;
-
-      const finalEntryType = entryType !== undefined ? entryType : (found.entry.entryType || "work");
-
-      // Validate HH:MM format if provided and entry is work type
-      const timeRegex = /^\d{2}:\d{2}$/;
-      if (finalEntryType === "work") {
-        if (clockIn !== undefined && clockIn !== null && !timeRegex.test(clockIn)) {
-          return res.status(400).json({ error: "clockIn must be in HH:MM format" });
-        }
-        if (clockOut !== undefined && clockOut !== null && !timeRegex.test(clockOut)) {
-          return res.status(400).json({ error: "clockOut must be in HH:MM format" });
-        }
-      }
+      // Employees can only update notes — time edits are admin-only
+      const { notes } = req.body;
 
       const updated = await timecardStorage.updateTimecardEntry(
         entryId,
-        clockIn !== undefined ? clockIn : (found.entry.clockIn || null),
-        clockOut !== undefined ? clockOut : (found.entry.clockOut || null),
-        finalEntryType,
-        ptoHours !== undefined ? ptoHours : parseFloat(found.entry.ptoHours || "0"),
-        holidayHours !== undefined ? holidayHours : parseFloat(found.entry.holidayHours || "0"),
+        found.entry.clockIn || null,
+        found.entry.clockOut || null,
+        found.entry.entryType || "work",
+        parseFloat(found.entry.ptoHours || "0"),
+        parseFloat(found.entry.holidayHours || "0"),
         notes !== undefined ? notes : found.entry.notes,
         userId,
       );

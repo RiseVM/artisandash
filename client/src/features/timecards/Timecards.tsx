@@ -22,79 +22,18 @@ import {
   Check,
   Car,
   Save,
+  MessageSquare,
 } from "lucide-react";
 
-// ── Time Picker (compact hour / minute / AM-PM) ──────────────────────────
+// ── Helpers ─────────────────────────────────
 
-function parseTimeToComponents(time: string): { hour: string; minute: string; period: string } {
-  if (!time) return { hour: "", minute: "", period: "" };
+function formatTime24to12(time: string | null): string {
+  if (!time) return "—";
   const [h, m] = time.split(":").map(Number);
   const period = h >= 12 ? "PM" : "AM";
   const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return { hour: String(hour12), minute: String(m).padStart(2, "0"), period };
+  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
 }
-
-function componentsToTime(hour: string, minute: string, period: string): string {
-  if (!hour || !minute) return "";
-  let h = parseInt(hour);
-  if (period === "PM" && h < 12) h += 12;
-  if (period === "AM" && h === 12) h = 0;
-  return `${String(h).padStart(2, "0")}:${minute}`;
-}
-
-interface TimeDropdownProps {
-  value: string;
-  onChange: (val: string) => void;
-  disabled?: boolean;
-  placeholder?: string;
-}
-
-function TimeDropdown({ value, onChange, disabled }: TimeDropdownProps) {
-  const { hour, minute, period } = parseTimeToComponents(value);
-
-  const update = (h: string, m: string, p: string) => {
-    if (h && m) onChange(componentsToTime(h, m, p || "AM"));
-  };
-
-  return (
-    <div className="flex gap-1">
-      <select
-        value={hour}
-        onChange={(e) => update(e.target.value, minute || "00", period || "AM")}
-        disabled={disabled}
-        className="border rounded px-1.5 h-9 text-sm w-[52px] bg-white"
-      >
-        <option value="">—</option>
-        {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-          <option key={h} value={String(h)}>{h}</option>
-        ))}
-      </select>
-      <select
-        value={minute}
-        onChange={(e) => update(hour || "9", e.target.value, period || "AM")}
-        disabled={disabled}
-        className="border rounded px-1.5 h-9 text-sm w-[52px] bg-white"
-      >
-        <option value="">—</option>
-        {["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"].map((m) => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
-      <select
-        value={period}
-        onChange={(e) => update(hour || "9", minute || "00", e.target.value)}
-        disabled={disabled}
-        className="border rounded px-1.5 h-9 text-sm w-[52px] bg-white"
-      >
-        <option value="">—</option>
-        <option value="AM">AM</option>
-        <option value="PM">PM</option>
-      </select>
-    </div>
-  );
-}
-
-// ── Helpers ─────────────────────────────────
 
 function getMonday(d: Date): Date {
   const date = new Date(d);
@@ -214,15 +153,6 @@ interface MileageEntry {
   purpose: string | null;
 }
 
-// Per-row local edit state
-interface RowEdit {
-  clockIn: string;
-  clockOut: string;
-  entryType: string;
-  ptoHours: string;
-  holidayHours: string;
-  notes: string;
-}
 
 // ── Clock In / Out Widget ──────────────────
 
@@ -448,287 +378,111 @@ function IdentityGate({ onVerified }: { onVerified: (user: VerifiedUser) => void
   );
 }
 
-// ── Timecard Day Row (sub-component for per-row state) ──
+// ── Read-Only Timecard Day Row (desktop) ──
 
 function TimecardDayRow({
   entry,
   isToday,
   isWeekendDay,
-  saveEntry,
+  saveNote,
 }: {
   entry: TimecardEntry;
   isToday: boolean;
   isWeekendDay: boolean;
-  saveEntry: (entryId: number, body: Record<string, unknown>) => Promise<TimecardEntry>;
+  saveNote: (entryId: number, notes: string) => Promise<void>;
 }) {
-  const [clockIn, setClockIn] = useState(entry.clockIn || "");
-  const [clockOut, setClockOut] = useState(entry.clockOut || "");
-  const [entryType, setEntryType] = useState(entry.entryType || "work");
-  const [ptoHours, setPtoHours] = useState(entry.ptoHours || "0");
-  const [holidayHours, setHolidayHours] = useState(entry.holidayHours || "0");
   const [notes, setNotes] = useState(entry.notes || "");
-  const [localHours, setLocalHours] = useState(entry.hours);
-  const [localOtHours, setLocalOtHours] = useState(entry.otHours || "0");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<string | null>(null);
+  const serverNotes = useRef(entry.notes || "");
 
-  // Debounce timer for auto-save on dropdown change
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Refs for latest values at debounce flush time
-  const latestClockIn = useRef(clockIn);
-  const latestClockOut = useRef(clockOut);
-  latestClockIn.current = clockIn;
-  latestClockOut.current = clockOut;
-
-  // Server values for dirty tracking
-  const serverRef = useRef({
-    clockIn: entry.clockIn || "",
-    clockOut: entry.clockOut || "",
-    entryType: entry.entryType || "work",
-    ptoHours: entry.ptoHours || "0",
-    holidayHours: entry.holidayHours || "0",
-    notes: entry.notes || "",
-  });
-
-  // Sync when server data changes (after refetch)
   useEffect(() => {
-    const newCI = entry.clockIn || "";
-    const newCO = entry.clockOut || "";
-    const newType = entry.entryType || "work";
-    const newPto = entry.ptoHours || "0";
-    const newHol = entry.holidayHours || "0";
-    const newNotes = entry.notes || "";
+    if (notes === serverNotes.current) setNotes(entry.notes || "");
+    serverNotes.current = entry.notes || "";
+  }, [entry.notes]);
 
-    // Only update local values if they match old server values (not dirty)
-    if (clockIn === serverRef.current.clockIn) setClockIn(newCI);
-    if (clockOut === serverRef.current.clockOut) setClockOut(newCO);
-    if (entryType === serverRef.current.entryType) setEntryType(newType);
-    if (ptoHours === serverRef.current.ptoHours) setPtoHours(newPto);
-    if (holidayHours === serverRef.current.holidayHours) setHolidayHours(newHol);
-    if (notes === serverRef.current.notes) setNotes(newNotes);
+  const isDirty = notes !== serverNotes.current;
 
-    serverRef.current = { clockIn: newCI, clockOut: newCO, entryType: newType, ptoHours: newPto, holidayHours: newHol, notes: newNotes };
-    setLocalHours(entry.hours);
-    setLocalOtHours(entry.otHours || "0");
-  }, [entry.clockIn, entry.clockOut, entry.entryType, entry.ptoHours, entry.holidayHours, entry.notes, entry.hours, entry.otHours]);
-
-  const isDirty =
-    clockIn !== serverRef.current.clockIn ||
-    clockOut !== serverRef.current.clockOut ||
-    entryType !== serverRef.current.entryType ||
-    ptoHours !== serverRef.current.ptoHours ||
-    holidayHours !== serverRef.current.holidayHours ||
-    notes !== serverRef.current.notes;
-
-  const handleSave = async () => {
+  const handleSaveNote = async () => {
     if (!isDirty) return;
     setSaveState("saving");
-    setError(null);
     try {
-      const body: Record<string, unknown> = { entryType };
-      if (entryType === "work") {
-        body.clockIn = clockIn || null;
-        body.clockOut = clockOut || null;
-      } else if (entryType === "pto") {
-        body.ptoHours = parseFloat(ptoHours) || 0;
-      } else if (entryType === "holiday") {
-        body.holidayHours = parseFloat(holidayHours) || 0;
-      }
-      if (notes !== serverRef.current.notes) body.notes = notes || null;
-
-      const result = await saveEntry(entry.id, body);
-
-      // Update local display from response — always set, even if "0"
-      setLocalHours(result.hours ?? "0");
-      setLocalOtHours(result.otHours ?? "0");
-
-      // Update server ref to mark as clean
-      serverRef.current = {
-        clockIn: result.clockIn || "",
-        clockOut: result.clockOut || "",
-        entryType: result.entryType || "work",
-        ptoHours: result.ptoHours || "0",
-        holidayHours: result.holidayHours || "0",
-        notes: result.notes || "",
-      };
-
+      await saveNote(entry.id, notes);
+      serverNotes.current = notes;
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to save";
-      console.error(`[Timecard] Save error entry ${entry.id}:`, err);
-      setError(msg);
+    } catch {
       setSaveState("idle");
-      setTimeout(() => setError(null), 5000);
     }
   };
 
-  // Debounced save for dropdown changes — fires with latest values
-  // Only saves when BOTH clockIn and clockOut are non-empty
-  const debouncedSave = useCallback(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      const ci = latestClockIn.current;
-      const co = latestClockOut.current;
-      // Don't save unless both times are selected
-      if (!ci || !co) return;
-      // Check if actually dirty vs server
-      if (ci === serverRef.current.clockIn && co === serverRef.current.clockOut) return;
-      setSaveState("saving");
-      setError(null);
-      try {
-        const body: Record<string, unknown> = { entryType: "work", clockIn: ci, clockOut: co };
-        const result = await saveEntry(entry.id, body);
-        setLocalHours(result.hours ?? "0");
-        setLocalOtHours(result.otHours ?? "0");
-        serverRef.current = {
-          ...serverRef.current,
-          clockIn: result.clockIn || "",
-          clockOut: result.clockOut || "",
-        };
-        setSaveState("saved");
-        setTimeout(() => setSaveState("idle"), 2000);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Failed to save";
-        setError(msg);
-        setSaveState("idle");
-        setTimeout(() => setError(null), 5000);
-      }
-    }, 300);
-  }, [entry.id, saveEntry]);
+  const entryType = entry.entryType || "work";
+  const noClockTimes = entryType === "work" && !entry.clockIn && !entry.clockOut;
+  const hrs = noClockTimes ? 0 : parseFloat(entry.hours || "0");
+  const ptoHrs = parseFloat(entry.ptoHours || "0");
+  const holHrs = parseFloat(entry.holidayHours || "0");
 
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
-
-  const handleClockChange = (field: "clockIn" | "clockOut", val: string) => {
-    if (!val) return;
-    if (field === "clockIn") setClockIn(val);
-    else setClockOut(val);
-    debouncedSave();
-  };
-
-  // If work entry has no clock times, force hours to 0 (ignore stale DB data)
-  const noClockTimes = entryType === "work" && !clockIn && !clockOut;
-  const hrs = noClockTimes ? 0 : parseFloat(localHours || "0");
-  const otHrs = noClockTimes ? 0 : parseFloat(localOtHours || "0");
-  const ptoHrs = parseFloat(ptoHours || "0");
-  const holHrs = parseFloat(holidayHours || "0");
-
-  const typeColors = {
+  const typeColors: Record<string, string> = {
     work: "",
     pto: "bg-blue-50/70",
     holiday: "bg-indigo-50/70",
   };
 
-  // ── Desktop Row ──
   return (
     <tr
       className={`border-b last:border-b-0 ${
         isToday ? "border-l-4 border-l-primary bg-primary/5" : ""
       } ${isWeekendDay && entryType === "work" ? "bg-muted/20" : ""} ${
-        typeColors[entryType as keyof typeof typeColors] || ""
-      } ${saveState === "saved" ? "saved-flash" : ""}`}
+        typeColors[entryType] || ""
+      }`}
     >
-      {/* Day Label */}
       <td className="px-3 py-2.5 font-medium text-sm whitespace-nowrap">
         {formatDayLabel(entry.entryDate)}
       </td>
 
-      {/* Entry Type */}
-      <td className="px-2 py-2.5">
-        <div className="flex gap-0.5">
-          {(["work", "pto", "holiday"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setEntryType(t)}
-              className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${
-                entryType === t
-                  ? t === "work" ? "bg-primary text-white"
-                    : t === "pto" ? "bg-blue-500 text-white"
-                    : "bg-indigo-500 text-white"
-                  : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
-            >
-              {t === "work" ? "Work" : t === "pto" ? "PTO" : "Holiday"}
-            </button>
-          ))}
-        </div>
-      </td>
-
-      {/* Clock In / Clock Out OR PTO/Holiday hours */}
-      {entryType === "work" ? (
-        <>
-          <td className="px-2 py-2.5 text-center">
-            <TimeDropdown
-              value={clockIn}
-              onChange={(val) => handleClockChange("clockIn", val)}
-              placeholder="9:00 AM"
-            />
-          </td>
-          <td className="px-2 py-2.5 text-center">
-            <TimeDropdown
-              value={clockOut}
-              onChange={(val) => handleClockChange("clockOut", val)}
-              placeholder="5:00 PM"
-            />
-          </td>
-          <td className="px-2 py-2.5 text-center">
-            <span className={`font-mono text-sm ${hrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
-              {hrs > 0 ? `${hrs.toFixed(1)}h` : "—"}
-            </span>
-          </td>
-          <td className="px-2 py-2.5 text-center">
-            {otHrs > 0 ? (
-              <span className="font-mono text-sm font-semibold text-amber-600">
-                {otHrs.toFixed(1)}h
-              </span>
-            ) : (
-              <span className="text-sm text-muted-foreground">—</span>
-            )}
-          </td>
-        </>
-      ) : (
-        <td colSpan={4} className="px-2 py-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">
-              {entryType === "pto" ? "PTO Hours:" : "Holiday Hours:"}
-            </span>
-            <input
-              type="number"
-              min="0"
-              max="24"
-              step="0.5"
-              value={entryType === "pto" ? ptoHours : holidayHours}
-              onChange={(e) => entryType === "pto" ? setPtoHours(e.target.value) : setHolidayHours(e.target.value)}
-              onBlur={handleSave}
-              className="border rounded px-2 py-1.5 text-sm text-center w-20 bg-background"
-            />
-            <span className="text-xs text-muted-foreground">hrs</span>
+      <td className="px-2 py-2.5 text-center text-sm">
+        {entryType === "work" ? (
+          <span className="text-muted-foreground">{formatTime24to12(entry.clockIn)}</span>
+        ) : (
+          <span className="text-xs">
             {entryType === "pto" && ptoHrs > 0 && (
-              <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO {ptoHrs.toFixed(1)}h</Badge>
+              <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO</Badge>
             )}
             {entryType === "holiday" && holHrs > 0 && (
-              <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday {holHrs.toFixed(1)}h</Badge>
+              <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday</Badge>
             )}
-          </div>
-        </td>
-      )}
+          </span>
+        )}
+      </td>
 
-      {/* Notes */}
+      <td className="px-2 py-2.5 text-center text-sm">
+        {entryType === "work" ? (
+          <span className="text-muted-foreground">{formatTime24to12(entry.clockOut)}</span>
+        ) : null}
+      </td>
+
+      <td className="px-2 py-2.5 text-center">
+        <span className={`font-mono text-sm ${hrs > 0 || ptoHrs > 0 || holHrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
+          {entryType === "pto" && ptoHrs > 0
+            ? `${ptoHrs.toFixed(1)}h`
+            : entryType === "holiday" && holHrs > 0
+            ? `${holHrs.toFixed(1)}h`
+            : hrs > 0
+            ? `${hrs.toFixed(1)}h`
+            : "—"}
+        </span>
+      </td>
+
       <td className="px-2 py-2.5">
         <input
           type="text"
-          placeholder="Notes…"
+          placeholder="Note / report issue…"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          onBlur={handleSave}
+          onBlur={handleSaveNote}
           className="w-full border rounded px-2 py-1.5 text-sm bg-background h-8"
         />
       </td>
 
-      {/* Save / Status */}
       <td className="px-2 py-2.5 text-center whitespace-nowrap">
         {saveState === "saved" ? (
           <span className="text-xs text-green-600 font-medium flex items-center gap-0.5 justify-center">
@@ -738,10 +492,8 @@ function TimecardDayRow({
           <span className="text-xs text-muted-foreground flex items-center gap-0.5 justify-center">
             <Loader2 className="h-3 w-3 animate-spin" /> Saving
           </span>
-        ) : error ? (
-          <span className="text-[10px] text-red-500 font-medium max-w-[80px] truncate block">{error}</span>
         ) : isDirty ? (
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={handleSave}>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={handleSaveNote}>
             <Save className="h-3 w-3 mr-1" /> Save
           </Button>
         ) : null}
@@ -750,261 +502,96 @@ function TimecardDayRow({
   );
 }
 
-// ── Timecard Day Card (mobile sub-component) ──
+// ── Read-Only Timecard Day Card (mobile) ──
 
 function TimecardDayCard({
   entry,
   isToday,
-  saveEntry,
+  saveNote,
 }: {
   entry: TimecardEntry;
   isToday: boolean;
-  saveEntry: (entryId: number, body: Record<string, unknown>) => Promise<TimecardEntry>;
+  saveNote: (entryId: number, notes: string) => Promise<void>;
 }) {
-  const [clockIn, setClockIn] = useState(entry.clockIn || "");
-  const [clockOut, setClockOut] = useState(entry.clockOut || "");
-  const [entryType, setEntryType] = useState(entry.entryType || "work");
-  const [ptoHours, setPtoHours] = useState(entry.ptoHours || "0");
-  const [holidayHours, setHolidayHours] = useState(entry.holidayHours || "0");
   const [notes, setNotes] = useState(entry.notes || "");
-  const [localHours, setLocalHours] = useState(entry.hours);
-  const [localOtHours, setLocalOtHours] = useState(entry.otHours || "0");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<string | null>(null);
-
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestClockIn = useRef(clockIn);
-  const latestClockOut = useRef(clockOut);
-  latestClockIn.current = clockIn;
-  latestClockOut.current = clockOut;
-
-  const serverRef = useRef({
-    clockIn: entry.clockIn || "",
-    clockOut: entry.clockOut || "",
-    entryType: entry.entryType || "work",
-    ptoHours: entry.ptoHours || "0",
-    holidayHours: entry.holidayHours || "0",
-    notes: entry.notes || "",
-  });
+  const serverNotes = useRef(entry.notes || "");
 
   useEffect(() => {
-    const newCI = entry.clockIn || "";
-    const newCO = entry.clockOut || "";
-    const newType = entry.entryType || "work";
-    const newPto = entry.ptoHours || "0";
-    const newHol = entry.holidayHours || "0";
-    const newNotes = entry.notes || "";
+    if (notes === serverNotes.current) setNotes(entry.notes || "");
+    serverNotes.current = entry.notes || "";
+  }, [entry.notes]);
 
-    if (clockIn === serverRef.current.clockIn) setClockIn(newCI);
-    if (clockOut === serverRef.current.clockOut) setClockOut(newCO);
-    if (entryType === serverRef.current.entryType) setEntryType(newType);
-    if (ptoHours === serverRef.current.ptoHours) setPtoHours(newPto);
-    if (holidayHours === serverRef.current.holidayHours) setHolidayHours(newHol);
-    if (notes === serverRef.current.notes) setNotes(newNotes);
+  const isDirty = notes !== serverNotes.current;
 
-    serverRef.current = { clockIn: newCI, clockOut: newCO, entryType: newType, ptoHours: newPto, holidayHours: newHol, notes: newNotes };
-    setLocalHours(entry.hours);
-    setLocalOtHours(entry.otHours || "0");
-  }, [entry.clockIn, entry.clockOut, entry.entryType, entry.ptoHours, entry.holidayHours, entry.notes, entry.hours, entry.otHours]);
-
-  const isDirty =
-    clockIn !== serverRef.current.clockIn ||
-    clockOut !== serverRef.current.clockOut ||
-    entryType !== serverRef.current.entryType ||
-    ptoHours !== serverRef.current.ptoHours ||
-    holidayHours !== serverRef.current.holidayHours ||
-    notes !== serverRef.current.notes;
-
-  const handleSave = async () => {
+  const handleSaveNote = async () => {
     if (!isDirty) return;
     setSaveState("saving");
-    setError(null);
     try {
-      const body: Record<string, unknown> = { entryType };
-      if (entryType === "work") {
-        body.clockIn = clockIn || null;
-        body.clockOut = clockOut || null;
-      } else if (entryType === "pto") {
-        body.ptoHours = parseFloat(ptoHours) || 0;
-      } else if (entryType === "holiday") {
-        body.holidayHours = parseFloat(holidayHours) || 0;
-      }
-      if (notes !== serverRef.current.notes) body.notes = notes || null;
-
-      const result = await saveEntry(entry.id, body);
-      setLocalHours(result.hours ?? "0");
-      setLocalOtHours(result.otHours ?? "0");
-      serverRef.current = {
-        clockIn: result.clockIn || "",
-        clockOut: result.clockOut || "",
-        entryType: result.entryType || "work",
-        ptoHours: result.ptoHours || "0",
-        holidayHours: result.holidayHours || "0",
-        notes: result.notes || "",
-      };
+      await saveNote(entry.id, notes);
+      serverNotes.current = notes;
       setSaveState("saved");
       setTimeout(() => setSaveState("idle"), 2000);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to save";
-      setError(msg);
+    } catch {
       setSaveState("idle");
-      setTimeout(() => setError(null), 5000);
     }
   };
 
-  // Debounced save for dropdown changes — fires with latest values
-  // Only saves when BOTH clockIn and clockOut are non-empty
-  const debouncedSave = useCallback(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      const ci = latestClockIn.current;
-      const co = latestClockOut.current;
-      // Don't save unless both times are selected
-      if (!ci || !co) return;
-      if (ci === serverRef.current.clockIn && co === serverRef.current.clockOut) return;
-      setSaveState("saving");
-      setError(null);
-      try {
-        const body: Record<string, unknown> = { entryType: "work", clockIn: ci, clockOut: co };
-        const result = await saveEntry(entry.id, body);
-        setLocalHours(result.hours ?? "0");
-        setLocalOtHours(result.otHours ?? "0");
-        serverRef.current = {
-          ...serverRef.current,
-          clockIn: result.clockIn || "",
-          clockOut: result.clockOut || "",
-        };
-        setSaveState("saved");
-        setTimeout(() => setSaveState("idle"), 2000);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Failed to save";
-        setError(msg);
-        setSaveState("idle");
-        setTimeout(() => setError(null), 5000);
-      }
-    }, 300);
-  }, [entry.id, saveEntry]);
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, []);
-
-  const handleClockChange = (field: "clockIn" | "clockOut", val: string) => {
-    if (!val) return;
-    if (field === "clockIn") setClockIn(val);
-    else setClockOut(val);
-    debouncedSave();
-  };
-
-  // If work entry has no clock times, force hours to 0 (ignore stale DB data)
-  const noClockTimes = entryType === "work" && !clockIn && !clockOut;
-  const hrs = noClockTimes ? 0 : parseFloat(localHours || "0");
-  const otHrs = noClockTimes ? 0 : parseFloat(localOtHours || "0");
-  const ptoHrs = parseFloat(ptoHours || "0");
-  const holHrs = parseFloat(holidayHours || "0");
+  const entryType = entry.entryType || "work";
+  const noClockTimes = entryType === "work" && !entry.clockIn && !entry.clockOut;
+  const hrs = noClockTimes ? 0 : parseFloat(entry.hours || "0");
+  const ptoHrs = parseFloat(entry.ptoHours || "0");
+  const holHrs = parseFloat(entry.holidayHours || "0");
 
   return (
     <div
-      className={`bg-card border rounded-lg p-4 space-y-3 ${
+      className={`bg-card border rounded-lg p-4 space-y-2 ${
         isToday ? "border-primary/30 border-l-4" : ""
-      } ${entryType === "pto" ? "bg-blue-50/50" : entryType === "holiday" ? "bg-indigo-50/50" : ""} ${
-        saveState === "saved" ? "saved-flash" : ""
-      }`}
+      } ${entryType === "pto" ? "bg-blue-50/50" : entryType === "holiday" ? "bg-indigo-50/50" : ""}`}
     >
       <div className="flex items-center justify-between">
         <span className="font-medium text-sm">{formatDayLabel(entry.entryDate)}</span>
         <div className="flex items-center gap-2">
-          {entryType === "work" && hrs > 0 && (
-            <span className="font-mono text-sm font-semibold">{hrs.toFixed(1)}h</span>
-          )}
-          {entryType === "work" && otHrs > 0 && (
-            <Badge className="bg-amber-100 text-amber-700 text-[10px]">OT {otHrs.toFixed(1)}h</Badge>
-          )}
           {entryType === "pto" && ptoHrs > 0 && (
             <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO {ptoHrs.toFixed(1)}h</Badge>
           )}
           {entryType === "holiday" && holHrs > 0 && (
             <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday {holHrs.toFixed(1)}h</Badge>
           )}
+          {entryType === "work" && hrs > 0 && (
+            <span className="font-mono text-sm font-semibold">{hrs.toFixed(1)}h</span>
+          )}
         </div>
       </div>
 
-      {/* Type Selector */}
-      <div className="flex gap-1">
-        {(["work", "pto", "holiday"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setEntryType(t)}
-            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
-              entryType === t
-                ? t === "work" ? "bg-primary text-white"
-                  : t === "pto" ? "bg-blue-500 text-white"
-                  : "bg-indigo-500 text-white"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {t === "work" ? "Work" : t === "pto" ? "PTO" : "Holiday"}
-          </button>
-        ))}
-      </div>
-
-      {entryType === "work" ? (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Clock In</label>
-            <TimeDropdown value={clockIn} onChange={(val) => handleClockChange("clockIn", val)} placeholder="9:00 AM" />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Clock Out</label>
-            <TimeDropdown value={clockOut} onChange={(val) => handleClockChange("clockOut", val)} placeholder="5:00 PM" />
-          </div>
-        </div>
-      ) : (
-        <div>
-          <label className="text-xs text-muted-foreground block mb-1">
-            {entryType === "pto" ? "PTO Hours" : "Holiday Hours"}
-          </label>
-          <input
-            type="number"
-            min="0"
-            max="24"
-            step="0.5"
-            value={entryType === "pto" ? ptoHours : holidayHours}
-            onChange={(e) => entryType === "pto" ? setPtoHours(e.target.value) : setHolidayHours(e.target.value)}
-            onBlur={handleSave}
-            className="border rounded px-2 py-2 text-sm w-24 bg-background"
-          />
+      {entryType === "work" && (entry.clockIn || entry.clockOut) && (
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <span>{formatTime24to12(entry.clockIn)}</span>
+          <span>→</span>
+          <span>{formatTime24to12(entry.clockOut)}</span>
         </div>
       )}
 
-      <div>
-        <label className="text-xs text-muted-foreground block mb-1">Notes</label>
+      {/* Note / Report Issue */}
+      <div className="flex items-center gap-2">
+        <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <input
           type="text"
-          placeholder="Notes…"
+          placeholder="Note / report issue…"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          onBlur={handleSave}
-          className="w-full border rounded px-2 py-2 text-sm bg-background"
+          onBlur={handleSaveNote}
+          className="flex-1 border rounded px-2 py-1.5 text-sm bg-background"
         />
-      </div>
-
-      {/* Save / Status */}
-      <div className="flex items-center gap-2">
         {saveState === "saved" ? (
-          <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-            <Check className="h-3 w-3" /> Saved
+          <span className="text-xs text-green-600 flex items-center gap-0.5 shrink-0">
+            <Check className="h-3 w-3" />
           </span>
         ) : saveState === "saving" ? (
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Loader2 className="h-3 w-3 animate-spin" /> Saving…
-          </span>
-        ) : error ? (
-          <span className="text-xs text-red-500">{error}</span>
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
         ) : isDirty ? (
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleSave}>
-            <Save className="h-3 w-3 mr-1" /> Save
+          <Button size="sm" variant="outline" className="h-7 px-2 text-xs shrink-0" onClick={handleSaveNote}>
+            <Save className="h-3 w-3" />
           </Button>
         ) : null}
       </div>
@@ -1040,7 +627,6 @@ function TimecardsInner() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
   const [mileageMiles, setMileageMiles] = useState("");
-  const [saveAllState, setSaveAllState] = useState<"idle" | "saving" | "saved">("idle");
 
   // Fetch current week's timecard
   const { data: timecard, isLoading } = useQuery<TimecardData>({
@@ -1099,18 +685,10 @@ function TimecardsInner() {
   });
 
 
-  // Save a single entry — returns the response data
-  const saveEntry = useCallback(async (entryId: number, body: Record<string, unknown>): Promise<TimecardEntry> => {
-    const res = await apiRequest("PATCH", `/api/timecards/entries/${entryId}`, body);
-    if (!res.ok) {
-      const errData = await res.json().catch(() => null);
-      throw new Error(errData?.error || `Save failed (${res.status})`);
-    }
-    const result = await res.json();
-    // Invalidate queries in background to refresh totals
+  // Save notes only (employees can't edit times)
+  const saveNote = useCallback(async (entryId: number, notes: string): Promise<void> => {
+    await apiRequest("PATCH", `/api/timecards/entries/${entryId}`, { notes: notes || null });
     queryClient.invalidateQueries({ queryKey: ["/api/timecards/my/" + currentMonday] });
-    queryClient.invalidateQueries({ queryKey: ["/api/timecards/my"] });
-    return result;
   }, [queryClient, currentMonday]);
 
   const navigateWeek = useCallback((direction: -1 | 1) => {
@@ -1187,15 +765,11 @@ function TimecardsInner() {
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="px-3 py-3 text-left font-medium text-muted-foreground w-32">Day</th>
-                  <th className="px-2 py-3 text-center font-medium text-muted-foreground w-36">Type</th>
-                  <th className="px-2 py-3 text-center font-medium text-muted-foreground w-32">Clock In</th>
-                  <th className="px-2 py-3 text-center font-medium text-muted-foreground w-32">Clock Out</th>
-                  <th className="px-2 py-3 text-center font-medium text-muted-foreground w-20">Reg Hrs</th>
-                  <th className="px-2 py-3 text-center font-medium text-muted-foreground w-20">
-                    <span className="text-amber-600">OT Hrs</span>
-                  </th>
-                  <th className="px-2 py-3 text-left font-medium text-muted-foreground">Notes</th>
-                  <th className="px-2 py-3 w-20"></th>
+                  <th className="px-2 py-3 text-center font-medium text-muted-foreground w-28">Clock In</th>
+                  <th className="px-2 py-3 text-center font-medium text-muted-foreground w-28">Clock Out</th>
+                  <th className="px-2 py-3 text-center font-medium text-muted-foreground w-20">Hours</th>
+                  <th className="px-2 py-3 text-left font-medium text-muted-foreground">Note / Report Issue</th>
+                  <th className="px-2 py-3 w-16"></th>
                 </tr>
               </thead>
               <tbody>
@@ -1205,7 +779,7 @@ function TimecardsInner() {
                     entry={entry}
                     isToday={entry.entryDate === today}
                     isWeekendDay={isWeekend(entry.entryDate)}
-                    saveEntry={saveEntry}
+                    saveNote={saveNote}
                   />
                 ))}
 
@@ -1214,12 +788,11 @@ function TimecardsInner() {
                   <td className="px-3 py-3 text-sm">Total</td>
                   <td className="px-2 py-3"></td>
                   <td className="px-2 py-3"></td>
-                  <td className="px-2 py-3"></td>
                   <td className="px-2 py-3 text-center font-bold">
                     {totalHours.toFixed(1)}h
-                  </td>
-                  <td className="px-2 py-3 text-center font-bold text-amber-600">
-                    {totalOtHours > 0 ? `${totalOtHours.toFixed(1)}h` : "—"}
+                    {totalOtHours > 0 && (
+                      <span className="text-amber-600 ml-1 text-xs font-medium">(+{totalOtHours.toFixed(1)} OT)</span>
+                    )}
                   </td>
                   <td className="px-2 py-3">
                     <div className="flex gap-3 text-xs">
@@ -1244,7 +817,7 @@ function TimecardsInner() {
                 key={entry.id}
                 entry={entry}
                 isToday={entry.entryDate === today}
-                saveEntry={saveEntry}
+                saveNote={saveNote}
               />
             ))}
 
