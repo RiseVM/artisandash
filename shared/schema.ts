@@ -1210,10 +1210,15 @@ export const timecards = pgTable("timecards", {
   userId: varchar("user_id").notNull().references(() => users.id),
   weekStartDate: varchar("week_start_date").notNull(), // ISO date string, always Monday
   status: varchar("status").notNull().default("draft"), // draft | submitted | approved
+  recipientId: integer("recipient_id"),
   submittedAt: timestamp("submitted_at"),
   approvedAt: timestamp("approved_at"),
   approvedById: varchar("approved_by_id").references(() => users.id),
   totalHours: numeric("total_hours", { precision: 5, scale: 2 }).default("0"),
+  totalOtHours: numeric("total_ot_hours", { precision: 5, scale: 2 }).default("0"),
+  totalPtoHours: numeric("total_pto_hours", { precision: 5, scale: 2 }).default("0"),
+  totalHolidayHours: numeric("total_holiday_hours", { precision: 5, scale: 2 }).default("0"),
+  mileageCost: numeric("mileage_cost", { precision: 8, scale: 2 }).default("0"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1226,7 +1231,14 @@ export const timecardEntries = pgTable("timecard_entries", {
   id: serial("id").primaryKey(),
   timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
   entryDate: varchar("entry_date").notNull(), // ISO date string for the specific day
+  clockIn: varchar("clock_in"), // HH:MM format (first punch of day)
+  clockOut: varchar("clock_out"), // HH:MM format (last punch of day)
+  entryType: varchar("entry_type").notNull().default("work"), // work | pto | holiday
   hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  otHours: numeric("ot_hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  ptoHours: numeric("pto_hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  holidayHours: numeric("holiday_hours", { precision: 4, scale: 2 }).notNull().default("0"),
+  mileage: varchar("mileage"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

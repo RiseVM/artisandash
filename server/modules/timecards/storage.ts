@@ -713,9 +713,27 @@ export const timecardStorage = {
       );
 
     if (entry) {
+      // Find first clock-in and last clock-out of the day for display
+      const completedPunches = dayPunches.filter(p => p.clockOut);
+      const sortedByIn = [...dayPunches].sort((a, b) => new Date(a.clockIn).getTime() - new Date(b.clockIn).getTime());
+      const sortedByOut = [...completedPunches].sort((a, b) => new Date(b.clockOut!).getTime() - new Date(a.clockOut!).getTime());
+
+      const firstIn = sortedByIn[0]?.clockIn;
+      const lastOut = sortedByOut[0]?.clockOut;
+
+      // Format timestamps to HH:MM for display on the entry
+      const clockInStr = firstIn ? new Date(firstIn).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }) : null;
+      const clockOutStr = lastOut ? new Date(lastOut).toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" }) : null;
+
       await db
         .update(timecardEntries)
-        .set({ hours: totalDayHours.toFixed(2), updatedAt: new Date() })
+        .set({
+          hours: totalDayHours.toFixed(2),
+          clockIn: clockInStr,
+          clockOut: clockOutStr,
+          entryType: "work",
+          updatedAt: new Date(),
+        })
         .where(eq(timecardEntries.id, entry.id));
     }
 
