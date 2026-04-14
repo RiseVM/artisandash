@@ -51,6 +51,18 @@ export function Sidebar() {
   });
   const notesCount = notesData?.count || 0;
 
+  // Clock status for greeting
+  const { data: clockData } = useQuery<{ clockedIn: boolean }>({
+    queryKey: ["/api/timecards/clock/status"],
+    queryFn: async () => {
+      const res = await fetch("/api/timecards/clock/status", { credentials: "include" });
+      if (!res.ok) return { clockedIn: false };
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+  const isClockedIn = clockData?.clockedIn ?? false;
+
   // Unread messages count
   const { data: unreadMsgData } = useQuery<{ count: number }>({
     queryKey: ["/api/messages/unread-total"],
@@ -106,6 +118,23 @@ export function Sidebar() {
             />
           </button>
         </div>
+
+        {user && (
+          <div className="mb-5 px-3">
+            <p className="text-sm font-semibold text-sidebar-foreground">
+              Hi, {user.firstName || user.email.split("@")[0]}
+            </p>
+            <div className="flex items-center gap-1.5 mt-1">
+              <div className={cn(
+                "w-2 h-2 rounded-full",
+                isClockedIn ? "bg-green-500" : "bg-gray-400",
+              )} />
+              <span className="text-xs text-sidebar-foreground/60">
+                {isClockedIn ? "Clocked In" : "Clocked Out"}
+              </span>
+            </div>
+          </div>
+        )}
 
         <nav className="space-y-1">
           {navItems.map((item) => {
