@@ -23,6 +23,7 @@ import {
   History,
   ShieldCheck,
   Loader2,
+  Clock,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -127,6 +128,12 @@ interface TimecardDetail {
   totalHours: string | null;
   entries: TimecardEntry[];
   auditLog: AuditLogEntry[];
+}
+
+interface ClockStatusEntry {
+  user: CardUser;
+  openPunch: { id: number; clockIn: string; clockOut: string | null } | null;
+  todayHours: number;
 }
 
 // ── Identity Verification Gate ──────────────
@@ -249,6 +256,13 @@ export function TimeManagement() {
   const { data: activeUsers = [] } = useQuery<CardUser[]>({
     queryKey: ["/api/timecards/admin/users"],
     enabled: isAdminUser && isVerified,
+  });
+
+  // Fetch live clock status for all employees
+  const { data: clockStatuses = [] } = useQuery<ClockStatusEntry[]>({
+    queryKey: ["/api/timecards/admin/clock-status"],
+    enabled: isAdminUser && isVerified,
+    refetchInterval: 30000,
   });
 
   // Fetch expanded card detail
@@ -390,6 +404,12 @@ export function TimeManagement() {
         <div className="space-y-3">
           {allCards.map((card) => {
             const isExpanded = expandedCard === card.id;
+            const clockInfo = clockStatuses.find((s) => s.user.id === card.userId);
+            const isClockedIn = !!clockInfo?.openPunch;
+            const clockTime = clockInfo?.openPunch
+              ? new Date(clockInfo.openPunch.clockIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+              : null;
+            const todayHrs = clockInfo?.todayHours ?? 0;
             return (
               <div key={card.id} className="bg-card border rounded-lg overflow-hidden">
                 {/* Summary row */}
@@ -397,12 +417,24 @@ export function TimeManagement() {
                   onClick={() => setExpandedCard(isExpanded ? null : card.id)}
                   className="w-full flex items-center gap-4 px-4 py-3 hover:bg-muted/50 transition-colors cursor-pointer"
                 >
-                  <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                  <div className="relative h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
                     {initials(card.user.firstName, card.user.lastName)}
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isClockedIn ? "bg-green-500" : "bg-gray-300"}`} />
                   </div>
                   <div className="flex-1 text-left">
                     <div className="font-medium text-sm">{fullName(card.user)}</div>
-                    <div className="text-xs text-muted-foreground">{card.user.email}</div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                      {isClockedIn ? (
+                        <>
+                          <span className="text-green-600 font-medium flex items-center gap-1">
+                            <Clock className="h-3 w-3" /> In since {clockTime}
+                          </span>
+                          {todayHrs > 0 && <span>· {todayHrs.toFixed(1)}h today</span>}
+                        </>
+                      ) : (
+                        <span>{todayHrs > 0 ? `${todayHrs.toFixed(1)}h today · Clocked out` : "Clocked out"}</span>
+                      )}
+                    </div>
                   </div>
                   <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
                   {statusBadge(card.status)}
