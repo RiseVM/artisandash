@@ -1,12 +1,17 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PortalLayout } from "./PortalLayout";
 import { usePortalAuth } from "./hooks";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   FolderKanban,
   ChevronRight,
@@ -17,8 +22,15 @@ import {
   ClipboardCheck,
   MessageCircle,
   TrendingUp,
+  Plus,
+  CheckCircle2,
+  Bath,
+  ChefHat,
+  Layers,
+  Hammer,
+  Wrench,
 } from "lucide-react";
-import type { ProjectWithCustomer, Contract } from "@shared/schema";
+import type { ProjectWithCustomer, Contract, ProjectRequest } from "@shared/schema";
 
 const statusConfig: Record<string, { bg: string; text: string; dot: string; label: string }> = {
   active: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Active" },
@@ -27,10 +39,264 @@ const statusConfig: Record<string, { bg: string; text: string; dot: string; labe
   cancelled: { bg: "bg-gray-50", text: "text-gray-500", dot: "bg-gray-400", label: "Cancelled" },
 };
 
+const projectTypeOptions = [
+  { value: "bathroom", label: "Bathroom Renovation", icon: Bath },
+  { value: "kitchen", label: "Kitchen Remodel", icon: ChefHat },
+  { value: "floor", label: "Flooring", icon: Layers },
+  { value: "full_reno", label: "Full Renovation", icon: Hammer },
+  { value: "custom", label: "Custom Project", icon: Wrench },
+];
+
+const budgetOptions = [
+  { value: "under_10k", label: "Under $10,000" },
+  { value: "10k_25k", label: "$10,000 – $25,000" },
+  { value: "25k_50k", label: "$25,000 – $50,000" },
+  { value: "50k_100k", label: "$50,000 – $100,000" },
+  { value: "over_100k", label: "Over $100,000" },
+];
+
+const timelineOptions = [
+  { value: "asap", label: "As soon as possible" },
+  { value: "1_month", label: "Within 1 month" },
+  { value: "3_months", label: "Within 3 months" },
+  { value: "flexible", label: "Flexible / No rush" },
+];
+
+const requestStatusConfig: Record<string, { bg: string; text: string; label: string }> = {
+  pending: { bg: "bg-amber-50", text: "text-amber-700", label: "Pending Review" },
+  reviewed: { bg: "bg-blue-50", text: "text-blue-700", label: "Under Review" },
+  approved: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Approved" },
+  declined: { bg: "bg-red-50", text: "text-red-700", label: "Declined" },
+  converted: { bg: "bg-violet-50", text: "text-violet-700", label: "Converted to Project" },
+};
+
+function ProjectRequestDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    project_type: "",
+    title: "",
+    description: "",
+    budget_range: "",
+    address: "",
+    preferred_start: "",
+    additional_notes: "",
+  });
+  const [success, setSuccess] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const res = await fetch("/api/portal/project-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to submit request");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/portal/project-requests"] });
+      setSuccess(true);
+      setTimeout(() => {
+        onOpenChange(false);
+        setSuccess(false);
+        setFormData({
+          project_type: "",
+          title: "",
+          description: "",
+          budget_range: "",
+          address: "",
+          preferred_start: "",
+          additional_notes: "",
+        });
+      }, 2000);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    mutation.mutate(formData);
+  };
+
+  const updateField = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  if (success) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[480px]">
+          <div className="py-10 text-center">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">Request Submitted!</h3>
+            <p className="text-sm text-gray-500">
+              We'll review your request and get back to you shortly.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-serif">Request a New Project</DialogTitle>
+          <DialogDescription>
+            Tell us about your project and we'll follow up with a consultation.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-5 mt-2">
+          {/* Project Type Selection */}
+          <div className="space-y-2">
+            <Label className="text-sm text-gray-600">Project Type *</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {projectTypeOptions.map((opt) => {
+                const selected = formData.project_type === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => updateField("project_type", opt.value)}
+                    className={`flex items-center gap-2.5 p-3 rounded-lg border text-sm font-medium transition-all text-left ${
+                      selected
+                        ? "border-[hsl(215,30%,35%)] bg-[hsl(215,30%,35%)]/5 text-[hsl(215,30%,25%)]"
+                        : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <opt.icon className="h-4 w-4 shrink-0" />
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Title */}
+          <div className="space-y-2">
+            <Label htmlFor="req-title" className="text-sm text-gray-600">Project Title *</Label>
+            <Input
+              id="req-title"
+              placeholder="e.g., Master Bathroom Remodel"
+              value={formData.title}
+              onChange={(e) => updateField("title", e.target.value)}
+              className="h-10 bg-gray-50 border-gray-200 focus:bg-white"
+              required
+            />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-2">
+            <Label htmlFor="req-desc" className="text-sm text-gray-600">Description</Label>
+            <Textarea
+              id="req-desc"
+              placeholder="Describe what you're looking for..."
+              value={formData.description}
+              onChange={(e) => updateField("description", e.target.value)}
+              className="bg-gray-50 border-gray-200 focus:bg-white min-h-[80px] resize-none"
+            />
+          </div>
+
+          {/* Budget + Timeline row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm text-gray-600">Budget Range</Label>
+              <Select value={formData.budget_range} onValueChange={(v) => updateField("budget_range", v)}>
+                <SelectTrigger className="h-10 bg-gray-50 border-gray-200">
+                  <SelectValue placeholder="Select budget" />
+                </SelectTrigger>
+                <SelectContent>
+                  {budgetOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-gray-600">Preferred Start</Label>
+              <Select value={formData.preferred_start} onValueChange={(v) => updateField("preferred_start", v)}>
+                <SelectTrigger className="h-10 bg-gray-50 border-gray-200">
+                  <SelectValue placeholder="Select timeline" />
+                </SelectTrigger>
+                <SelectContent>
+                  {timelineOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Address */}
+          <div className="space-y-2">
+            <Label htmlFor="req-address" className="text-sm text-gray-600">Project Address</Label>
+            <Input
+              id="req-address"
+              placeholder="Where is this project located?"
+              value={formData.address}
+              onChange={(e) => updateField("address", e.target.value)}
+              className="h-10 bg-gray-50 border-gray-200 focus:bg-white"
+            />
+          </div>
+
+          {/* Additional Notes */}
+          <div className="space-y-2">
+            <Label htmlFor="req-notes" className="text-sm text-gray-600">Additional Notes</Label>
+            <Textarea
+              id="req-notes"
+              placeholder="Anything else we should know?"
+              value={formData.additional_notes}
+              onChange={(e) => updateField("additional_notes", e.target.value)}
+              className="bg-gray-50 border-gray-200 focus:bg-white min-h-[60px] resize-none"
+            />
+          </div>
+
+          {/* Error */}
+          {mutation.isError && (
+            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+              {mutation.error?.message || "Something went wrong. Please try again."}
+            </div>
+          )}
+
+          {/* Submit */}
+          <Button
+            type="submit"
+            className="w-full h-11 bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)] text-white font-medium"
+            disabled={mutation.isPending || !formData.project_type || !formData.title}
+          >
+            {mutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Submitting...
+              </>
+            ) : (
+              "Submit Request"
+            )}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PortalDashboard() {
   const [, setLocation] = useLocation();
   const { user } = usePortalAuth();
   const [activeTab, setActiveTab] = useState<"projects" | "contracts">("projects");
+  const [showRequestDialog, setShowRequestDialog] = useState(false);
 
   const { data: projects = [], isLoading: projectsLoading } = useQuery<ProjectWithCustomer[]>({
     queryKey: ["/api/portal/projects"],
@@ -46,6 +312,15 @@ export function PortalDashboard() {
     queryFn: async () => {
       const res = await fetch("/api/portal/contracts", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch contracts");
+      return res.json();
+    },
+  });
+
+  const { data: projectRequests = [] } = useQuery<ProjectRequest[]>({
+    queryKey: ["/api/portal/project-requests"],
+    queryFn: async () => {
+      const res = await fetch("/api/portal/project-requests", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch requests");
       return res.json();
     },
   });
@@ -70,13 +345,22 @@ export function PortalDashboard() {
     <PortalLayout>
       <div className="space-y-8">
         {/* Welcome Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 font-serif">
-            Welcome back{user?.customer?.name ? `, ${user.customer.name.split(" ")[0]}` : ""}
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Here's an overview of your projects and documents.
-          </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 font-serif">
+              Welcome back{user?.customer?.name ? `, ${user.customer.name.split(" ")[0]}` : ""}
+            </h1>
+            <p className="text-gray-500 mt-1">
+              Here's an overview of your projects and documents.
+            </p>
+          </div>
+          <Button
+            onClick={() => setShowRequestDialog(true)}
+            className="bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)] text-white shrink-0"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Request a Project
+          </Button>
         </div>
 
         {/* Status Summary Cards */}
@@ -168,9 +452,16 @@ export function PortalDashboard() {
                     <FolderKanban className="h-8 w-8 text-gray-400" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-1">No Projects Yet</h3>
-                  <p className="text-gray-500 text-sm">
-                    You don't have any projects associated with your account yet.
+                  <p className="text-gray-500 text-sm mb-5">
+                    Ready to get started? Request a new project and we'll reach out to schedule a consultation.
                   </p>
+                  <Button
+                    onClick={() => setShowRequestDialog(true)}
+                    className="bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)] text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Request a Project
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
@@ -288,7 +579,50 @@ export function PortalDashboard() {
             )}
           </div>
         )}
+        {/* Pending Project Requests */}
+        {projectRequests.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+              Your Requests
+            </h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              {projectRequests.map((req) => {
+                const typeOpt = projectTypeOptions.find((o) => o.value === req.project_type);
+                const status = requestStatusConfig[req.status] || requestStatusConfig.pending;
+                const TypeIcon = typeOpt?.icon || Wrench;
+                return (
+                  <Card key={req.id} className="border-0 shadow-sm bg-white">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-[hsl(215,30%,35%)]/10 flex items-center justify-center shrink-0">
+                          <TypeIcon className="h-4 w-4 text-[hsl(215,30%,35%)]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-medium text-gray-900 text-sm truncate">{req.title}</h3>
+                            <Badge
+                              variant="secondary"
+                              className={`${status.bg} ${status.text} border-0 text-[11px] px-2 py-0.5 shrink-0`}
+                            >
+                              {status.label}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {typeOpt?.label || req.project_type} · Submitted {new Date(req.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Project Request Dialog */}
+      <ProjectRequestDialog open={showRequestDialog} onOpenChange={setShowRequestDialog} />
     </PortalLayout>
   );
 }

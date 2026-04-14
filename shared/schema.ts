@@ -22,11 +22,8 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role").default("staff").notNull(), // admin | manager | staff | timecard_only
+  role: varchar("role").default("staff").notNull(), // admin | manager | staff
   isActive: text("is_active").default("yes").notNull(), // yes | no
-  // Mileage settings (admin-managed per employee)
-  mileageEnabled: text("mileage_enabled").default("no").notNull(), // yes | no
-  mileageRate: numeric("mileage_rate", { precision: 5, scale: 3 }), // $/mile, null = not set
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -501,11 +498,14 @@ export const AVAILABLE_PERMISSIONS = [
   { key: "manage_inventory", label: "Manage Inventory", description: "Create, edit, and delete inventory items" },
   { key: "create_checkouts", label: "Create Checkouts", description: "Check out items to customers" },
   { key: "manage_checkouts", label: "Manage Checkouts", description: "Edit and delete checkouts, mark as returned" },
-  { key: "view_contracts", label: "View Contracts", description: "View signed contracts" },
-  { key: "create_contracts", label: "Create Contracts", description: "Create and sign new contracts" },
+  { key: "view_signed_docs", label: "Signed Docs", description: "View signed documents" },
+  { key: "manage_contracts", label: "Contracts", description: "Create and manage contracts" },
   { key: "manage_projects", label: "Manage Projects", description: "Create, edit, and manage project tracking" },
-  { key: "manage_users", label: "Manage Users", description: "Create, edit, and delete users" },
-  { key: "view_reports", label: "View Reports", description: "Access activity reports and analytics" },
+  { key: "manage_quotes", label: "Quote Builder & Quotes", description: "Create and manage quotes" },
+  { key: "view_calendar", label: "Calendar", description: "View and manage the calendar" },
+  { key: "view_messages", label: "Messages", description: "Send and receive messages" },
+  { key: "view_team_resources", label: "Team Resources", description: "Access training and operational resources" },
+  { key: "view_bug_reports", label: "Bug Reports", description: "Submit and view bug reports" },
 ] as const;
 
 export type PermissionKey = typeof AVAILABLE_PERMISSIONS[number]["key"];
@@ -1202,385 +1202,6 @@ export type TimeClockWithDetails = TimeClock & {
 };
 
 // ============================================
-// ESTIMATES
-// ============================================
-
-// Estimates - Standalone pre-project quotes linked to customers
-export const estimates = pgTable("estimates", {
-  id: serial("id").primaryKey(),
-  customer_id: integer("customer_id").references(() => customers.id),
-
-  // Estimate number (auto-generated: EST-YYYY-NNN)
-  estimate_number: text("estimate_number").notNull(),
-
-  // Details
-  title: text("title").notNull(),
-  description: text("description"),
-
-  // Status workflow
-  status: text("status").default("draft").notNull(), // draft | sent | approved | rejected | expired | converted
-
-  // Dates
-  issue_date: text("issue_date"),
-  expiry_date: text("expiry_date"),
-  valid_until: text("valid_until"),
-  sent_at: timestamp("sent_at"),
-  approved_at: timestamp("approved_at"),
-  expired_at: timestamp("expired_at"),
-
-  // Totals (recalculated from line items)
-  subtotal: numeric("subtotal", { precision: 12, scale: 2 }).default("0").notNull(),
-  tax_rate: numeric("tax_rate", { precision: 5, scale: 4 }).default("0").notNull(),
-  tax_amount: numeric("tax_amount", { precision: 12, scale: 2 }).default("0").notNull(),
-  total: numeric("total", { precision: 12, scale: 2 }).default("0").notNull(),
-
-  // Notes
-  notes: text("notes"),
-  internal_notes: text("internal_notes"),
-
-  // Linked project (if converted)
-  project_id: integer("project_id").references(() => projects.id, { onDelete: 'set null' }),
-
-  // QuickBooks integration
-  qb_sync_status: text("qb_sync_status").default("not_synced").notNull(), // not_synced | queued | synced | error
-  qb_invoice_id: text("qb_invoice_id"), // QuickBooks invoice ID once synced
-  qb_synced_at: timestamp("qb_synced_at"),
-  qb_error_message: text("qb_error_message"),
-
-  // Metadata
-  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
-  created_by_user_name: varchar("created_by_user_name"),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  index("IDX_estimates_customer_id").on(table.customer_id),
-  index("IDX_estimates_status").on(table.status),
-  index("IDX_estimates_estimate_number").on(table.estimate_number),
-]);
-
-// Estimate Line Items - Itemized rows per estimate
-export const estimateLineItems = pgTable("estimate_line_items", {
-  id: serial("id").primaryKey(),
-  estimate_id: integer("estimate_id").references(() => estimates.id, { onDelete: 'cascade' }).notNull(),
-
-  // Grouping
-  section: text("section"), // e.g., "Materials", "Labor", "Design"
-  category: text("category"), // materials | labor | equipment | subcontractor | permit | other
-
-  // Item details
-  description: text("description").notNull(),
-  quantity: numeric("quantity", { precision: 10, scale: 2 }).default("1").notNull(),
-  unit: text("unit"), // each | sqft | linear ft | hour | lot | etc
-  unit_price: numeric("unit_price", { precision: 12, scale: 2 }).notNull(),
-  total: numeric("total", { precision: 12, scale: 2 }).notNull(),
-
-  // Display order
-  display_order: integer("display_order").default(0).notNull(),
-
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  index("IDX_estimate_line_items_estimate_id").on(table.estimate_id),
-]);
-
-// Insert schemas for estimates
-export const insertEstimateSchema = createInsertSchema(estimates).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export const insertEstimateLineItemSchema = createInsertSchema(estimateLineItems).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-// Types for estimates
-export type InsertEstimate = z.infer<typeof insertEstimateSchema>;
-export type Estimate = typeof estimates.$inferSelect;
-
-export type InsertEstimateLineItem = z.infer<typeof insertEstimateLineItemSchema>;
-export type EstimateLineItem = typeof estimateLineItems.$inferSelect;
-
-// View types
-export type EstimateWithCustomer = Estimate & {
-  customer: Customer;
-  createdByUser?: User | null;
-};
-
-export type EstimateWithDetails = Estimate & {
-  customer: Customer;
-  lineItems: EstimateLineItem[];
-  createdByUser?: User | null;
-};
-
-// ============================================
-// ENTITY NOTES
-// ============================================
-
-// Entity Notes - Polymorphic timestamped notes for projects, customers, estimates, and checkouts
-export const entityNotes = pgTable("entity_notes", {
-  id: serial("id").primaryKey(),
-
-  // Polymorphic link
-  entity_type: text("entity_type").notNull(), // project | customer | estimate | checkout
-  entity_id: integer("entity_id").notNull(),
-
-  // Content
-  content: text("content").notNull(),
-  note_type: text("note_type").default("general").notNull(), // general | follow_up | warning | important
-
-  // Visibility
-  is_internal: text("is_internal").default("no").notNull(), // yes | no — if yes, never shown to client
-
-  // Pin support
-  is_pinned: text("is_pinned").default("no").notNull(), // yes | no
-
-  // Author
-  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
-  created_by_user_name: varchar("created_by_user_name"),
-
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  index("IDX_entity_notes_entity").on(table.entity_type, table.entity_id),
-  index("IDX_entity_notes_pinned").on(table.is_pinned),
-]);
-
-export const insertEntityNoteSchema = createInsertSchema(entityNotes).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertEntityNote = z.infer<typeof insertEntityNoteSchema>;
-export type EntityNote = typeof entityNotes.$inferSelect;
-
-export type EntityNoteWithUser = EntityNote & {
-  createdByUser?: User | null;
-};
-
-// ============================================
-// INTERNAL MESSAGES
-// ============================================
-
-// Internal Messages - Staff-only threaded messaging with priority levels
-export const internalMessages = pgTable("internal_messages", {
-  id: serial("id").primaryKey(),
-
-  // Thread support
-  parent_id: integer("parent_id"), // NULL = top-level message, otherwise reply
-  subject: text("subject"), // Only on top-level messages
-
-  // Content
-  content: text("content").notNull(),
-
-  // Priority
-  priority: text("priority").default("normal").notNull(), // low | normal | high | urgent
-
-  // Links (optional)
-  project_id: integer("project_id").references(() => projects.id, { onDelete: 'set null' }),
-  customer_id: integer("customer_id").references(() => customers.id, { onDelete: 'set null' }),
-
-  // Author
-  sender_user_id: varchar("sender_user_id").references(() => users.id, { onDelete: 'set null' }).notNull(),
-  sender_user_name: varchar("sender_user_name").notNull(),
-
-  // Read tracking (JSON array of user IDs who have read this message)
-  read_by: jsonb("read_by").default(sql`'[]'::jsonb`).notNull(),
-
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  index("IDX_internal_messages_parent_id").on(table.parent_id),
-  index("IDX_internal_messages_project_id").on(table.project_id),
-  index("IDX_internal_messages_customer_id").on(table.customer_id),
-  index("IDX_internal_messages_priority").on(table.priority),
-  index("IDX_internal_messages_created_at").on(table.created_at),
-]);
-
-export const insertInternalMessageSchema = createInsertSchema(internalMessages).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertInternalMessage = z.infer<typeof insertInternalMessageSchema>;
-export type InternalMessage = typeof internalMessages.$inferSelect;
-
-export type InternalMessageWithUser = InternalMessage & {
-  senderUser?: User | null;
-};
-
-export type InternalMessageThread = InternalMessage & {
-  senderUser?: User | null;
-  replies: InternalMessageWithUser[];
-  replyCount: number;
-  lastReplyAt?: Date | null;
-};
-
-// ============================================
-// SERVICE CATALOG (Quote Configurator)
-// ============================================
-
-// Service Catalog Categories - Top-level groupings (Shower, Floor, Paint, etc.)
-export const serviceCatalogCategories = pgTable("service_catalog_categories", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  icon: text("icon"), // emoji icon
-  icon_bg: text("icon_bg"), // hex color for icon background
-  display_order: integer("display_order").default(0).notNull(),
-  is_active: text("is_active").default("yes").notNull(), // yes | no
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Service Catalog Items - Individual selectable services within categories
-export const serviceCatalogItems = pgTable("service_catalog_items", {
-  id: serial("id").primaryKey(),
-  category_id: integer("category_id").references(() => serviceCatalogCategories.id, { onDelete: 'cascade' }).notNull(),
-
-  // Optional parent item (for sub-items / grouped children)
-  parent_id: integer("parent_id"), // NULL = top-level item, otherwise child of a group
-
-  // Item details
-  name: text("name").notNull(),
-  description: text("description"),
-  price: numeric("price", { precision: 12, scale: 2 }).default("0").notNull(),
-
-  // Display
-  display_order: integer("display_order").default(0).notNull(),
-  is_active: text("is_active").default("yes").notNull(), // yes | no
-
-  // If true, this item is a group header (price=0, has children)
-  is_group: text("is_group").default("no").notNull(), // yes | no
-
-  // If true, children of this group are mutually exclusive (radio behavior)
-  is_exclusive: text("is_exclusive").default("no").notNull(), // yes | no
-
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-}, (table) => [
-  index("IDX_service_catalog_items_category_id").on(table.category_id),
-  index("IDX_service_catalog_items_parent_id").on(table.parent_id),
-]);
-
-// Insert schemas
-export const insertServiceCatalogCategorySchema = createInsertSchema(serviceCatalogCategories).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export const insertServiceCatalogItemSchema = createInsertSchema(serviceCatalogItems).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-// Types
-export type InsertServiceCatalogCategory = z.infer<typeof insertServiceCatalogCategorySchema>;
-export type ServiceCatalogCategory = typeof serviceCatalogCategories.$inferSelect;
-
-export type InsertServiceCatalogItem = z.infer<typeof insertServiceCatalogItemSchema>;
-export type ServiceCatalogItem = typeof serviceCatalogItems.$inferSelect;
-
-// View types
-export type ServiceCatalogCategoryWithItems = ServiceCatalogCategory & {
-  items: ServiceCatalogItemWithChildren[];
-};
-
-export type ServiceCatalogItemWithChildren = ServiceCatalogItem & {
-  children?: ServiceCatalogItem[];
-};
-
-// ============================================
-// TEAM RESOURCES
-// ============================================
-
-// Team Members — new member setup tracker
-export const teamMembers = pgTable("team_members", {
-  id: serial("id").primaryKey(),
-  employee_name: text("employee_name").notNull(),
-  job_title: text("job_title"),
-  manager_name: text("manager_name"),
-  start_date: text("start_date"),
-  status: text("status").default("in_progress").notNull(), // in_progress | complete
-  completion_signature: text("completion_signature"),
-  completed_by_name: text("completed_by_name"),
-  completed_at: timestamp("completed_at"),
-  created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
-  created_by_user_name: varchar("created_by_user_name"),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Team Setup Items — checklist items per team member
-export const teamSetupItems = pgTable("team_setup_items", {
-  id: serial("id").primaryKey(),
-  team_member_id: integer("team_member_id").references(() => teamMembers.id, { onDelete: "cascade" }).notNull(),
-  section: text("section").notNull(),
-  item_text: text("item_text").notNull(),
-  is_checked: boolean("is_checked").default(false).notNull(),
-  checked_by_user_name: varchar("checked_by_user_name"),
-  checked_at: timestamp("checked_at"),
-  display_order: integer("display_order").default(0).notNull(),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-}, (table) => [
-  index("IDX_team_setup_items_member_id").on(table.team_member_id),
-]);
-
-// Team Resources — document/resource library
-export const teamResources = pgTable("team_resources", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  category: text("category").notNull(), // setup | sop | policy | standards | other
-  description: text("description"),
-  file_name: text("file_name"),
-  file_url: text("file_url"),
-  external_url: text("external_url"),
-  uploaded_by_user_id: varchar("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
-  uploaded_by_user_name: varchar("uploaded_by_user_name"),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Insert schemas
-export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export const insertTeamSetupItemSchema = createInsertSchema(teamSetupItems).omit({
-  id: true,
-  created_at: true,
-});
-
-export const insertTeamResourceSchema = createInsertSchema(teamResources).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-// Types
-export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
-export type TeamMember = typeof teamMembers.$inferSelect;
-
-export type InsertTeamSetupItem = z.infer<typeof insertTeamSetupItemSchema>;
-export type TeamSetupItem = typeof teamSetupItems.$inferSelect;
-
-export type InsertTeamResource = z.infer<typeof insertTeamResourceSchema>;
-export type TeamResource = typeof teamResources.$inferSelect;
-
-// View types
-export type TeamMemberWithItems = TeamMember & {
-  items: TeamSetupItem[];
-};
-
-// ============================================
 // EMPLOYEE TIMECARDS (standalone weekly cards)
 // ============================================
 
@@ -1589,15 +1210,10 @@ export const timecards = pgTable("timecards", {
   userId: varchar("user_id").notNull().references(() => users.id),
   weekStartDate: varchar("week_start_date").notNull(), // ISO date string, always Monday
   status: varchar("status").notNull().default("draft"), // draft | submitted | approved
-  recipientId: integer("recipient_id").references(() => timecardRecipients.id),
   submittedAt: timestamp("submitted_at"),
   approvedAt: timestamp("approved_at"),
   approvedById: varchar("approved_by_id").references(() => users.id),
   totalHours: numeric("total_hours", { precision: 5, scale: 2 }).default("0"),
-  totalOtHours: numeric("total_ot_hours", { precision: 5, scale: 2 }).default("0"),
-  totalPtoHours: numeric("total_pto_hours", { precision: 5, scale: 2 }).default("0"),
-  totalHolidayHours: numeric("total_holiday_hours", { precision: 5, scale: 2 }).default("0"),
-  totalMileage: numeric("total_mileage", { precision: 8, scale: 1 }).default("0"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1610,14 +1226,7 @@ export const timecardEntries = pgTable("timecard_entries", {
   id: serial("id").primaryKey(),
   timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
   entryDate: varchar("entry_date").notNull(), // ISO date string for the specific day
-  clockIn: varchar("clock_in"),   // "HH:MM" 24hr format, nullable
-  clockOut: varchar("clock_out"), // "HH:MM" 24hr format, nullable
-  hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"), // regular hours (capped at 8)
-  otHours: numeric("ot_hours", { precision: 4, scale: 2 }).notNull().default("0"), // overtime (>8h)
-  ptoHours: numeric("pto_hours", { precision: 4, scale: 2 }).notNull().default("0"),
-  holidayHours: numeric("holiday_hours", { precision: 4, scale: 2 }).notNull().default("0"),
-  entryType: varchar("entry_type").notNull().default("work"), // "work" | "pto" | "holiday"
-  mileage: numeric("mileage", { precision: 7, scale: 1 }).default("0"), // total miles for the day
+  hours: numeric("hours", { precision: 4, scale: 2 }).notNull().default("0"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1658,65 +1267,6 @@ export const timecardPunches = pgTable("timecard_punches", {
   index("IDX_punches_user_date").on(table.userId, table.punchDate),
 ]);
 
-// Mileage log entries (separate from time entries, one per trip/date)
-export const timecardMileage = pgTable("timecard_mileage", {
-  id: serial("id").primaryKey(),
-  timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
-  entryDate: varchar("entry_date").notNull(),
-  miles: numeric("miles", { precision: 6, scale: 2 }).notNull().default("0"),
-  purpose: text("purpose"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
-  index("IDX_timecard_mileage_timecard_id").on(table.timecardId),
-]);
-
-// Payroll contacts (who receives weekly timecard emails)
-export const payrollContacts = pgTable("payroll_contacts", {
-  id: serial("id").primaryKey(),
-  name: varchar("name").notNull(),
-  email: varchar("email").notNull(),
-  isActive: text("is_active").default("yes").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Timecard recipients (HR / managers who timecards are submitted to)
-export const timecardRecipients = pgTable("timecard_recipients", {
-  id: serial("id").primaryKey(),
-  name: varchar("name").notNull(),
-  email: varchar("email").notNull(),
-  title: varchar("title"),
-  isActive: text("is_active").default("yes").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const insertPayrollContactSchema = createInsertSchema(payrollContacts).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertPayrollContact = z.infer<typeof insertPayrollContactSchema>;
-export type PayrollContact = typeof payrollContacts.$inferSelect;
-
-export const insertTimecardRecipientSchema = createInsertSchema(timecardRecipients).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertTimecardRecipient = z.infer<typeof insertTimecardRecipientSchema>;
-export type TimecardRecipient = typeof timecardRecipients.$inferSelect;
-
-export const insertTimecardMileageSchema = createInsertSchema(timecardMileage).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertTimecardMileage = z.infer<typeof insertTimecardMileageSchema>;
-export type TimecardMileage = typeof timecardMileage.$inferSelect;
-
 // Insert schemas
 export const insertTimecardPunchSchema = createInsertSchema(timecardPunches).omit({
   id: true,
@@ -1727,6 +1277,7 @@ export const insertTimecardPunchSchema = createInsertSchema(timecardPunches).omi
 export type InsertTimecardPunch = z.infer<typeof insertTimecardPunchSchema>;
 export type TimecardPunch = typeof timecardPunches.$inferSelect;
 
+// Insert schemas
 export const insertTimecardSchema = createInsertSchema(timecards).omit({
   id: true,
   createdAt: true,
@@ -1757,14 +1308,48 @@ export type TimecardAuditLog = typeof timecardAuditLog.$inferSelect;
 // View types
 export type TimecardWithEntries = Timecard & {
   entries: TimecardEntry[];
-  recipient?: TimecardRecipient | null;
 };
 
 export type TimecardWithUser = Timecard & {
   user: { id: string; firstName: string | null; lastName: string | null; email: string };
-  recipient?: TimecardRecipient | null;
 };
 
 export type TimecardAuditLogWithUser = TimecardAuditLog & {
   changedBy: { id: string; firstName: string | null; lastName: string | null; email: string };
 };
+
+// ============================================
+// PROJECT REQUESTS (Client Portal)
+// ============================================
+
+export const projectRequests = pgTable("project_requests", {
+  id: serial("id").primaryKey(),
+  customer_id: integer("customer_id").references(() => customers.id).notNull(),
+  portal_user_id: integer("portal_user_id"),
+
+  // Request details
+  project_type: text("project_type").notNull(), // bathroom | kitchen | floor | full_reno | custom
+  title: text("title").notNull(),
+  description: text("description"),
+  budget_range: text("budget_range"), // under_10k | 10k_25k | 25k_50k | 50k_100k | over_100k
+  address: text("address"),
+  preferred_start: text("preferred_start"), // asap | 1_month | 3_months | flexible
+  additional_notes: text("additional_notes"),
+
+  // Status tracking
+  status: text("status").default("pending").notNull(), // pending | reviewed | approved | declined | converted
+  admin_notes: text("admin_notes"),
+  converted_project_id: integer("converted_project_id"),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertProjectRequestSchema = createInsertSchema(projectRequests).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertProjectRequest = z.infer<typeof insertProjectRequestSchema>;
+export type ProjectRequest = typeof projectRequests.$inferSelect;

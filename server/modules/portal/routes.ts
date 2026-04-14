@@ -514,6 +514,44 @@ export function registerPortalRoutes(app: Express) {
     }),
   );
 
+  // ── POST /api/portal/project-requests ───────────
+  app.post(
+    "/api/portal/project-requests",
+    isPortalAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const data = z
+        .object({
+          project_type: z.enum(["bathroom", "kitchen", "floor", "full_reno", "custom"]),
+          title: z.string().min(1).max(200),
+          description: z.string().max(2000).optional(),
+          budget_range: z.enum(["under_10k", "10k_25k", "25k_50k", "50k_100k", "over_100k"]).optional(),
+          address: z.string().max(500).optional(),
+          preferred_start: z.enum(["asap", "1_month", "3_months", "flexible"]).optional(),
+          additional_notes: z.string().max(2000).optional(),
+        })
+        .parse(req.body);
+
+      const request = await portalStorage.createProjectRequest({
+        ...data,
+        customer_id: req.portalUser.customer.id,
+        portal_user_id: req.portalUser.id === "admin-preview" ? null : parseInt(req.portalUser.id),
+        status: "pending",
+      });
+
+      res.status(201).json(request);
+    }),
+  );
+
+  // ── GET /api/portal/project-requests ──────────
+  app.get(
+    "/api/portal/project-requests",
+    isPortalAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const requests = await portalStorage.getProjectRequestsByCustomer(req.portalUser.customer.id);
+      res.json(requests);
+    }),
+  );
+
   // ── POST /api/send-portal-setup-email ────────────
   app.post(
     "/api/send-portal-setup-email",
@@ -536,212 +574,6 @@ export function registerPortalRoutes(app: Express) {
         console.error("Failed to send portal setup email:", error);
         return res.status(500).json({ error: "Failed to send email" });
       }
-    }),
-  );
-
-  // ── GET /api/client-portal-access/customer/:customerId ──
-  app.get(
-    "/api/client-portal-access/customer/:customerId",
-    isAuthenticated,
-    asyncHandler(async (req: any, res) => {
-      const customerId = parseInt(req.params.customerId);
-      if (isNaN(customerId)) {
-        return res.status(400).json({ error: "Invalid customer ID" });
-      }
-
-      const accesses = await portalStorage.getClientPortalAccessByCustomerId(customerId);
-      if (accesses.length === 0) {
-        return res.status(404).json({ error: "Portal access not found" });
-      }
-
-      // Return first result and exclude password_hash
-      const { password_hash, ...accessWithoutPassword } = accesses[0];
-      res.json(accessWithoutPassword);
-    }),
-  );
-
-  // ── POST /api/client-portal-access ──────────────────
-  app.post(
-    "/api/client-portal-access",
-    isAuthenticated,
-    asyncHandler(async (req: any, res) => {
-      const { customer_id, email, password, send_invite } = z
-        .object({
-          customer_id: z.number(),
-          email: z.string().email(),
-          password: z.string().min(1),
-          send_invite: z.boolean().optional(),
-        })
-        .parse(req.body);
-
-      // Hash password
-      const password_hash = await bcryptjs.hash(password, 10);
-
-      // Create portal access
-      const created = await portalStorage.createClientPortalAccess({
-        customer_id,
-        email,
-        password_hash,
-        is_active: "yes",
-      });
-
-      // Exclude password_hash from response
-      const { password_hash: _, ...accessWithoutPassword } = created;
-      res.status(201).json(accessWithoutPassword);
-    }),
-  );
-
-  // ── POST /api/client-portal-access/:id/send-invite ──
-  app.post(
-    "/api/client-portal-access/:id/send-invite",
-    isAuthenticated,
-    asyncHandler(async (req: any, res) => {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid access ID" });
-      }
-
-      const { password } = z
-        .object({
-          password: z.string().min(1),
-        })
-        .parse(req.body);
-
-      // Get the existing access record to get email
-      const access = await portalStorage.getClientPortalAccessById(id);
-      if (!access) {
-        return res.status(404).json({ error: "Portal access not found" });
-      }
-
-      // Hash the new password
-      const password_hash = await bcryptjs.hash(password, 10);
-
-      // Update password
-      await portalStorage.updateClientPortalAccess(id, {
-        password_hash,
-      });
-
-      // Send invite email
-      try {
-        const { sendPortalSetupInvitation } = await import("../../services/emailService");
-        const customerName = access.customer_name || access.email.split("@")[0];
-        await sendPortalSetupInvitation(access.email, customerName, "portal", "Portal Access");
-      } catch (emailError) {
-        console.log("[portal] Setup invite email skipped:", emailError instanceof Error ? emailError.message : "unknown error");
-      }
-
-      res.json({ success: true });
-    }),
-  );
-
-  // ── POST /api/client-portal-access/:id/reset-password ─
-  app.post(
-    "/api/client-portal-access/:id/reset-password",
-    isAuthenticated,
-    asyncHandler(async (req: any, res) => {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid access ID" });
-      }
-
-      const { new_password, send_email } = z
-        .object({
-          new_password: z.string().min(1),
-          send_email: z.boolean().optional(),
-        })
-        .parse(req.body);
-
-      // Get the existing access record
-      const access = await portalStorage.getClientPortalAccessById(id);
-      if (!access) {
-        return res.status(404).json({ error: "Portal access not found" });
-      }
-
-      // Hash the new password
-      const password_hash = await bcryptjs.hash(new_password, 10);
-
-      // Update password
-      await portalStorage.updateClientPortalAccess(id, {
-        password_hash,
-      });
-
-      // Send password reset email if requested
-      if (send_email) {
-        try {
-          const { sendPortalPasswordReset } = await import("../../services/emailService");
-          const customerName = access.customer_name || access.email.split("@")[0];
-          await sendPortalPasswordReset(access.email, customerName, new_password);
-        } catch (emailError) {
-          console.log("[portal] Password reset email skipped:", emailError instanceof Error ? emailError.message : "unknown error");
-        }
-      }
-
-      res.json({ success: true });
-    }),
-  );
-
-  // ── PATCH /api/client-portal-access/:id ────────────────
-  app.patch(
-    "/api/client-portal-access/:id",
-    isAuthenticated,
-    asyncHandler(async (req: any, res) => {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid access ID" });
-      }
-
-      const data = z
-        .object({
-          is_active: z.enum(["yes", "no"]).optional(),
-        })
-        .parse(req.body);
-
-      // Update portal access
-      const updated = await portalStorage.updateClientPortalAccess(id, data);
-      if (!updated) {
-        return res.status(404).json({ error: "Portal access not found" });
-      }
-
-      // Exclude password_hash from response
-      const { password_hash, ...accessWithoutPassword } = updated;
-      res.json(accessWithoutPassword);
-    }),
-  );
-
-  // ── POST /api/portal/change-orders/:id/reject ────────────
-  app.post(
-    "/api/portal/change-orders/:id/reject",
-    isPortalAuthenticated,
-    asyncHandler(async (req: any, res) => {
-      const changeOrderId = parseInt(req.params.id);
-      if (isNaN(changeOrderId)) {
-        return res.status(400).json({ error: "Invalid change order ID" });
-      }
-
-      const { rejection_reason } = z
-        .object({
-          rejection_reason: z.string().min(1),
-        })
-        .parse(req.body);
-
-      // Get the change order
-      const changeOrder = await portalStorage.getChangeOrder(changeOrderId);
-      if (!changeOrder) {
-        return res.status(404).json({ error: "Change order not found" });
-      }
-
-      // Verify client has access to this project
-      const project = await portalStorage.getClientProjectWithDetails(
-        changeOrder.project_id,
-        req.portalUser.customer.id,
-      );
-      if (!project) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-
-      // Reject the change order
-      const updated = await portalStorage.rejectChangeOrder(changeOrderId, rejection_reason);
-      res.json(updated);
     }),
   );
 }

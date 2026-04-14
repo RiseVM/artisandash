@@ -43,13 +43,18 @@ export function PortalSidebar() {
       )}
     >
       {/* Logo / Brand */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
-        <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-          <span className="text-sm font-bold tracking-tight text-white/90">AT</span>
+      <div className={cn(
+        "flex items-center border-b border-white/10 shrink-0",
+        collapsed ? "justify-center px-2 h-16" : "px-4 h-16 gap-3"
+      )}>
+        <div className={cn(
+          "rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden",
+          collapsed ? "w-10 h-10 p-1" : "w-10 h-10 p-1"
+        )}>
+          <img src="/logo.jpg" alt="Artisan Tile" className="w-full h-full object-contain" />
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <p className="text-sm font-semibold truncate leading-tight">Artisan Tile</p>
             <p className="text-[11px] text-white/50 truncate leading-tight">Client Portal</p>
           </div>
         )}

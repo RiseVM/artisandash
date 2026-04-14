@@ -12,6 +12,7 @@ import {
   projectUpdates,
   projectMessages,
   clientFeedback,
+  projectRequests,
   type ClientPortalUser,
   type ProjectWithCustomer,
   type ProjectWithDetails,
@@ -27,6 +28,8 @@ import {
   type Contract,
   type InsertClientPortalAccess,
   type InsertClientFeedback,
+  type InsertProjectRequest,
+  type ProjectRequest,
 } from "@shared/schema";
 import { eq, and, or, desc, asc } from "drizzle-orm";
 
@@ -115,19 +118,6 @@ export const portalStorage = {
   },
 
   // ── CLIENT PROJECTS ────────────────────────────
-
-  async getAllProjects(): Promise<{ id: number }[]> {
-    return db.select({ id: projects.id }).from(projects);
-  },
-
-  async getProjectCustomerId(projectId: number): Promise<{ customer_id: number; customer_name: string | null } | null> {
-    const [result] = await db
-      .select({ customer_id: projects.customer_id, customer_name: customers.name })
-      .from(projects)
-      .innerJoin(customers, eq(projects.customer_id, customers.id))
-      .where(eq(projects.id, projectId));
-    return result || null;
-  },
 
   async getClientProjects(customerId: number): Promise<ProjectWithCustomer[]> {
     const projectList = await db
@@ -245,20 +235,6 @@ export const portalStorage = {
     return result;
   },
 
-  async rejectChangeOrder(id: number, rejectionReason: string): Promise<ChangeOrder | undefined> {
-    const [result] = await db
-      .update(changeOrders)
-      .set({
-        status: "rejected",
-        rejection_reason: rejectionReason,
-        decided_at: new Date(),
-        updated_at: new Date(),
-      })
-      .where(eq(changeOrders.id, id))
-      .returning();
-    return result;
-  },
-
   // ── PROJECT DELIVERIES (CLIENT VIEW) ────────
 
   async getClientProjectDeliveries(projectId: number): Promise<ProjectDeliveryWithPhase[]> {
@@ -287,7 +263,7 @@ export const portalStorage = {
       .where(
         and(
           eq(projectFiles.project_id, projectId),
-          eq(projectFiles.client_visible, "yes"),
+          eq(projectFiles.is_client_visible, "yes"),
         ),
       )
       .orderBy(desc(projectFiles.created_at));
@@ -382,5 +358,55 @@ export const portalStorage = {
         ),
       )
       .orderBy(desc(contracts.created_at));
+  },
+
+  // ── PROJECT REQUESTS ──────────────────────────────
+
+  async createProjectRequest(data: InsertProjectRequest): Promise<ProjectRequest> {
+    const [request] = await db.insert(projectRequests).values(data).returning();
+    return request;
+  },
+
+  async getProjectRequestsByCustomer(customerId: number): Promise<ProjectRequest[]> {
+    return db
+      .select()
+      .from(projectRequests)
+      .where(eq(projectRequests.customer_id, customerId))
+      .orderBy(desc(projectRequests.created_at));
+  },
+
+  async getAllProjectRequests(): Promise<(ProjectRequest & { customer_name: string; customer_email: string })[]> {
+    return db
+      .select({
+        id: projectRequests.id,
+        customer_id: projectRequests.customer_id,
+        portal_user_id: projectRequests.portal_user_id,
+        project_type: projectRequests.project_type,
+        title: projectRequests.title,
+        description: projectRequests.description,
+        budget_range: projectRequests.budget_range,
+        address: projectRequests.address,
+        preferred_start: projectRequests.preferred_start,
+        additional_notes: projectRequests.additional_notes,
+        status: projectRequests.status,
+        admin_notes: projectRequests.admin_notes,
+        converted_project_id: projectRequests.converted_project_id,
+        created_at: projectRequests.created_at,
+        updated_at: projectRequests.updated_at,
+        customer_name: customers.name,
+        customer_email: customers.email,
+      })
+      .from(projectRequests)
+      .innerJoin(customers, eq(projectRequests.customer_id, customers.id))
+      .orderBy(desc(projectRequests.created_at));
+  },
+
+  async updateProjectRequestStatus(id: number, status: string, adminNotes?: string): Promise<ProjectRequest> {
+    const [updated] = await db
+      .update(projectRequests)
+      .set({ status, admin_notes: adminNotes, updated_at: new Date() })
+      .where(eq(projectRequests.id, id))
+      .returning();
+    return updated;
   },
 };

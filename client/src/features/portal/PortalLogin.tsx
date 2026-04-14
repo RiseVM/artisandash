@@ -77,15 +77,12 @@ export function PortalLogin() {
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           {/* Brand Header */}
           <div className="px-8 pt-10 pb-6 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[hsl(215,30%,35%)] mb-5 shadow-lg">
-              <span className="text-xl font-bold text-white tracking-tight">AT</span>
+            <div className="inline-flex items-center justify-center w-44 mb-5">
+              <img src="/logo.jpg" alt="Artisan Tile Kitchen & Bath" className="w-full h-auto" />
             </div>
-            <p className="text-xs font-semibold tracking-widest text-[hsl(215,30%,35%)] uppercase mb-1">
+            <p className="text-xs font-semibold tracking-widest text-[hsl(215,30%,35%)] uppercase">
               Client Portal
             </p>
-            <h1 className="text-xl font-bold text-gray-900">
-              Artisan Tile Kitchen & Bath
-            </h1>
           </div>
 
           {/* Divider */}
