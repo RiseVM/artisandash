@@ -1,5 +1,8 @@
 import type { Express } from "express";
-import { isAuthenticated, isAdmin } from "../../middleware/auth";
+import { isAuthenticated, requirePermission } from "../../middleware/auth";
+
+// Use permission-based access so managers (not just admins) can manage timecards
+const canManageTimecards = requirePermission("manage_users");
 import { asyncHandler } from "../../middleware/errorHandler";
 import { timecardStorage } from "./storage";
 
@@ -140,7 +143,7 @@ export function registerTimecardRoutes(app: Express) {
   // GET all timecards with user info (filterable)
   app.get(
     "/api/timecards/admin/all",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const { weekStartDate, userId, status } = req.query;
       const cards = await timecardStorage.getAllTimecardsWithUsers({
@@ -155,7 +158,7 @@ export function registerTimecardRoutes(app: Express) {
   // GET all active users (for admin dropdowns)
   app.get(
     "/api/timecards/admin/users",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (_req: any, res) => {
       const activeUsers = await timecardStorage.getAllActiveUsers();
       res.json(activeUsers);
@@ -165,7 +168,7 @@ export function registerTimecardRoutes(app: Express) {
   // GET single timecard with entries + audit log (admin)
   app.get(
     "/api/timecards/admin/:id",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const timecardId = parseInt(req.params.id, 10);
       if (isNaN(timecardId)) return res.status(400).json({ error: "Invalid timecard ID" });
@@ -179,7 +182,7 @@ export function registerTimecardRoutes(app: Express) {
   // PATCH admin edit any entry (regardless of status)
   app.patch(
     "/api/timecards/admin/entries/:entryId",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const adminId = req.user?.id;
       if (!adminId) return res.status(401).json({ error: "Unauthorized" });
@@ -210,7 +213,7 @@ export function registerTimecardRoutes(app: Express) {
   // POST approve timecard (admin)
   app.post(
     "/api/timecards/admin/:id/approve",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const adminId = req.user?.id;
       if (!adminId) return res.status(401).json({ error: "Unauthorized" });
@@ -226,7 +229,7 @@ export function registerTimecardRoutes(app: Express) {
   // POST unapprove timecard (admin)
   app.post(
     "/api/timecards/admin/:id/unapprove",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const adminId = req.user?.id;
       if (!adminId) return res.status(401).json({ error: "Unauthorized" });
@@ -242,7 +245,7 @@ export function registerTimecardRoutes(app: Express) {
   // GET employee notes count for sidebar badge (admin)
   app.get(
     "/api/timecards/admin/notes-count",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const { weekStartDate } = req.query;
       if (!weekStartDate) return res.json({ count: 0 });
@@ -254,7 +257,7 @@ export function registerTimecardRoutes(app: Express) {
   // GET all employees clock status (admin)
   app.get(
     "/api/timecards/admin/clock-status",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (_req: any, res) => {
       const statuses = await timecardStorage.getAllEmployeesClockStatus();
       res.json(statuses);
@@ -313,7 +316,7 @@ export function registerTimecardRoutes(app: Express) {
   // PATCH admin edit punch
   app.patch(
     "/api/timecards/admin/punches/:punchId",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const adminId = req.user?.id;
       if (!adminId) return res.status(401).json({ error: "Unauthorized" });
@@ -330,7 +333,7 @@ export function registerTimecardRoutes(app: Express) {
   // DELETE admin delete punch
   app.delete(
     "/api/timecards/admin/punches/:punchId",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const adminId = req.user?.id;
       if (!adminId) return res.status(401).json({ error: "Unauthorized" });
@@ -346,7 +349,7 @@ export function registerTimecardRoutes(app: Express) {
   // POST admin add punch
   app.post(
     "/api/timecards/admin/punches",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const adminId = req.user?.id;
       if (!adminId) return res.status(401).json({ error: "Unauthorized" });
@@ -403,7 +406,7 @@ export function registerTimecardRoutes(app: Express) {
   // GET user mileage settings
   app.get(
     "/api/timecards/admin/mileage-settings/:userId",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const settings = await timecardStorage.getEmployeeWithMileageSettings(req.params.userId);
       res.json(settings || { mileageEnabled: "no", mileageRate: null });
@@ -413,7 +416,7 @@ export function registerTimecardRoutes(app: Express) {
   // PATCH update mileage settings
   app.patch(
     "/api/timecards/admin/mileage-settings/:userId",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const { mileageEnabled, mileageRate } = req.body;
       await timecardStorage.updateEmployeeMileageSettings(req.params.userId, mileageEnabled, mileageRate);
@@ -425,7 +428,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.get(
     "/api/timecards/payroll-contacts",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (_req: any, res) => {
       const contacts = await timecardStorage.getPayrollContacts();
       res.json(contacts);
@@ -434,7 +437,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.post(
     "/api/timecards/payroll-contacts",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const { name, email } = req.body;
       if (!name?.trim() || !email?.trim()) {
@@ -447,7 +450,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.patch(
     "/api/timecards/payroll-contacts/:id",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
@@ -458,7 +461,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.delete(
     "/api/timecards/payroll-contacts/:id",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
@@ -471,7 +474,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.get(
     "/api/timecards/recipients",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (_req: any, res) => {
       const recipients = await timecardStorage.getAllRecipients();
       res.json(recipients);
@@ -480,7 +483,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.post(
     "/api/timecards/recipients",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const { name, email, title } = req.body;
       if (!name?.trim() || !email?.trim()) {
@@ -493,7 +496,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.patch(
     "/api/timecards/recipients/:id",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
@@ -504,7 +507,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.delete(
     "/api/timecards/recipients/:id",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
@@ -516,7 +519,7 @@ export function registerTimecardRoutes(app: Express) {
   // ── ONE-TIME BACKFILL: sync all punch data to timecard entries ──
   app.post(
     "/api/timecards/admin/backfill-punches",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (_req: any, res) => {
       // Get all punches grouped by timecard + date
       const allPunches = await timecardStorage.getAllPunchesForBackfill();
@@ -534,7 +537,7 @@ export function registerTimecardRoutes(app: Express) {
 
   app.get(
     "/api/timecards/admin/approved-week",
-    isAdmin,
+    canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const { weekStartDate } = req.query;
       if (!weekStartDate) return res.status(400).json({ error: "weekStartDate required" });
