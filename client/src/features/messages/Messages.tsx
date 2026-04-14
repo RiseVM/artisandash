@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { InternalMessaging } from "@/components/shared/InternalMessaging";
-import { useAuth } from "@/features/auth/hooks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +9,7 @@ import {
   MessageSquare,
   Users,
   FolderKanban,
-  Check,
+  Send,
   Loader2,
   Circle,
 } from "lucide-react";
@@ -37,8 +36,6 @@ interface ProjectWithMessages {
 }
 
 export function Messages() {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("team");
 
   // Fetch unread counts
@@ -119,23 +116,6 @@ function ClientMessages({
   projects: ProjectWithMessages[];
   isLoading: boolean;
 }) {
-  const queryClient = useQueryClient();
-
-  const markReadMutation = useMutation({
-    mutationFn: async (projectId: number) => {
-      const res = await fetch(`/api/projects/${projectId}/messages/mark-read`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to mark as read");
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/client-messages"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/unified-unread"] });
-    },
-  });
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -164,64 +144,60 @@ function ClientMessages({
             <div className="flex items-center justify-between">
               <div>
                 <Link href={`/projects/${project.projectId}`}>
-                  <CardTitle className="text-base hover:underline cursor-pointer">
+                  <CardTitle className="text-base hover:underline cursor-pointer flex items-center gap-2">
+                    <FolderKanban className="h-4 w-4 text-muted-foreground" />
                     {project.projectName}
                   </CardTitle>
                 </Link>
-                <p className="text-xs text-muted-foreground">{project.customerName}</p>
+                <p className="text-xs text-muted-foreground ml-6">{project.customerName}</p>
               </div>
               <div className="flex items-center gap-2">
                 {project.unreadCount > 0 && (
-                  <>
-                    <Badge variant="destructive" className="text-xs">
-                      {project.unreadCount} new
-                    </Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => markReadMutation.mutate(project.projectId)}
-                      disabled={markReadMutation.isPending}
-                    >
-                      <Check className="h-3 w-3 mr-1" />
-                      Mark Read
-                    </Button>
-                  </>
+                  <Badge variant="destructive" className="text-xs">
+                    {project.unreadCount} new
+                  </Badge>
                 )}
+                <Link href={`/projects/${project.projectId}`}>
+                  <Button size="sm">
+                    <Send className="h-3 w-3 mr-1" />
+                    Open &amp; Reply
+                  </Button>
+                </Link>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {project.messages.slice(0, 5).map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`p-3 rounded-lg text-sm ${
-                    msg.read_by_admin === "no"
-                      ? "bg-blue-50 border-l-4 border-l-blue-400"
-                      : "bg-muted/30"
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    {msg.read_by_admin === "no" && (
-                      <Circle className="h-2 w-2 fill-blue-500 text-blue-500 shrink-0 mt-1.5" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {msg.sender_name} &middot; {new Date(msg.created_at).toLocaleString()}
-                      </p>
+            <Link href={`/projects/${project.projectId}`}>
+              <div className="space-y-2 cursor-pointer hover:opacity-90 transition-opacity">
+                {project.messages.slice(0, 3).map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`p-3 rounded-lg text-sm ${
+                      msg.read_by_admin === "no"
+                        ? "bg-blue-50 border-l-4 border-l-blue-400"
+                        : "bg-muted/30"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      {msg.read_by_admin === "no" && (
+                        <Circle className="h-2 w-2 fill-blue-500 text-blue-500 shrink-0 mt-1.5" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {msg.sender_name} &middot; {new Date(msg.created_at).toLocaleString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-              {project.messages.length > 5 && (
-                <Link href={`/projects/${project.projectId}`}>
-                  <p className="text-xs text-blue-600 hover:underline cursor-pointer text-center py-1">
-                    View all {project.messages.length} messages in project
+                ))}
+                {project.messages.length > 3 && (
+                  <p className="text-xs text-blue-600 hover:underline text-center py-1">
+                    View all {project.messages.length} messages &rarr;
                   </p>
-                </Link>
-              )}
-            </div>
+                )}
+              </div>
+            </Link>
           </CardContent>
         </Card>
       ))}
