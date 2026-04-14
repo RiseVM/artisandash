@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   PlusCircle,
@@ -37,6 +37,7 @@ export function Sidebar() {
   const [location, setLocation] = useLocation();
   const { user, hasPermission, logout } = useAuth();
   const isAdmin = user?.role === "admin";
+  const queryClient = useQueryClient();
 
   // Fetch employee notes count for sidebar badge (admin only)
   const { data: notesData } = useQuery<{ count: number }>({
@@ -68,6 +69,27 @@ export function Sidebar() {
     refetchInterval: 30000,
   });
   const isClockedIn = clockData?.clockedIn ?? false;
+
+  // Clock in/out mutation
+  const clockToggle = useMutation({
+    mutationFn: async () => {
+      const endpoint = isClockedIn ? "/api/timecards/clock/out" : "/api/timecards/clock/in";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Clock action failed");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/clock/status"] });
+    },
+  });
 
   // Unread messages count
   const { data: unreadMsgData } = useQuery<{ count: number }>({
@@ -130,15 +152,27 @@ export function Sidebar() {
             <p className="text-sm font-semibold text-sidebar-foreground">
               Hi, {user.firstName || user.email.split("@")[0]}
             </p>
-            <div className="flex items-center gap-1.5 mt-1">
+            <button
+              onClick={() => clockToggle.mutate()}
+              disabled={clockToggle.isPending}
+              className="flex items-center gap-1.5 mt-1 cursor-pointer hover:opacity-80 transition-opacity disabled:opacity-50"
+              title={isClockedIn ? "Click to clock out" : "Click to clock in"}
+            >
               <div className={cn(
                 "w-2 h-2 rounded-full",
-                isClockedIn ? "bg-green-500" : "bg-gray-400",
+                isClockedIn ? "bg-green-500 animate-pulse" : "bg-gray-400",
               )} />
               <span className="text-xs text-sidebar-foreground/60">
-                {isClockedIn ? "Clocked In" : "Clocked Out"}
+                {clockToggle.isPending
+                  ? "..."
+                  : isClockedIn ? "Clocked In" : "Clocked Out"}
               </span>
-            </div>
+            </button>
+            {clockToggle.isError && (
+              <p className="text-[10px] text-red-500 mt-0.5">
+                {clockToggle.error?.message || "Error"}
+              </p>
+            )}
           </div>
         )}
 

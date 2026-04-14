@@ -79,6 +79,9 @@ declare module "http" {
     const { migrateTeam } = await import("./migrate-team");
     await migrateTeam();
 
+    const { migrateTimecards } = await import("./migrate-timecards");
+    await migrateTimecards();
+
     // ------------------------------------
     // Route registration
     // ------------------------------------

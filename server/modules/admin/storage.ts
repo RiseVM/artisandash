@@ -197,6 +197,7 @@ export const storage = {
       { role: "manager", permission: "view_messages", enabled: "yes" },
       { role: "manager", permission: "view_team_resources", enabled: "yes" },
       { role: "manager", permission: "view_bug_reports", enabled: "yes" },
+      { role: "manager", permission: "manage_users", enabled: "no" },
       // Staff defaults
       { role: "staff", permission: "manage_customers", enabled: "yes" },
       { role: "staff", permission: "manage_inventory", enabled: "yes" },
@@ -210,6 +211,7 @@ export const storage = {
       { role: "staff", permission: "view_messages", enabled: "yes" },
       { role: "staff", permission: "view_team_resources", enabled: "yes" },
       { role: "staff", permission: "view_bug_reports", enabled: "yes" },
+      { role: "staff", permission: "manage_users", enabled: "no" },
     ];
 
     const toInsert = allDefaults.filter(
