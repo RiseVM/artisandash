@@ -20,7 +20,7 @@ import type {
   TimecardWithUser,
   TimecardAuditLogWithUser,
 } from "@shared/schema";
-import { eq, and, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 /** Calculate regular + OT hours from HH:MM clockIn/clockOut strings */
 function calcHours(clockIn: string, clockOut: string): { regular: number; ot: number } {
@@ -599,7 +599,7 @@ export const timecardStorage = {
       .where(
         and(
           eq(timecardPunches.userId, userId),
-          isNull(timecardPunches.clockOut),
+          sql`${timecardPunches.clockOut} IS NULL`,
         ),
       )
       .orderBy(desc(timecardPunches.clockIn))
@@ -869,7 +869,7 @@ export const timecardStorage = {
         .where(
           and(
             eq(timecardPunches.userId, u.id),
-            isNull(timecardPunches.clockOut),
+            sql`${timecardPunches.clockOut} IS NULL`,
           ),
         )
         .orderBy(desc(timecardPunches.clockIn))
