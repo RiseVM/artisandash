@@ -32,11 +32,10 @@ export function registerProjectRoutes(app: Express) {
   // PROJECT CRUD ROUTES
   // ============================================
 
-  // GET /api/projects - List all projects
+  // GET /api/projects - List all projects (all authenticated staff can view)
   app.get(
     "/api/projects",
     isAuthenticated,
-    requirePermission("manage_projects"),
     asyncHandler(async (_req, res) => {
       const projects = await projectStorage.getProjects();
       res.json(projects);

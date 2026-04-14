@@ -119,4 +119,42 @@ export function registerInternalMessageRoutes(app: Express) {
       res.json({ count: internalUnread + projectUnread, internalUnread, projectUnread });
     }),
   );
+
+  // ── GET /api/messages/client-messages ──────
+  // All project client messages grouped by project for the unified Messages page
+  app.get(
+    "/api/messages/client-messages",
+    isAuthenticated,
+    asyncHandler(async (_req: any, res) => {
+      try {
+        const { projectStorage } = await import("../projects/storage");
+        const allProjects = await projectStorage.getProjects();
+
+        const result = [];
+        for (const project of allProjects) {
+          const messages = await projectStorage.getProjectMessages(project.id);
+          const clientMsgs = messages.filter((m: any) => m.sender_type === "client");
+          if (clientMsgs.length > 0) {
+            const unreadCount = clientMsgs.filter((m: any) => m.read_by_admin === "no").length;
+            result.push({
+              projectId: project.id,
+              projectName: project.name,
+              customerName: (project as any).customer?.name || "Customer",
+              messages: clientMsgs.sort((a: any, b: any) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+              ),
+              unreadCount,
+            });
+          }
+        }
+
+        // Sort by unread count descending
+        result.sort((a, b) => b.unreadCount - a.unreadCount);
+        res.json(result);
+      } catch (err) {
+        console.error("[messages] client-messages error:", err);
+        res.json([]);
+      }
+    }),
+  );
 }

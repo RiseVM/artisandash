@@ -55,35 +55,16 @@ export function Messages() {
   const internalUnread = unreadData?.internalUnread || 0;
   const projectUnread = unreadData?.projectUnread || 0;
 
-  // Fetch all projects with their messages
-  const { data: projects = [], isLoading: projectsLoading } = useQuery<any[]>({
-    queryKey: ["/api/projects"],
+  // Fetch client messages from dedicated endpoint
+  const { data: projectsWithClientMessages = [], isLoading: projectsLoading } = useQuery<ProjectWithMessages[]>({
+    queryKey: ["/api/messages/client-messages"],
     queryFn: async () => {
-      const res = await fetch("/api/projects", { credentials: "include" });
+      const res = await fetch("/api/messages/client-messages", { credentials: "include" });
       if (!res.ok) return [];
       return res.json();
     },
     enabled: activeTab === "client",
   });
-
-  // Group project messages by project
-  const projectsWithClientMessages: ProjectWithMessages[] = projects
-    .filter((p: any) => p.messages && p.messages.length > 0)
-    .map((p: any) => {
-      const clientMsgs = (p.messages || []).filter((m: any) => m.sender_type === "client");
-      const unread = clientMsgs.filter((m: any) => m.read_by_admin === "no").length;
-      return {
-        projectId: p.id,
-        projectName: p.name,
-        customerName: p.customerName || "Customer",
-        messages: clientMsgs.sort((a: any, b: any) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        ),
-        unreadCount: unread,
-      };
-    })
-    .filter((p: ProjectWithMessages) => p.messages.length > 0)
-    .sort((a: ProjectWithMessages, b: ProjectWithMessages) => b.unreadCount - a.unreadCount);
 
   return (
     <div className="space-y-4">
@@ -150,7 +131,7 @@ function ClientMessages({
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/client-messages"] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages/unified-unread"] });
     },
   });
