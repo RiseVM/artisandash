@@ -38,26 +38,9 @@ export function usePortalAuthState() {
       const res = await fetch("/api/portal/me", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user ?? data);
+        setUser(data.user);
       } else {
-        // Check if admin session exists (admin preview mode)
-        const adminRes = await fetch("/api/auth/me", { credentials: "include" });
-        if (adminRes.ok) {
-          const adminData = await adminRes.json();
-          if (adminData.user && (adminData.user.role === "admin" || adminData.user.role === "owner")) {
-            setUser({
-              id: "admin-preview",
-              email: adminData.user.email,
-              is_active: "yes",
-              customer: { id: 0, name: "Admin Preview" },
-              isAdminPreview: true,
-            } as any);
-          } else {
-            setUser(null);
-          }
-        } else {
-          setUser(null);
-        }
+        setUser(null);
       }
     } catch {
       setUser(null);

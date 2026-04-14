@@ -1,5 +1,4 @@
 import { Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import {
   PlusCircle,
@@ -15,68 +14,51 @@ import {
   Activity,
   FolderKanban,
   Bug,
-  Calculator,
-  MessageSquare,
-  Wrench,
-  Settings,
-  Users2,
+  Clock,
   Timer,
+  MessageSquare,
+  BookOpen,
+  Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/hooks";
 
-function getCurrentMonday(): string {
-  const d = new Date();
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  return d.toISOString().split("T")[0];
-}
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+};
 
 export function Sidebar() {
   const [location, setLocation] = useLocation();
-  const { user, hasPermission, logout } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const { user, hasPermission, isAdmin, logout } = useAuth();
 
-  // Fetch employee notes count for sidebar badge (admin only)
-  const { data: notesData } = useQuery<{ count: number }>({
-    queryKey: ["/api/timecards/admin/notes-count", { weekStartDate: getCurrentMonday() }],
-    queryFn: async () => {
-      const res = await fetch(`/api/timecards/admin/notes-count?weekStartDate=${getCurrentMonday()}`, { credentials: "include" });
-      if (!res.ok) return { count: 0 };
-      return res.json();
-    },
-    enabled: isAdmin,
-    refetchInterval: 60000,
-  });
-  const notesCount = notesData?.count || 0;
-
-  const navItems = [
+  // Build permission-gated nav items
+  const navItems: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/new", label: "New Checkout", icon: PlusCircle },
-    { href: "/checkouts", label: "Checkouts", icon: FileText },
-    { href: "/agreements", label: "Signed Docs", icon: FileCheck },
-    { href: "/contracts", label: "Contracts", icon: ClipboardList },
-    { href: "/projects", label: "Projects", icon: FolderKanban },
-    { href: "/quote-builder", label: "Quote Builder", icon: Wrench },
-    { href: "/estimates", label: "Quotes", icon: Calculator },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
-    { href: "/customers", label: "Customers", icon: Users },
-    { href: "/inventory", label: "Inventory", icon: Package },
-    { href: "/team", label: "Team Resources", icon: Users2 },
-    { href: "/timecards", label: "Timecards", icon: Timer },
-    { href: "/messages", label: "Messages", icon: MessageSquare },
+    ...(hasPermission("create_checkouts") ? [{ href: "/new", label: "New Checkout", icon: PlusCircle }] : []),
+    ...(hasPermission("create_checkouts") ? [{ href: "/checkouts", label: "Checkouts", icon: FileText }] : []),
+    ...(hasPermission("view_signed_docs") ? [{ href: "/agreements", label: "Signed Docs", icon: FileCheck }] : []),
+    ...(hasPermission("manage_contracts") ? [{ href: "/contracts", label: "Contracts", icon: ClipboardList }] : []),
+    ...(hasPermission("manage_projects") ? [{ href: "/projects", label: "Projects", icon: FolderKanban }] : []),
+    ...(hasPermission("view_calendar") ? [{ href: "/calendar", label: "Calendar", icon: Calendar }] : []),
+    ...(hasPermission("manage_customers") ? [{ href: "/customers", label: "Customers", icon: Users }] : []),
+    ...(hasPermission("manage_inventory") ? [{ href: "/inventory", label: "Inventory", icon: Package }] : []),
+    ...(hasPermission("view_team_resources") ? [{ href: "/timesheets", label: "Timesheets", icon: Clock }] : []),
+    ...(!isAdmin ? [{ href: "/timecards", label: "Timecards", icon: Timer }] : []),
+    ...(hasPermission("view_messages") ? [{ href: "/messages", label: "Messages", icon: MessageSquare }] : []),
   ];
 
-  const adminItems = [
-    { href: "/time-management", label: "Time Management", icon: Timer, permission: "manage_users" },
-    { href: "/admin/users", label: "User Management", icon: Shield, permission: "manage_users" },
-    { href: "/admin/activity", label: "Activity Reports", icon: Activity, permission: "view_reports" },
-    { href: "/admin/bug-reports", label: "Bug Reports", icon: Bug, permission: "manage_users" },
-    { href: "/settings/catalog", label: "Service Catalog", icon: Settings, permission: "manage_users" },
+  // Admin-only items
+  const adminItems: NavItem[] = [
+    ...(isAdmin ? [{ href: "/time-management", label: "Time Management", icon: Clock }] : []),
+    ...(isAdmin ? [{ href: "/admin/users", label: "User Management", icon: Shield }] : []),
+    ...(isAdmin ? [{ href: "/admin/activity", label: "Activity Reports", icon: Activity }] : []),
+    ...(hasPermission("view_bug_reports") ? [{ href: "/admin/bug-reports", label: "Bug Reports", icon: Bug }] : []),
+    ...(isAdmin ? [{ href: "/admin/service-catalog", label: "Service Catalog", icon: Wrench }] : []),
   ];
 
-  const visibleAdminItems = adminItems.filter((item) => hasPermission(item.permission));
+  const visibleAdminItems = adminItems;
 
   return (
     <aside className="hidden md:flex w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0 flex-col">
@@ -126,7 +108,6 @@ export function Sidebar() {
               {visibleAdminItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = location === item.href;
-                const badge = item.href === "/time-management" && notesCount > 0 ? notesCount : 0;
                 return (
                   <Link key={item.href} href={item.href}>
                     <div
@@ -139,11 +120,6 @@ export function Sidebar() {
                     >
                       <Icon className="h-4 w-4" />
                       {item.label}
-                      {badge > 0 && (
-                        <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
-                          {badge}
-                        </span>
-                      )}
                     </div>
                   </Link>
                 );

@@ -10,45 +10,54 @@ import {
   Calendar,
   ChevronDown,
   FileText,
+  FileCheck,
   ClipboardList,
   Shield,
   Activity,
   FolderKanban,
   Bug,
-  Calculator,
+  Clock,
+  Timer,
   MessageSquare,
   Wrench,
-  Settings,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks";
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+};
 
 export function Header() {
   const [location, setLocation] = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { hasPermission, logout } = useAuth();
+  const { hasPermission, isAdmin, logout } = useAuth();
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/new", label: "New Checkout", icon: PlusCircle },
-    { href: "/agreements", label: "Checkouts", icon: FileText },
-    { href: "/contracts", label: "Contracts", icon: ClipboardList },
-    { href: "/projects", label: "Projects", icon: FolderKanban },
-    { href: "/estimates", label: "Estimates", icon: Calculator },
-    { href: "/quote-builder", label: "Quote Builder", icon: Wrench },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
-    { href: "/customers", label: "Customers", icon: Users },
-    { href: "/inventory", label: "Inventory", icon: Package },
-    { href: "/messages", label: "Messages", icon: MessageSquare },
+    ...(hasPermission("create_checkouts") ? [{ href: "/new", label: "New Checkout", icon: PlusCircle }] : []),
+    ...(hasPermission("create_checkouts") ? [{ href: "/checkouts", label: "Checkouts", icon: FileText }] : []),
+    ...(hasPermission("view_signed_docs") ? [{ href: "/agreements", label: "Signed Docs", icon: FileCheck }] : []),
+    ...(hasPermission("manage_contracts") ? [{ href: "/contracts", label: "Contracts", icon: ClipboardList }] : []),
+    ...(hasPermission("manage_projects") ? [{ href: "/projects", label: "Projects", icon: FolderKanban }] : []),
+    ...(hasPermission("view_calendar") ? [{ href: "/calendar", label: "Calendar", icon: Calendar }] : []),
+    ...(hasPermission("manage_customers") ? [{ href: "/customers", label: "Customers", icon: Users }] : []),
+    ...(hasPermission("manage_inventory") ? [{ href: "/inventory", label: "Inventory", icon: Package }] : []),
+    ...(hasPermission("view_team_resources") ? [{ href: "/timesheets", label: "Timesheets", icon: Clock }] : []),
+    ...(!isAdmin ? [{ href: "/timecards", label: "Timecards", icon: Timer }] : []),
+    ...(hasPermission("view_messages") ? [{ href: "/messages", label: "Messages", icon: MessageSquare }] : []),
   ];
 
-  const adminItems = [
-    { href: "/admin/users", label: "User Management", icon: Shield, permission: "manage_users" },
-    { href: "/admin/activity", label: "Activity Reports", icon: Activity, permission: "view_reports" },
-    { href: "/admin/bug-reports", label: "Bug Reports", icon: Bug, permission: "manage_users" },
-    { href: "/settings/catalog", label: "Service Catalog", icon: Settings, permission: "manage_users" },
+  const adminItems: NavItem[] = [
+    ...(isAdmin ? [{ href: "/time-management", label: "Time Management", icon: Clock }] : []),
+    ...(isAdmin ? [{ href: "/admin/users", label: "User Management", icon: Shield }] : []),
+    ...(isAdmin ? [{ href: "/admin/activity", label: "Activity Reports", icon: Activity }] : []),
+    ...(hasPermission("view_bug_reports") ? [{ href: "/admin/bug-reports", label: "Bug Reports", icon: Bug }] : []),
+    ...(isAdmin ? [{ href: "/admin/service-catalog", label: "Service Catalog", icon: Wrench }] : []),
   ];
 
-  const visibleAdminItems = adminItems.filter((item) => hasPermission(item.permission));
+  const visibleAdminItems = adminItems;
   const allNavItems = [...navItems, ...visibleAdminItems];
 
   const currentItem = allNavItems.find((item) => item.href === location) || navItems[0];

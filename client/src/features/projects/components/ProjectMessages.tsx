@@ -47,15 +47,11 @@ export function ProjectMessages({ projectId }: ProjectMessagesProps) {
     content: "",
   });
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom of message list when messages change (within ScrollArea only)
+  // Scroll to bottom when messages load or change
   useEffect(() => {
-    // Find the scroll viewport (ScrollArea renders a [data-radix-scroll-area-viewport])
-    const viewport = scrollContainerRef.current?.closest("[data-radix-scroll-area-viewport]");
-    if (viewport) {
-      viewport.scrollTop = viewport.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Mark messages as read when component mounts with unread messages
@@ -246,7 +242,7 @@ export function ProjectMessages({ projectId }: ProjectMessagesProps) {
                   </div>
                 </div>
               ))}
-              <div ref={scrollContainerRef} />
+              <div ref={messagesEndRef} />
             </div>
           )}
         </ScrollArea>

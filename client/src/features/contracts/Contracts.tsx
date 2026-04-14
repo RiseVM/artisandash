@@ -18,12 +18,9 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDateEST } from "@/lib/utils";
-import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus, PenLine, Printer, Send, Mail, UserPlus, X } from "lucide-react";
+import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus, PenLine, Printer, Send, Mail, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Contract } from "@shared/schema";
-import { HomeImprovementContractPreview } from "./components/HomeImprovementContractPreview";
-import { CabinetryContractPreview } from "./components/CabinetryContractPreview";
-import { KitchenDesignRetainerPreview } from "./components/KitchenDesignRetainerPreview";
 
 export function Contracts() {
   const { data: contracts = [], isLoading } = useContracts();
@@ -43,27 +40,18 @@ export function Contracts() {
     return 'Home Improvement Contract';
   };
 
-  // Derive the effective status from signature_data presence, not just the status field
-  const getDerivedStatus = (contract: Contract): string => {
-    if (contract.signature_data) return 'signed';
-    if (contract.status === 'completed') return 'completed';
-    if (contract.status === 'sent_for_signature') return 'sent_for_signature';
-    return contract.status || 'draft';
-  };
-
-  const getStatusBadge = (contract: Contract) => {
-    const derived = getDerivedStatus(contract);
-    switch (derived) {
+  const getStatusBadge = (status: string) => {
+    switch (status) {
       case 'draft':
         return <Badge variant="outline">Draft</Badge>;
       case 'sent_for_signature':
         return <Badge variant="secondary">Sent for Signature</Badge>;
       case 'signed':
-        return <Badge className="bg-green-600">Signed</Badge>;
+        return <Badge variant="default">Signed</Badge>;
       case 'completed':
         return <Badge className="bg-green-600">Completed</Badge>;
       default:
-        return <Badge>{derived}</Badge>;
+        return <Badge>{status}</Badge>;
     }
   };
 
@@ -259,7 +247,7 @@ export function Contracts() {
                         <p className="text-sm text-muted-foreground">{contract.customer_email}</p>
                       </div>
                     </TableCell>
-                    <TableCell>{getStatusBadge(contract)}</TableCell>
+                    <TableCell>{getStatusBadge(contract.status || 'draft')}</TableCell>
                     <TableCell>
                       {contract.signed_at
                         ? formatDateEST(contract.signed_at, { includeTime: true })
@@ -288,7 +276,7 @@ export function Contracts() {
                         </Button>
 
                         {/* Send for signature (draft only) */}
-                        {getDerivedStatus(contract) === 'draft' && (
+                        {contract.status === 'draft' && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -301,7 +289,7 @@ export function Contracts() {
                         )}
 
                         {/* Resend email (signed contracts) */}
-                        {getDerivedStatus(contract) === 'signed' && (
+                        {contract.status === 'signed' && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -344,97 +332,62 @@ export function Contracts() {
       </Card>
 
       <Dialog open={!!selectedContract} onOpenChange={() => setSelectedContract(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-          <DialogHeader className="p-6 pb-0">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="text-lg font-semibold">
-                {selectedContract ? getContractTypeName(selectedContract.contract_type) : 'Contract Preview'}
-              </DialogTitle>
-              <div className="flex items-center gap-2">
-                {selectedContract && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePrintPDF(selectedContract.id)}
-                  >
-                    <Printer className="h-4 w-4 mr-2" />
-                    Print / PDF
-                  </Button>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Contract Details</DialogTitle>
+          </DialogHeader>
+          {selectedContract && (
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold">Contract Type</h4>
+                <p>{getContractTypeName(selectedContract.contract_type)}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold">Customer</h4>
+                <p>{selectedContract.customer_name}</p>
+                <p className="text-sm text-muted-foreground">{selectedContract.customer_email}</p>
+                {selectedContract.customer_phone && (
+                  <p className="text-sm text-muted-foreground">{selectedContract.customer_phone}</p>
                 )}
-                {selectedContract?.google_drive_link && (
+              </div>
+              {selectedContract.customer_address && (
+                <div>
+                  <h4 className="font-semibold">Customer Address</h4>
+                  <p>{selectedContract.customer_address}</p>
+                </div>
+              )}
+              {selectedContract.property_address && (
+                <div>
+                  <h4 className="font-semibold">Property Address</h4>
+                  <p>{selectedContract.property_address}</p>
+                </div>
+              )}
+              <div>
+                <h4 className="font-semibold">Signed Date</h4>
+                <p>{selectedContract.signed_at ? formatDateEST(selectedContract.signed_at, { includeTime: true }) : '-'}</p>
+              </div>
+              {selectedContract.signature_data && (
+                <div>
+                  <h4 className="font-semibold">Signature</h4>
+                  <div className="border rounded-md p-2 bg-white">
+                    <img
+                      src={selectedContract.signature_data}
+                      alt="Customer Signature"
+                      className="max-h-24"
+                    />
+                  </div>
+                </div>
+              )}
+              {selectedContract.google_drive_link && (
+                <div>
                   <a
                     href={selectedContract.google_drive_link}
                     target="_blank"
                     rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline flex items-center gap-1"
                   >
-                    <Button variant="outline" size="sm">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Google Drive
-                    </Button>
+                    View in Google Drive <ExternalLink className="h-4 w-4" />
                   </a>
-                )}
-              </div>
-            </div>
-          </DialogHeader>
-          {selectedContract && (
-            <div className="px-6 pb-6">
-              {/* Contract Document Preview */}
-              <div className="border rounded-lg bg-white mt-4">
-                {selectedContract.google_drive_file_id ? (
-                  <iframe
-                    src={`https://drive.google.com/file/d/${selectedContract.google_drive_file_id}/preview`}
-                    className="w-full rounded-lg"
-                    style={{ height: '600px' }}
-                    title="Contract Preview"
-                  />
-                ) : (
-                  <div className="p-4">
-                    {selectedContract.contract_type === 'home_improvement' && (
-                      <HomeImprovementContractPreview
-                        formData={selectedContract.form_data as any}
-                      />
-                    )}
-                    {selectedContract.contract_type === 'custom_cabinetry' && (
-                      <CabinetryContractPreview
-                        formData={selectedContract.form_data as any}
-                      />
-                    )}
-                    {selectedContract.contract_type === 'kitchen_design_retainer' && (
-                      <KitchenDesignRetainerPreview
-                        formData={selectedContract.form_data as any}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Customer info & signature below the preview */}
-              <div className="mt-4 flex flex-wrap gap-6 text-sm text-muted-foreground">
-                <div>
-                  <span className="font-medium text-foreground">{selectedContract.customer_name}</span>
-                  <span className="mx-2">·</span>
-                  {selectedContract.customer_email}
-                  {selectedContract.customer_phone && (
-                    <><span className="mx-2">·</span>{selectedContract.customer_phone}</>
-                  )}
-                </div>
-                {selectedContract.signed_at && (
-                  <div>
-                    Signed {formatDateEST(selectedContract.signed_at, { includeTime: true })}
-                  </div>
-                )}
-              </div>
-
-              {selectedContract.signature_data && (
-                <div className="mt-3 flex items-center gap-3">
-                  <span className="text-sm font-medium">Signature:</span>
-                  <div className="border rounded-md p-2 bg-white inline-block">
-                    <img
-                      src={selectedContract.signature_data}
-                      alt="Customer Signature"
-                      className="max-h-16"
-                    />
-                  </div>
                 </div>
               )}
             </div>

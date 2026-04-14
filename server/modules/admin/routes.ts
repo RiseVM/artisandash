@@ -1,18 +1,13 @@
 import type { Express } from "express";
-import { asyncHandler, requirePermission, isAdmin, isAuthenticated } from "../../middleware";
+import { asyncHandler, isAdmin, isAuthenticated } from "../../middleware";
 import { hashPassword } from "../auth/service";
 import { storage } from "./storage";
 
 const validRoles = ["manager", "staff"];
 const validPermissions = [
-  "manage_customers",
-  "manage_inventory",
-  "create_checkouts",
-  "manage_checkouts",
-  "view_contracts",
-  "create_contracts",
-  "manage_users",
-  "view_reports",
+  "manage_customers", "manage_inventory", "create_checkouts", "manage_checkouts",
+  "view_signed_docs", "manage_contracts", "manage_projects", "manage_quotes",
+  "view_calendar", "view_messages", "view_team_resources", "view_bug_reports",
 ];
 
 export function registerAdminRoutes(app: Express) {
@@ -20,7 +15,7 @@ export function registerAdminRoutes(app: Express) {
 
   app.get(
     "/api/users",
-    requirePermission("manage_users"),
+    isAdmin,
     asyncHandler(async (req: any, res) => {
       let allUsers = await storage.getUsers();
 
@@ -38,7 +33,6 @@ export function registerAdminRoutes(app: Express) {
           role: u.role,
           isActive: u.isActive,
           createdAt: u.createdAt,
-          mileageRate: u.mileageRate,
         })),
       );
     }),
@@ -46,7 +40,7 @@ export function registerAdminRoutes(app: Express) {
 
   app.post(
     "/api/users",
-    requirePermission("manage_users"),
+    isAdmin,
     asyncHandler(async (req: any, res) => {
       const { email, password, firstName, lastName, role } = req.body;
 
@@ -97,10 +91,10 @@ export function registerAdminRoutes(app: Express) {
 
   app.patch(
     "/api/users/:id",
-    requirePermission("manage_users"),
+    isAdmin,
     asyncHandler(async (req: any, res) => {
       const { id } = req.params;
-      const { email, password, firstName, lastName, role, isActive, mileageRate } = req.body;
+      const { email, password, firstName, lastName, role, isActive } = req.body;
 
       const existingUser = await storage.getUser(id);
       if (!existingUser) {
@@ -123,7 +117,6 @@ export function registerAdminRoutes(app: Express) {
       if (lastName !== undefined) updates.lastName = lastName;
       if (role !== undefined) updates.role = role;
       if (isActive !== undefined) updates.isActive = isActive;
-      if (mileageRate !== undefined) updates.mileageRate = String(mileageRate);
       if (password) {
         updates.passwordHash = await hashPassword(password);
       }
@@ -147,7 +140,6 @@ export function registerAdminRoutes(app: Express) {
         lastName: user!.lastName,
         role: user!.role,
         isActive: user!.isActive,
-        mileageRate: user!.mileageRate,
       });
     }),
   );
@@ -155,7 +147,7 @@ export function registerAdminRoutes(app: Express) {
   // Archive user
   app.post(
     "/api/users/:id/archive",
-    requirePermission("manage_users"),
+    isAdmin,
     asyncHandler(async (req: any, res) => {
       const { id } = req.params;
 
@@ -256,7 +248,7 @@ export function registerAdminRoutes(app: Express) {
 
   app.get(
     "/api/activity-logs",
-    requirePermission("view_reports"),
+    isAdmin,
     asyncHandler(async (req: any, res) => {
       const { userId, startDate, endDate } = req.query;
 

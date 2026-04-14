@@ -179,29 +179,45 @@ export const storage = {
 
   async initializeDefaultPermissions(): Promise<void> {
     const existing = await db.select().from(rolePermissions);
-    if (existing.length > 0) return;
 
-    const defaults = [
+    // Build a set of existing role+permission combos for insert-if-not-exists logic
+    const existingSet = new Set(existing.map((r) => `${r.role}:${r.permission}`));
+
+    const allDefaults = [
       // Manager defaults
       { role: "manager", permission: "manage_customers", enabled: "yes" },
       { role: "manager", permission: "manage_inventory", enabled: "yes" },
       { role: "manager", permission: "create_checkouts", enabled: "yes" },
       { role: "manager", permission: "manage_checkouts", enabled: "yes" },
-      { role: "manager", permission: "view_contracts", enabled: "yes" },
-      { role: "manager", permission: "create_contracts", enabled: "yes" },
-      { role: "manager", permission: "manage_users", enabled: "yes" },
-      { role: "manager", permission: "view_reports", enabled: "yes" },
+      { role: "manager", permission: "view_signed_docs", enabled: "yes" },
+      { role: "manager", permission: "manage_contracts", enabled: "yes" },
+      { role: "manager", permission: "manage_projects", enabled: "yes" },
+      { role: "manager", permission: "manage_quotes", enabled: "yes" },
+      { role: "manager", permission: "view_calendar", enabled: "yes" },
+      { role: "manager", permission: "view_messages", enabled: "yes" },
+      { role: "manager", permission: "view_team_resources", enabled: "yes" },
+      { role: "manager", permission: "view_bug_reports", enabled: "yes" },
       // Staff defaults
       { role: "staff", permission: "manage_customers", enabled: "yes" },
       { role: "staff", permission: "manage_inventory", enabled: "yes" },
       { role: "staff", permission: "create_checkouts", enabled: "yes" },
-      { role: "staff", permission: "manage_checkouts", enabled: "no" },
-      { role: "staff", permission: "view_contracts", enabled: "yes" },
-      { role: "staff", permission: "create_contracts", enabled: "no" },
-      { role: "staff", permission: "manage_users", enabled: "no" },
-      { role: "staff", permission: "view_reports", enabled: "no" },
+      { role: "staff", permission: "manage_checkouts", enabled: "yes" },
+      { role: "staff", permission: "view_signed_docs", enabled: "yes" },
+      { role: "staff", permission: "manage_contracts", enabled: "yes" },
+      { role: "staff", permission: "manage_projects", enabled: "yes" },
+      { role: "staff", permission: "manage_quotes", enabled: "yes" },
+      { role: "staff", permission: "view_calendar", enabled: "yes" },
+      { role: "staff", permission: "view_messages", enabled: "yes" },
+      { role: "staff", permission: "view_team_resources", enabled: "yes" },
+      { role: "staff", permission: "view_bug_reports", enabled: "yes" },
     ];
 
-    await db.insert(rolePermissions).values(defaults);
+    const toInsert = allDefaults.filter(
+      (d) => !existingSet.has(`${d.role}:${d.permission}`),
+    );
+
+    if (toInsert.length > 0) {
+      await db.insert(rolePermissions).values(toInsert);
+    }
   },
 };

@@ -278,7 +278,8 @@ export function KitchenDesignRetainerForm() {
                     canvasProps={{
                       className: "w-full",
                       height: 200,
-                    } as any}
+                      "data-testid": "signature-canvas",
+                    }}
                   />
                 </div>
                 <Button

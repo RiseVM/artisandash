@@ -3,58 +3,25 @@ import type { RequestHandler } from "express";
 /**
  * Requires an authenticated portal (client) session.
  * Sets req.portalUser on success, including linked projects.
- * Also allows admin users to preview portal as client (admin_preview mode).
  */
 export const isPortalAuthenticated: RequestHandler = async (req: any, res, next) => {
-  // Normal portal session
-  if (req.session?.portalUserId) {
-    const { portalStorage } = await import("../modules/portal/storage");
-    const portalUser = await portalStorage.getClientPortalUser(req.session.portalUserId);
-    if (!portalUser || portalUser.is_active !== "yes") {
-      req.session.destroy(() => {});
-      return res.status(401).json({ error: "Portal access is inactive" });
-    }
-    const projects = await portalStorage.getClientProjects(portalUser.customer.id);
-    req.portalUser = { ...portalUser, projects };
-    return next();
+  if (!req.session?.portalUserId) {
+    return res.status(401).json({ error: "Not authenticated" });
   }
 
-  // Admin preview mode — admin user viewing client portal
-  if (req.session?.userId) {
-    const { storage: authStorage } = await import("../modules/auth/storage");
-    const adminUser = await authStorage.getUser(req.session.userId);
-    if (adminUser && (adminUser.role === "admin" || adminUser.role === "owner")) {
-      const { portalStorage } = await import("../modules/portal/storage");
+  // Lazy import to avoid circular deps
+  const { portalStorage } = await import("../modules/portal/storage");
 
-      // For project-specific routes, look up the actual customer from the project
-      const projectIdMatch = req.path.match(/\/projects\/(\d+)/);
-      let customerId = 0;
-      let customerName = "Admin Preview";
-
-      if (projectIdMatch) {
-        const pid = parseInt(projectIdMatch[1]);
-        const projectInfo = await portalStorage.getProjectCustomerId(pid);
-        if (projectInfo) {
-          customerId = projectInfo.customer_id;
-          customerName = projectInfo.customer_name || "Client";
-        }
-      }
-
-      const projects = customerId
-        ? await portalStorage.getClientProjects(customerId)
-        : await portalStorage.getAllProjects();
-
-      req.portalUser = {
-        user: { id: "admin-preview", email: adminUser.email, is_active: "yes" },
-        customer: { id: customerId, name: customerName },
-        projects,
-        isAdminPreview: true,
-      };
-      return next();
-    }
+  const portalUser = await portalStorage.getClientPortalUser(req.session.portalUserId);
+  if (!portalUser || portalUser.is_active !== "yes") {
+    req.session.destroy(() => {});
+    return res.status(401).json({ error: "Portal access is inactive" });
   }
 
-  return res.status(401).json({ error: "Not authenticated" });
+  // Load the customer's projects for access checks
+  const projects = await portalStorage.getClientProjects(portalUser.customer.id);
+  req.portalUser = { ...portalUser, projects };
+  next();
 };
 
 /**

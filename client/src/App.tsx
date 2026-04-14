@@ -48,22 +48,13 @@ import { HomeImprovementContractForm } from "@/features/contracts/HomeImprovemen
 import { KitchenDesignRetainerForm } from "@/features/contracts/KitchenDesignRetainerForm";
 import { RemoteSign } from "@/features/RemoteSign";
 
+// Phase 8: Timesheets
+import { MyTimesheets } from "@/features/timesheets/MyTimesheets";
+import { AdminTimesheets } from "@/features/timesheets/AdminTimesheets";
+
 // Phase 9: Timecards
 import { Timecards } from "@/features/timecards/Timecards";
 import { TimeManagement } from "@/features/timecards/TimeManagement";
-
-// Phase 10: Quotes & Messages
-import { Estimates } from "@/features/estimates/Estimates";
-import { EstimateBuilder } from "@/features/estimates/EstimateBuilder";
-import { Messages } from "@/features/messages/Messages";
-
-// Phase 10: Quote Builder & Catalog
-import { QuoteBuilder } from "@/features/quote-builder/QuoteBuilder";
-import { CatalogSettings } from "@/features/admin/CatalogSettings";
-
-// Phase 11: Team Resources
-import { TeamResources } from "@/features/team/TeamResources";
-import { TeamMemberDetail } from "@/features/team/TeamMemberDetail";
 
 // Placeholder component shown until feature modules are built
 function Placeholder({ name }: { name: string }) {
@@ -182,38 +173,12 @@ function AdminRouter() {
           <ProjectDetail />
         </Route>
 
-        {/* Quotes */}
-        <Route path="/estimates">
-          <Estimates />
+        {/* Timesheets */}
+        <Route path="/timesheets">
+          <MyTimesheets />
         </Route>
-        <Route path="/estimates/:id">
-          <EstimateBuilder />
-        </Route>
-
-        {/* Messages */}
-        <Route path="/messages">
-          <Messages />
-        </Route>
-
-        {/* Quote Builder */}
-        <Route path="/quote-builder/:id">
-          <QuoteBuilder />
-        </Route>
-        <Route path="/quote-builder">
-          <QuoteBuilder />
-        </Route>
-
-        {/* Catalog Settings (Admin) */}
-        <Route path="/settings/catalog">
-          <CatalogSettings />
-        </Route>
-
-        {/* Team Resources */}
-        <Route path="/team/setup/:id">
-          <TeamMemberDetail />
-        </Route>
-        <Route path="/team">
-          <TeamResources />
+        <Route path="/admin/timesheets">
+          <AdminTimesheets />
         </Route>
 
         {/* Timecards */}

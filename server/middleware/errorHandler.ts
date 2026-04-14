@@ -72,30 +72,6 @@ export function errorHandler(
 
   // Unknown errors — log full stack, return generic message
   logger.error({ err, stack: err.stack }, "Unhandled error");
-
-  // Fire-and-forget email notification for 500 errors
-  const method = _req.method;
-  const path = _req.originalUrl || _req.path;
-  const userName = (_req as any).user?.name || (_req as any).session?.userEmail || "unknown";
-  import("../services/emailService").then(({ getResendClient }) => {
-    getResendClient().then(({ client, fromEmail }) => {
-      client.emails.send({
-        from: fromEmail || "noreply@artisantile.com",
-        to: "ed@risevm.com",
-        subject: `[Artisan Dash] 500 Error: ${method} ${path}`,
-        html: `
-          <div style="font-family: monospace; max-width: 700px;">
-            <h2 style="color: #e74c3c;">Internal Server Error</h2>
-            <p><strong>Route:</strong> ${method} ${path}</p>
-            <p><strong>User:</strong> ${userName}</p>
-            <p><strong>Time:</strong> ${new Date().toISOString()}</p>
-            <p><strong>Error:</strong> ${err.message}</p>
-            <pre style="background: #f8f9fa; padding: 16px; border-radius: 4px; overflow-x: auto; font-size: 12px;">${err.stack || "No stack trace"}</pre>
-          </div>`,
-      }).catch(() => { /* silently ignore email failures */ });
-    }).catch(() => { /* RESEND_API_KEY not set, skip */ });
-  }).catch(() => { /* import failed, skip */ });
-
   res.status(500).json({
     error: "Internal server error",
   });

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Key, Loader2, Shield, Archive, RotateCcw, Eye, EyeOff } from "lucide-react";
+import { Plus, Pencil, Trash2, Key, Loader2, Shield, Archive, RotateCcw } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { AVAILABLE_PERMISSIONS } from "@shared/schema";
 import { useAuth } from "@/features/auth/hooks";
@@ -54,8 +54,6 @@ export function UserManagement() {
   });
 
   const [newPassword, setNewPassword] = useState("");
-  const [showCreatePassword, setShowCreatePassword] = useState(false);
-  const [showResetPassword, setShowResetPassword] = useState(false);
 
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
@@ -97,7 +95,6 @@ export function UserManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setIsCreateOpen(false);
-      setShowCreatePassword(false);
       setFormData({ email: "", password: "", firstName: "", lastName: "", role: "staff" });
       toast({ title: "User created successfully" });
     },
@@ -167,7 +164,6 @@ export function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setChangingPassword(null);
       setNewPassword("");
-      setShowResetPassword(false);
       toast({ title: "Password changed successfully" });
     },
     onError: (error: Error) => {
@@ -279,24 +275,14 @@ export function UserManagement() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Password *</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showCreatePassword ? "text" : "password"}
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                        required
-                        className="pr-10"
-                        data-testid="input-user-password"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCreatePassword(!showCreatePassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        {showCreatePassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                      data-testid="input-user-password"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Role</Label>
@@ -519,25 +505,15 @@ export function UserManagement() {
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="new-password">New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="new-password"
-                      type={showResetPassword ? "text" : "password"}
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      className="pr-10"
-                      data-testid="input-new-password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowResetPassword(!showResetPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
+                  <Input
+                    id="new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    minLength={6}
+                    data-testid="input-new-password"
+                  />
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>

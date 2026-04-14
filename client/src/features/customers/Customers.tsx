@@ -7,7 +7,6 @@ import {
 } from "./hooks";
 import { api } from "@/lib/api";
 import type { Customer } from "@shared/schema";
-import { NotesPanel } from "@/components/shared/NotesPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -211,12 +210,13 @@ export function Customers() {
   };
 
   const handleSendInvite = async () => {
-    if (!portalAccess) return;
+    if (!portalAccess || !newPortalPassword) return;
     try {
       await api.post(
         `/api/client-portal-access/${portalAccess.id}/send-invite`,
-        {},
+        { password: newPortalPassword },
       );
+      setNewPortalPassword("");
       toast({
         title: "Invite Sent",
         description: "Portal invite email sent to client.",
@@ -235,12 +235,12 @@ export function Customers() {
     try {
       await api.post(
         `/api/client-portal-access/${portalAccess.id}/reset-password`,
-        { new_password: newPortalPassword, send_email: false },
+        { new_password: newPortalPassword, send_email: true },
       );
       setNewPortalPassword("");
       toast({
-        title: "Password Updated",
-        description: "New password saved successfully.",
+        title: "Password Reset",
+        description: "New password email sent to client.",
       });
     } catch (err: any) {
       toast({
@@ -461,7 +461,7 @@ export function Customers() {
         open={!!editingCustomer}
         onOpenChange={(open) => !open && handleCloseEditDialog()}
       >
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Edit Customer</DialogTitle>
           </DialogHeader>
@@ -566,45 +566,53 @@ export function Customers() {
                     </span>{" "}
                     <span className="font-medium">{portalAccess.email}</span>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleSendInvite}
-                  >
-                    <Mail className="h-4 w-4 mr-1" />
-                    Resend Invite
-                  </Button>
-                  <div className="flex gap-2 items-center">
-                    <div className="relative flex-1 max-w-xs">
-                      <Input
-                        className="h-8 pr-8"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="New password"
-                        value={newPortalPassword}
-                        onChange={(e) => setNewPortalPassword(e.target.value)}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-8 w-8 p-0"
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleResetPassword}
+                      onClick={handleSendInvite}
                       disabled={!newPortalPassword}
+                      title={
+                        !newPortalPassword
+                          ? "Enter a password first"
+                          : "Send invite with new password"
+                      }
                     >
-                      Save Password
+                      <Mail className="h-4 w-4 mr-1" />
+                      Resend Invite
                     </Button>
+                    <div className="flex gap-1">
+                      <div className="relative">
+                        <Input
+                          className="w-36 h-8 pr-8"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="New password"
+                          value={newPortalPassword}
+                          onChange={(e) => setNewPortalPassword(e.target.value)}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-8 w-8 p-0"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResetPassword}
+                        disabled={!newPortalPassword}
+                      >
+                        <Key className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : showCreatePortal ? (
@@ -659,13 +667,6 @@ export function Customers() {
                 </Button>
               )}
             </div>
-
-            {/* Customer Notes */}
-            {editingCustomer && (
-              <div className="border-t pt-4 mt-4">
-                <NotesPanel entityType="customer" entityId={editingCustomer.id} />
-              </div>
-            )}
           </div>
           <DialogFooter className="flex justify-between">
             <Button
