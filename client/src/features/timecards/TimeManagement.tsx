@@ -29,6 +29,7 @@ import {
   CheckCheck,
   Send,
   Trash2,
+  Plus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -142,13 +143,6 @@ function TimePicker({
     onChange(d.toISOString());
   };
 
-  // Sort hours to start near current value
-  const sortedHours = [...HOURS].sort((a, b) => {
-    const distA = Math.abs(a - hour);
-    const distB = Math.abs(b - hour);
-    return distA - distB;
-  });
-
   return (
     <div className="flex items-center gap-0.5">
       <select
@@ -178,6 +172,165 @@ function TimePicker({
         <option value="AM">AM</option>
         <option value="PM">PM</option>
       </select>
+    </div>
+  );
+}
+
+/** Picker for empty days — shows placeholder until admin selects a time, no auto-commit */
+function EmptyDayTimePicker({
+  punchDate,
+  defaultHour,
+  defaultMin,
+  defaultAMPM,
+  onTimeSet,
+}: {
+  punchDate: string;
+  defaultHour: number;
+  defaultMin: number;
+  defaultAMPM: "AM" | "PM";
+  onTimeSet: (h: number, m: number, a: "AM" | "PM") => void;
+}) {
+  const [hour, setHour] = useState<number | null>(null);
+  const [min, setMin] = useState<number>(defaultMin);
+  const [ampm, setAmpm] = useState<"AM" | "PM">(defaultAMPM);
+
+  // Not yet touched — show placeholder
+  if (hour === null) {
+    return (
+      <div className="flex items-center gap-0.5">
+        <select
+          className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer text-muted-foreground"
+          value=""
+          onChange={(e) => {
+            const h = parseInt(e.target.value);
+            setHour(h);
+            onTimeSet(h, min, ampm);
+          }}
+        >
+          <option value="" disabled>hr</option>
+          {HOURS.map((h) => (
+            <option key={h} value={h}>{h}</option>
+          ))}
+        </select>
+        <span className="text-xs text-muted-foreground">:</span>
+        <select
+          className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer text-muted-foreground"
+          value={min}
+          onChange={(e) => setMin(parseInt(e.target.value))}
+        >
+          {MINS.map((m) => (
+            <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+          ))}
+        </select>
+        <select
+          className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer text-muted-foreground"
+          value={ampm}
+          onChange={(e) => setAmpm(e.target.value as "AM" | "PM")}
+        >
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
+    );
+  }
+
+  // Once hour is selected, act like a normal time picker
+  return (
+    <div className="flex items-center gap-0.5">
+      <select
+        className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer"
+        value={hour}
+        onChange={(e) => { const h = parseInt(e.target.value); setHour(h); onTimeSet(h, min, ampm); }}
+      >
+        {HOURS.map((h) => (
+          <option key={h} value={h}>{h}</option>
+        ))}
+      </select>
+      <span className="text-xs text-muted-foreground">:</span>
+      <select
+        className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer"
+        value={min}
+        onChange={(e) => { const m = parseInt(e.target.value); setMin(m); onTimeSet(hour, m, ampm); }}
+      >
+        {MINS.map((m) => (
+          <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+        ))}
+      </select>
+      <select
+        className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer"
+        value={ampm}
+        onChange={(e) => { const a = e.target.value as "AM" | "PM"; setAmpm(a); onTimeSet(hour, min, a); }}
+      >
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
+}
+
+/** Row for days with no punches — lets admin pick times then explicitly add */
+function EmptyDayRow({
+  entryDate,
+  entryHours,
+  onAddPunch,
+  onEditHours,
+  isPending,
+}: {
+  entryDate: string;
+  entryHours: string;
+  onAddPunch: (clockIn: string, clockOut: string) => void;
+  onEditHours: (val: string) => void;
+  isPending: boolean;
+}) {
+  const [ciTime, setCiTime] = useState<{ h: number; m: number; a: "AM" | "PM" } | null>(null);
+  const [coTime, setCoTime] = useState<{ h: number; m: number; a: "AM" | "PM" } | null>(null);
+
+  const buildIso = (h: number, m: number, a: "AM" | "PM") => {
+    const { h24 } = hmaTo24(h, m, a);
+    const d = new Date(entryDate + "T12:00:00");
+    d.setHours(h24, m, 0, 0);
+    return d.toISOString();
+  };
+
+  const canAdd = ciTime !== null && coTime !== null;
+
+  return (
+    <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
+      <span className="text-sm font-medium">{formatDayLabel(entryDate)}</span>
+      <EmptyDayTimePicker
+        punchDate={entryDate}
+        defaultHour={9}
+        defaultMin={0}
+        defaultAMPM="AM"
+        onTimeSet={(h, m, a) => setCiTime({ h, m, a })}
+      />
+      <EmptyDayTimePicker
+        punchDate={entryDate}
+        defaultHour={5}
+        defaultMin={0}
+        defaultAMPM="PM"
+        onTimeSet={(h, m, a) => setCoTime({ h, m, a })}
+      />
+      <span className="text-sm text-center text-muted-foreground">—</span>
+      <div>
+        {canAdd && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-green-600 hover:text-green-700 hover:bg-green-50 px-2"
+            disabled={isPending}
+            onClick={() => {
+              onAddPunch(
+                buildIso(ciTime.h, ciTime.m, ciTime.a),
+                buildIso(coTime.h, coTime.m, coTime.a),
+              );
+            }}
+          >
+            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+            Add
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -811,59 +964,21 @@ export function TimeManagement() {
                                 )}
                               </>
                             ) : (
-                              <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
-                                <span className="text-sm font-medium">{formatDayLabel(entry.entryDate)}</span>
-                                <TimePicker
-                                  key={`nci-${entry.id}`}
-                                  value={null}
-                                  punchDate={entry.entryDate}
-                                  defaultHour={9}
-                                  defaultMin={0}
-                                  defaultAMPM="AM"
-                                  onChange={(clockInIso) => {
-                                    // Create a new punch with default 5 PM clock out
-                                    const outDate = new Date(entry.entryDate + "T12:00:00");
-                                    outDate.setHours(17, 0, 0, 0);
-                                    adminAddPunch.mutate({
-                                      userId: expandedDetail!.userId,
-                                      punchDate: entry.entryDate,
-                                      clockIn: clockInIso,
-                                      clockOut: outDate.toISOString(),
-                                    });
-                                  }}
-                                />
-                                <TimePicker
-                                  key={`nco-${entry.id}`}
-                                  value={null}
-                                  punchDate={entry.entryDate}
-                                  defaultHour={5}
-                                  defaultMin={0}
-                                  defaultAMPM="PM"
-                                  onChange={(clockOutIso) => {
-                                    // Create a new punch with default 9 AM clock in
-                                    const inDate = new Date(entry.entryDate + "T12:00:00");
-                                    inDate.setHours(9, 0, 0, 0);
-                                    adminAddPunch.mutate({
-                                      userId: expandedDetail!.userId,
-                                      punchDate: entry.entryDate,
-                                      clockIn: inDate.toISOString(),
-                                      clockOut: clockOutIso,
-                                    });
-                                  }}
-                                />
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max="24"
-                                  step="0.25"
-                                  defaultValue={parseFloat(entry.hours || "0")}
-                                  className="w-16 text-center text-sm h-7"
-                                  onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
-                                  key={`ah-${entry.id}-${entry.hours}`}
-                                  placeholder="0"
-                                />
-                                <span></span>
-                              </div>
+                              <EmptyDayRow
+                                key={`edr-${entry.id}`}
+                                entryDate={entry.entryDate}
+                                entryHours={entry.hours}
+                                onAddPunch={(clockIn, clockOut) => {
+                                  adminAddPunch.mutate({
+                                    userId: expandedDetail!.userId,
+                                    punchDate: entry.entryDate,
+                                    clockIn,
+                                    clockOut,
+                                  });
+                                }}
+                                onEditHours={(val) => handleAdminBlur(entry, "hours", val)}
+                                isPending={adminAddPunch.isPending}
+                              />
                             )}
                             {/* Row 2: Notes + badge */}
                             <div className="grid grid-cols-[90px_1fr] gap-2 mt-1">
