@@ -22,8 +22,11 @@ import { BugReports } from "@/features/admin/BugReports";
 import { Customers } from "@/features/customers/Customers";
 import { Inventory } from "@/features/inventory/Inventory";
 
-// Phase 3: Checkouts, Dashboard, Calendar
-import { Dashboard } from "@/features/checkouts/Dashboard";
+// Dashboard
+import { DashboardHome } from "@/features/dashboard/DashboardHome";
+
+// Phase 3: Checkouts, Calendar
+import { Dashboard as CheckoutsDashboard } from "@/features/checkouts/Dashboard";
 import { Calendar } from "@/features/checkouts/Calendar";
 import { NewCheckout } from "@/features/checkouts/NewCheckout";
 import { EditCheckout } from "@/features/checkouts/EditCheckout";
@@ -146,12 +149,12 @@ function AdminRouter() {
       <Switch>
         {/* Dashboard */}
         <Route path="/">
-          <Dashboard />
+          <DashboardHome />
         </Route>
 
         {/* Checkouts */}
         <Route path="/checkouts">
-          <Dashboard />
+          <CheckoutsDashboard />
         </Route>
         <Route path="/new">
           <NewCheckout />
