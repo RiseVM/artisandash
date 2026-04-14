@@ -209,7 +209,21 @@ export function registerTimecardRoutes(app: Express) {
       const found = await timecardStorage.getEntryWithTimecard(entryId);
       if (!found) return res.status(404).json({ error: "Entry not found" });
 
-      const { clockIn, clockOut, entryType, ptoHours, holidayHours, notes, mileage } = req.body;
+      const { hours, notes } = req.body;
+
+      // Simple path: admin directly sets hours and/or notes
+      if (hours !== undefined || notes !== undefined) {
+        const updated = await timecardStorage.adminDirectEdit(
+          entryId,
+          hours !== undefined ? String(hours) : String(found.entry.hours),
+          notes !== undefined ? notes : found.entry.notes,
+          adminId,
+        );
+        return res.json(updated);
+      }
+
+      // Full path: clock in/out based editing
+      const { clockIn, clockOut, entryType, ptoHours, holidayHours, mileage } = req.body;
       const updated = await timecardStorage.adminEditTimecardEntry(
         entryId,
         clockIn !== undefined ? clockIn : (found.entry.clockIn || null),

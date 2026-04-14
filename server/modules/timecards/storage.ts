@@ -320,6 +320,46 @@ export const timecardStorage = {
 
   // ── ADMIN EDIT ENTRY ──────────────────────
 
+  /** Simple admin edit — directly set hours and/or notes on an entry */
+  async adminDirectEdit(
+    entryId: number,
+    hours: string,
+    notes: string | null,
+    adminId: string,
+  ): Promise<TimecardEntry> {
+    const [existing] = await db
+      .select()
+      .from(timecardEntries)
+      .where(eq(timecardEntries.id, entryId));
+
+    if (!existing) throw new Error("Entry not found");
+
+    const [updated] = await db
+      .update(timecardEntries)
+      .set({ hours, notes, updatedAt: new Date() })
+      .where(eq(timecardEntries.id, entryId))
+      .returning();
+
+    await this.recalcTimecardTotals(existing.timecardId);
+
+    // Audit log
+    try {
+      await db.insert(timecardAuditLog).values({
+        timecardId: existing.timecardId,
+        changedById: adminId,
+        action: "admin_edit",
+        entryDate: existing.entryDate,
+        oldHours: existing.hours,
+        newHours: hours,
+        description: `Admin edited ${existing.entryDate}: ${existing.hours}h → ${hours}h`,
+      });
+    } catch (err: any) {
+      console.error("[adminDirectEdit] Audit log error:", err?.message);
+    }
+
+    return updated;
+  },
+
   async adminEditTimecardEntry(
     entryId: number,
     clockIn: string | null,
