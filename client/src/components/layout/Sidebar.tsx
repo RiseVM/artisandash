@@ -103,7 +103,7 @@ export function Sidebar() {
     { href: "/admin/users", label: "User Management", icon: Shield, permission: "manage_users" },
     { href: "/admin/activity", label: "Activity Reports", icon: Activity, permission: "view_reports" },
     { href: "/admin/bug-reports", label: "Bug Reports", icon: Bug, permission: "manage_users" },
-    { href: "/admin/service-catalog", label: "Service Catalog", icon: Settings, permission: "manage_users" },
+    { href: "/settings/catalog", label: "Service Catalog", icon: Settings, permission: "manage_users" },
   ];
 
   const visibleAdminItems = adminItems.filter((item) => hasPermission(item.permission));

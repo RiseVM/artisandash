@@ -73,6 +73,12 @@ declare module "http" {
     const { migrateContracts } = await import("./migrate-contracts");
     await migrateContracts();
 
+    const { migratePhase9And10 } = await import("./migrate-phase9-10");
+    await migratePhase9And10();
+
+    const { migrateTeam } = await import("./migrate-team");
+    await migrateTeam();
+
     // ------------------------------------
     // Route registration
     // ------------------------------------
@@ -138,6 +144,22 @@ declare module "http" {
     // Phase 9: timecards (standalone weekly employee timecards)
     const { registerTimecardRoutes } = await import("./modules/timecards/routes");
     registerTimecardRoutes(app);
+
+    // Phase 10: estimates, notes, messages, catalog, team
+    const { registerEstimateRoutes } = await import("./modules/estimates/routes");
+    registerEstimateRoutes(app);
+
+    const { registerNoteRoutes } = await import("./modules/notes/routes");
+    registerNoteRoutes(app);
+
+    const { registerInternalMessageRoutes } = await import("./modules/internal-messages/routes");
+    registerInternalMessageRoutes(app);
+
+    const { registerCatalogRoutes } = await import("./modules/catalog/routes");
+    registerCatalogRoutes(app);
+
+    const { registerTeamRoutes } = await import("./modules/team/routes");
+    registerTeamRoutes(app);
 
     // Health check
     app.get("/api/health", (_req, res) => {

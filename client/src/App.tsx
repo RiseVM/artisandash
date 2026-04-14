@@ -59,12 +59,16 @@ import { AdminTimesheets } from "@/features/timesheets/AdminTimesheets";
 import { Timecards } from "@/features/timecards/Timecards";
 import { TimeManagement } from "@/features/timecards/TimeManagement";
 
-// Phase 10: Messages, Quotes, Team, Service Catalog
+// Phase 10: Estimates, Messages, Quote Builder
+import { Estimates } from "@/features/estimates/Estimates";
+import { EstimateBuilder } from "@/features/estimates/EstimateBuilder";
 import { Messages } from "@/features/messages/Messages";
-import { QuoteBuilder } from "@/features/quotes/QuoteBuilder";
-import { Estimates } from "@/features/quotes/Estimates";
+import { QuoteBuilder } from "@/features/quote-builder/QuoteBuilder";
+import { CatalogSettings } from "@/features/admin/CatalogSettings";
+
+// Phase 11: Team
 import { TeamResources } from "@/features/team/TeamResources";
-import { ServiceCatalog } from "@/features/admin/ServiceCatalog";
+import { TeamMemberDetail } from "@/features/team/TeamMemberDetail";
 
 // Placeholder component shown until feature modules are built
 function Placeholder({ name }: { name: string }) {
@@ -208,20 +212,33 @@ function AdminRouter() {
           <TimeManagement />
         </Route>
 
-        {/* Quotes & Team */}
-        <Route path="/quote-builder">
-          <QuoteBuilder />
-        </Route>
+        {/* Estimates */}
         <Route path="/estimates">
           <Estimates />
         </Route>
-        <Route path="/team">
-          <TeamResources />
+        <Route path="/estimates/:id">
+          <EstimateBuilder />
         </Route>
 
         {/* Messages */}
         <Route path="/messages">
           <Messages />
+        </Route>
+
+        {/* Quote Builder */}
+        <Route path="/quote-builder/:id">
+          <QuoteBuilder />
+        </Route>
+        <Route path="/quote-builder">
+          <QuoteBuilder />
+        </Route>
+
+        {/* Team */}
+        <Route path="/team/setup/:id">
+          <TeamMemberDetail />
+        </Route>
+        <Route path="/team">
+          <TeamResources />
         </Route>
 
         {/* Admin */}
@@ -234,8 +251,8 @@ function AdminRouter() {
         <Route path="/admin/bug-reports">
           <BugReports />
         </Route>
-        <Route path="/admin/service-catalog">
-          <ServiceCatalog />
+        <Route path="/settings/catalog">
+          <CatalogSettings />
         </Route>
 
         <Route>
