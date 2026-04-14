@@ -113,12 +113,14 @@ const MINS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
 function TimePicker({
   value,
+  punchDate,
   defaultHour,
   defaultMin,
   defaultAMPM,
   onChange,
 }: {
   value: string | null;
+  punchDate?: string; // "YYYY-MM-DD" — anchors the date so clock-in and clock-out share the same calendar day
   defaultHour: number;
   defaultMin: number;
   defaultAMPM: "AM" | "PM";
@@ -130,9 +132,12 @@ function TimePicker({
   const [ampm, setAmpm] = useState<"AM" | "PM">(parsed?.a ?? defaultAMPM);
 
   const commit = (h: number, m: number, a: "AM" | "PM") => {
-    if (!value) return;
-    const d = new Date(value);
+    if (!value && !punchDate) return;
     const { h24 } = hmaTo24(h, m, a);
+    // Always anchor to punchDate so both clock-in and clock-out share the same calendar day
+    const d = punchDate
+      ? new Date(punchDate + "T12:00:00") // noon avoids DST edge cases
+      : new Date(value!);
     d.setHours(h24, m, 0, 0);
     onChange(d.toISOString());
   };
@@ -717,6 +722,7 @@ export function TimeManagement() {
                                     <TimePicker
                                       key={`ci-${p.id}-${p.clockIn}`}
                                       value={p.clockIn}
+                                      punchDate={p.punchDate}
                                       defaultHour={9}
                                       defaultMin={0}
                                       defaultAMPM="AM"
@@ -732,6 +738,7 @@ export function TimeManagement() {
                                       <TimePicker
                                         key={`co-${p.id}-${p.clockOut}`}
                                         value={p.clockOut}
+                                        punchDate={p.punchDate}
                                         defaultHour={5}
                                         defaultMin={0}
                                         defaultAMPM="PM"
