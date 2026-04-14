@@ -44,20 +44,15 @@ export function PortalSidebar() {
     >
       {/* Logo / Brand */}
       <div className={cn(
-        "flex items-center border-b border-white/10 shrink-0",
-        collapsed ? "justify-center px-2 h-16" : "px-4 h-16 gap-3"
+        "flex items-center justify-center border-b border-white/10 shrink-0",
+        collapsed ? "px-2 h-16" : "px-4 h-20"
       )}>
         <div className={cn(
           "rounded-lg bg-white flex items-center justify-center shrink-0 overflow-hidden",
-          collapsed ? "w-10 h-10 p-1" : "w-10 h-10 p-1"
+          collapsed ? "w-10 h-10 p-1" : "w-44 py-2 px-3"
         )}>
-          <img src="/logo.jpg" alt="Artisan Tile" className="w-full h-full object-contain" />
+          <img src="/logo.jpg" alt="Artisan Tile Kitchen & Bath" className="w-full h-auto object-contain" />
         </div>
-        {!collapsed && (
-          <div className="overflow-hidden">
-            <p className="text-[11px] text-white/50 truncate leading-tight">Client Portal</p>
-          </div>
-        )}
       </div>
 
       {/* Navigation */}
