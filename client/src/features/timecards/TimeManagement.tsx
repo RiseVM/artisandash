@@ -28,6 +28,7 @@ import {
   Square,
   CheckCheck,
   Send,
+  Trash2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -86,6 +87,94 @@ function initials(firstName: string | null, lastName: string | null): string {
 function fullName(u: { firstName: string | null; lastName: string | null; email: string }): string {
   const n = [u.firstName, u.lastName].filter(Boolean).join(" ");
   return n || u.email;
+}
+
+// ── Time Picker ────────────────────────────
+
+function parseToHMA(iso: string): { h: number; m: number; a: "AM" | "PM" } {
+  const d = new Date(iso);
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const a: "AM" | "PM" = h >= 12 ? "PM" : "AM";
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  return { h, m, a };
+}
+
+function hmaTo24(h: number, m: number, a: "AM" | "PM"): { h24: number; m: number } {
+  let h24 = h;
+  if (a === "AM" && h === 12) h24 = 0;
+  else if (a === "PM" && h !== 12) h24 = h + 12;
+  return { h24, m };
+}
+
+const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const MINS = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+
+function TimePicker({
+  value,
+  defaultHour,
+  defaultMin,
+  defaultAMPM,
+  onChange,
+}: {
+  value: string | null;
+  defaultHour: number;
+  defaultMin: number;
+  defaultAMPM: "AM" | "PM";
+  onChange: (isoString: string) => void;
+}) {
+  const parsed = value ? parseToHMA(value) : null;
+  const [hour, setHour] = useState(parsed?.h ?? defaultHour);
+  const [min, setMin] = useState(parsed ? Math.round(parsed.m / 5) * 5 : defaultMin);
+  const [ampm, setAmpm] = useState<"AM" | "PM">(parsed?.a ?? defaultAMPM);
+
+  const commit = (h: number, m: number, a: "AM" | "PM") => {
+    if (!value) return;
+    const d = new Date(value);
+    const { h24 } = hmaTo24(h, m, a);
+    d.setHours(h24, m, 0, 0);
+    onChange(d.toISOString());
+  };
+
+  // Sort hours to start near current value
+  const sortedHours = [...HOURS].sort((a, b) => {
+    const distA = Math.abs(a - hour);
+    const distB = Math.abs(b - hour);
+    return distA - distB;
+  });
+
+  return (
+    <div className="flex items-center gap-0.5">
+      <select
+        className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer"
+        value={hour}
+        onChange={(e) => { const h = parseInt(e.target.value); setHour(h); commit(h, min, ampm); }}
+      >
+        {HOURS.map((h) => (
+          <option key={h} value={h}>{h}</option>
+        ))}
+      </select>
+      <span className="text-xs text-muted-foreground">:</span>
+      <select
+        className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer"
+        value={min}
+        onChange={(e) => { const m = parseInt(e.target.value); setMin(m); commit(hour, m, ampm); }}
+      >
+        {MINS.map((m) => (
+          <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
+        ))}
+      </select>
+      <select
+        className="h-7 text-xs border rounded px-1 bg-background appearance-none cursor-pointer"
+        value={ampm}
+        onChange={(e) => { const a = e.target.value as "AM" | "PM"; setAmpm(a); commit(hour, min, a); }}
+      >
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
 }
 
 // ── Types ───────────────────────────────────
@@ -309,6 +398,24 @@ export function TimeManagement() {
     },
     onError: (err: Error) => {
       toast({ title: "Failed to update punch", description: String(err.message), variant: "destructive" });
+    },
+  });
+
+  // Mutation: admin delete punch
+  const adminDeletePunch = useMutation({
+    mutationFn: async (punchId: number) => {
+      const res = await apiRequest("DELETE", `/api/timecards/admin/punches/${punchId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      if (expandedCard) {
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
+      }
+      toast({ title: "Punch cleared" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to clear punch", description: String(err.message), variant: "destructive" });
     },
   });
 
@@ -582,14 +689,14 @@ export function TimeManagement() {
                 {/* Expanded detail */}
                 {isExpanded && expandedDetail && expandedDetail.id === card.id && (
                   <div className="border-t">
-                    {/* Entries grid */}
-                    <div className="px-4 py-2">
-                      <div className="grid grid-cols-[100px_90px_90px_70px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
+                    {/* Entries */}
+                    <div className="px-4 py-2 space-y-0">
+                      {/* Header */}
+                      <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 text-xs font-medium text-muted-foreground mb-1 pb-1 border-b">
                         <span>Day</span>
-                        <span className="text-center">Clock In</span>
-                        <span className="text-center">Clock Out</span>
+                        <span>Clock In</span>
+                        <span>Clock Out</span>
                         <span className="text-center">Hours</span>
-                        <span>Notes</span>
                         <span></span>
                       </div>
                       {expandedDetail.entries.map((entry) => {
@@ -599,94 +706,102 @@ export function TimeManagement() {
                         const dayPunches = (expandedDetail.punches || []).filter(
                           (p) => p.punchDate === entry.entryDate,
                         );
-                        const formatPunchTime = (iso: string) =>
-                          new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
                         return (
-                          <div key={entry.id} className="border-b last:border-b-0">
-                            <div className="grid grid-cols-[100px_90px_90px_70px_1fr_80px] gap-2 items-center py-1.5">
-                              <span className="text-sm">{formatDayLabel(entry.entryDate)}</span>
-                              <div className="text-center">
-                                {dayPunches.length > 0 ? (
-                                  dayPunches.map((p) => {
-                                    const ciDate = new Date(p.clockIn);
-                                    const ciTime = `${String(ciDate.getHours()).padStart(2, "0")}:${String(ciDate.getMinutes()).padStart(2, "0")}`;
-                                    return (
-                                      <Input
-                                        key={`ci-${p.id}`}
-                                        type="time"
-                                        defaultValue={ciTime}
-                                        className="w-[90px] text-xs text-center h-7"
-                                        onBlur={(e) => {
-                                          if (e.target.value === ciTime) return;
-                                          const [h, m] = e.target.value.split(":");
-                                          const newCi = new Date(ciDate);
-                                          newCi.setHours(parseInt(h), parseInt(m), 0, 0);
-                                          adminEditPunch.mutate({
-                                            punchId: p.id,
-                                            clockIn: newCi.toISOString(),
-                                            clockOut: p.clockOut || null,
-                                          });
-                                        }}
-                                      />
-                                    );
-                                  })
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">—</span>
-                                )}
+                          <div key={entry.id} className="border-b last:border-b-0 py-2">
+                            {/* Row 1: Day, Clock In, Clock Out, Hours, Clear */}
+                            {dayPunches.length > 0 ? (
+                              dayPunches.map((p) => (
+                                <div key={p.id} className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
+                                  <span className="text-sm font-medium">{formatDayLabel(entry.entryDate)}</span>
+                                  <TimePicker
+                                    key={`ci-${p.id}-${p.clockIn}`}
+                                    value={p.clockIn}
+                                    defaultHour={9}
+                                    defaultMin={0}
+                                    defaultAMPM="AM"
+                                    onChange={(iso) => {
+                                      adminEditPunch.mutate({
+                                        punchId: p.id,
+                                        clockIn: iso,
+                                        clockOut: p.clockOut || null,
+                                      });
+                                    }}
+                                  />
+                                  {p.clockOut ? (
+                                    <TimePicker
+                                      key={`co-${p.id}-${p.clockOut}`}
+                                      value={p.clockOut}
+                                      defaultHour={5}
+                                      defaultMin={0}
+                                      defaultAMPM="PM"
+                                      onChange={(iso) => {
+                                        adminEditPunch.mutate({
+                                          punchId: p.id,
+                                          clockIn: p.clockIn,
+                                          clockOut: iso,
+                                        });
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-orange-500 italic font-medium">Active</span>
+                                  )}
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="24"
+                                    step="0.5"
+                                    defaultValue={entry.hours}
+                                    className="w-16 text-center text-sm h-7"
+                                    onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
+                                    key={`ah-${entry.id}-${entry.hours}`}
+                                  />
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+                                      onClick={() => adminDeletePunch.mutate(p.id)}
+                                      disabled={adminDeletePunch.isPending}
+                                      title="Clear times"
+                                    >
+                                      <Trash2 className="h-3 w-3 mr-1" />
+                                      Clear
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
+                                <span className="text-sm font-medium">{formatDayLabel(entry.entryDate)}</span>
+                                <span className="text-xs text-muted-foreground">—</span>
+                                <span className="text-xs text-muted-foreground">—</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="24"
+                                  step="0.5"
+                                  defaultValue={entry.hours}
+                                  className="w-16 text-center text-sm h-7"
+                                  onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
+                                  key={`ah-${entry.id}-${entry.hours}`}
+                                />
+                                <span></span>
                               </div>
-                              <div className="text-center">
-                                {dayPunches.length > 0 ? (
-                                  dayPunches.map((p) => {
-                                    if (!p.clockOut) {
-                                      return <span key={`co-${p.id}`} className="text-xs text-orange-500 italic">Active</span>;
-                                    }
-                                    const coDate = new Date(p.clockOut);
-                                    const coTime = `${String(coDate.getHours()).padStart(2, "0")}:${String(coDate.getMinutes()).padStart(2, "0")}`;
-                                    return (
-                                      <Input
-                                        key={`co-${p.id}`}
-                                        type="time"
-                                        defaultValue={coTime}
-                                        className="w-[90px] text-xs text-center h-7"
-                                        onBlur={(e) => {
-                                          if (e.target.value === coTime) return;
-                                          const [h, m] = e.target.value.split(":");
-                                          const newCo = new Date(coDate);
-                                          newCo.setHours(parseInt(h), parseInt(m), 0, 0);
-                                          adminEditPunch.mutate({
-                                            punchId: p.id,
-                                            clockIn: p.clockIn,
-                                            clockOut: newCo.toISOString(),
-                                          });
-                                        }}
-                                      />
-                                    );
-                                  })
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">—</span>
-                                )}
-                              </div>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="24"
-                                step="0.5"
-                                defaultValue={entry.hours}
-                                className="w-16 text-center text-sm"
-                                onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
-                                key={`ah-${entry.id}-${entry.hours}`}
-                              />
-                              <Input
-                                type="text"
-                                placeholder="Notes…"
-                                defaultValue={entry.notes || ""}
-                                className="text-sm"
-                                onBlur={(e) => handleAdminBlur(entry, "notes", e.target.value)}
-                                key={`an-${entry.id}-${entry.notes}`}
-                              />
-                              <div className="flex justify-end">
+                            )}
+                            {/* Row 2: Notes + badge */}
+                            <div className="grid grid-cols-[90px_1fr] gap-2 mt-1">
+                              <span></span>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="text"
+                                  placeholder="Notes…"
+                                  defaultValue={entry.notes || ""}
+                                  className="text-xs h-7 flex-1"
+                                  onBlur={(e) => handleAdminBlur(entry, "notes", e.target.value)}
+                                  key={`an-${entry.id}-${entry.notes}`}
+                                />
                                 {wasAdminEdited && (
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-200">
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-200 shrink-0">
                                     Admin edited
                                   </Badge>
                                 )}
