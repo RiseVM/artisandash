@@ -55,9 +55,15 @@ export function Sidebar() {
   const { data: clockData } = useQuery<{ clockedIn: boolean }>({
     queryKey: ["/api/timecards/clock/status"],
     queryFn: async () => {
-      const res = await fetch("/api/timecards/clock/status", { credentials: "include" });
-      if (!res.ok) return { clockedIn: false };
-      return res.json();
+      try {
+        const res = await fetch("/api/timecards/clock/status", { credentials: "include" });
+        if (!res.ok) return { clockedIn: false };
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("json")) return { clockedIn: false };
+        return res.json();
+      } catch {
+        return { clockedIn: false };
+      }
     },
     refetchInterval: 30000,
   });
