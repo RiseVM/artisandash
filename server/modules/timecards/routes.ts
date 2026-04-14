@@ -513,6 +513,23 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // ── ONE-TIME BACKFILL: sync all punch data to timecard entries ──
+  app.post(
+    "/api/timecards/admin/backfill-punches",
+    isAdmin,
+    asyncHandler(async (_req: any, res) => {
+      // Get all punches grouped by timecard + date
+      const allPunches = await timecardStorage.getAllPunchesForBackfill();
+      let updated = 0;
+      for (const key of Object.keys(allPunches)) {
+        const { timecardId, punchDate, userId } = allPunches[key];
+        await timecardStorage.recalcDayFromPunches(timecardId, punchDate, userId);
+        updated++;
+      }
+      res.json({ success: true, daysUpdated: updated });
+    }),
+  );
+
   // ── PAYROLL EMAIL ───────────────────────
 
   app.get(

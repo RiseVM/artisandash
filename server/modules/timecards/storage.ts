@@ -742,6 +742,26 @@ export const timecardStorage = {
   },
 
   /** Get all punches for a specific timecard */
+  /** Get all unique timecard+date combos from punches for backfill */
+  async getAllPunchesForBackfill(): Promise<Record<string, { timecardId: number; punchDate: string; userId: string }>> {
+    const rows = await db
+      .select({
+        timecardId: timecardPunches.timecardId,
+        punchDate: timecardPunches.punchDate,
+        userId: timecardPunches.userId,
+      })
+      .from(timecardPunches);
+
+    const map: Record<string, { timecardId: number; punchDate: string; userId: string }> = {};
+    for (const r of rows) {
+      const key = `${r.timecardId}-${r.punchDate}`;
+      if (!map[key]) {
+        map[key] = { timecardId: r.timecardId, punchDate: r.punchDate, userId: r.userId };
+      }
+    }
+    return map;
+  },
+
   async getPunchesByTimecard(timecardId: number): Promise<TimecardPunch[]> {
     return db
       .select()
