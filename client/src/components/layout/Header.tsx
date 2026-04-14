@@ -36,17 +36,17 @@ export function Header() {
 
   const navItems: NavItem[] = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    ...(hasPermission("manage_projects") ? [{ href: "/projects", label: "Projects", icon: FolderKanban }] : []),
+    ...(hasPermission("view_messages") ? [{ href: "/messages", label: "Messages", icon: MessageSquare }] : []),
+    ...(hasPermission("manage_customers") ? [{ href: "/customers", label: "Customers", icon: Users }] : []),
     ...(hasPermission("create_checkouts") ? [{ href: "/new", label: "New Checkout", icon: PlusCircle }] : []),
     ...(hasPermission("create_checkouts") ? [{ href: "/checkouts", label: "Checkouts", icon: FileText }] : []),
-    ...(hasPermission("view_signed_docs") ? [{ href: "/agreements", label: "Signed Docs", icon: FileCheck }] : []),
     ...(hasPermission("manage_contracts") ? [{ href: "/contracts", label: "Contracts", icon: ClipboardList }] : []),
-    ...(hasPermission("manage_projects") ? [{ href: "/projects", label: "Projects", icon: FolderKanban }] : []),
     ...(hasPermission("view_calendar") ? [{ href: "/calendar", label: "Calendar", icon: Calendar }] : []),
-    ...(hasPermission("manage_customers") ? [{ href: "/customers", label: "Customers", icon: Users }] : []),
     ...(hasPermission("manage_inventory") ? [{ href: "/inventory", label: "Inventory", icon: Package }] : []),
     ...(!isAdmin && hasPermission("view_team_resources") ? [{ href: "/timesheets", label: "Timesheets", icon: Clock }] : []),
     ...(!isAdmin ? [{ href: "/timecards", label: "Timecards", icon: Timer }] : []),
-    ...(hasPermission("view_messages") ? [{ href: "/messages", label: "Messages", icon: MessageSquare }] : []),
+    ...(hasPermission("view_signed_docs") ? [{ href: "/agreements", label: "Signed Docs", icon: FileCheck }] : []),
   ];
 
   const adminItems: NavItem[] = [

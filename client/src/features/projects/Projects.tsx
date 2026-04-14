@@ -96,6 +96,14 @@ const statusLabels: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+const phaseStatusColors: Record<string, string> = {
+  not_started: "bg-gray-100 text-gray-800",
+  in_progress: "bg-blue-100 text-blue-800",
+  on_hold: "bg-yellow-100 text-yellow-800",
+  completed: "bg-green-100 text-green-800",
+  skipped: "bg-gray-100 text-gray-500",
+};
+
 export function Projects() {
   const [, setLocation] = useLocation();
   const { hasPermission, isAuthenticated } = useAuth();
@@ -374,9 +382,15 @@ export function Projects() {
                         <span className="font-medium truncate">{project.name}</span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <Badge className={`${statusColors[project.status]}`}>
-                          {statusLabels[project.status]}
-                        </Badge>
+                        {(project as any).currentPhaseName ? (
+                          <Badge className={phaseStatusColors[(project as any).currentPhaseStatus] || "bg-gray-100 text-gray-800"}>
+                            {(project as any).currentPhaseName}
+                          </Badge>
+                        ) : (
+                          <Badge className={statusColors[project.status]}>
+                            {statusLabels[project.status]}
+                          </Badge>
+                        )}
                         {canManageProjects && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -440,7 +454,7 @@ export function Projects() {
                     <TableRow>
                       <TableHead>Project</TableHead>
                       <TableHead>Customer</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead>Phase</TableHead>
                       <TableHead>Progress</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead className="w-10"></TableHead>
@@ -473,9 +487,17 @@ export function Projects() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={statusColors[project.status]}>
-                            {statusLabels[project.status]}
-                          </Badge>
+                          {(project as any).currentPhaseName ? (
+                            <div>
+                              <Badge className={phaseStatusColors[(project as any).currentPhaseStatus] || "bg-gray-100 text-gray-800"}>
+                                {(project as any).currentPhaseName}
+                              </Badge>
+                            </div>
+                          ) : (
+                            <Badge className={statusColors[project.status]}>
+                              {statusLabels[project.status]}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 min-w-[120px]">

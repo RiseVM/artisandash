@@ -37,8 +37,32 @@ export function registerProjectRoutes(app: Express) {
     "/api/projects",
     isAuthenticated,
     asyncHandler(async (_req, res) => {
-      const projects = await projectStorage.getProjects();
-      res.json(projects);
+      const allProjects = await projectStorage.getProjects();
+
+      // Enrich each project with its current phase name
+      // Fetch all phases ordered by display_order, grouped by project
+      const allPhases = await projectStorage.getAllPhasesSummary();
+      const phasesByProject = new Map<number, { name: string; status: string; display_order: number }[]>();
+      for (const phase of allPhases) {
+        if (!phasesByProject.has(phase.project_id)) phasesByProject.set(phase.project_id, []);
+        phasesByProject.get(phase.project_id)!.push(phase);
+      }
+
+      const enriched = allProjects.map((p) => {
+        const phases = phasesByProject.get(p.id) || [];
+        // Current phase = first in_progress, else first not_started, else last completed
+        const inProgress = phases.find((ph) => ph.status === "in_progress");
+        const notStarted = phases.find((ph) => ph.status === "not_started");
+        const lastCompleted = [...phases].reverse().find((ph) => ph.status === "completed");
+        const currentPhase = inProgress || notStarted || lastCompleted || null;
+        return {
+          ...p,
+          currentPhaseName: currentPhase?.name || null,
+          currentPhaseStatus: currentPhase?.status || null,
+        };
+      });
+
+      res.json(enriched);
     })
   );
 

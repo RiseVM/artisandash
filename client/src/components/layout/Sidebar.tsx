@@ -105,20 +105,20 @@ export function Sidebar() {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/new", label: "New Checkout", icon: PlusCircle },
-    { href: "/checkouts", label: "Checkouts", icon: FileText },
-    { href: "/agreements", label: "Signed Docs", icon: FileCheck },
-    { href: "/contracts", label: "Contracts", icon: ClipboardList },
     { href: "/projects", label: "Projects", icon: FolderKanban },
     { href: "/quote-builder", label: "Quote Builder", icon: Wrench },
     { href: "/estimates", label: "Quotes", icon: Calculator },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
+    { href: "/messages", label: "Messages", icon: MessageSquare },
     { href: "/customers", label: "Customers", icon: Users },
+    { href: "/new", label: "New Checkout", icon: PlusCircle },
+    { href: "/checkouts", label: "Checkouts", icon: FileText },
+    { href: "/contracts", label: "Contracts", icon: ClipboardList },
+    { href: "/calendar", label: "Calendar", icon: Calendar },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/team", label: "Team Resources", icon: Users2 },
     // Timecards page is for non-admin employees (shared kiosk login)
     ...(!isAdmin ? [{ href: "/timecards", label: "Timecards", icon: Timer }] : []),
-    { href: "/messages", label: "Messages", icon: MessageSquare },
+    { href: "/agreements", label: "Signed Docs", icon: FileCheck },
   ];
 
   const adminItems = [

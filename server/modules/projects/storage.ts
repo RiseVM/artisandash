@@ -90,6 +90,18 @@ export const projectStorage = {
     }));
   },
 
+  async getAllPhasesSummary(): Promise<{ project_id: number; name: string; status: string; display_order: number }[]> {
+    return db
+      .select({
+        project_id: projectPhases.project_id,
+        name: projectPhases.name,
+        status: projectPhases.status,
+        display_order: projectPhases.display_order,
+      })
+      .from(projectPhases)
+      .orderBy(asc(projectPhases.display_order));
+  },
+
   async getProject(id: number): Promise<Project | undefined> {
     const [project] = await db.select().from(projects).where(eq(projects.id, id));
     return project;
