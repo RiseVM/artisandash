@@ -91,11 +91,11 @@ export function Sidebar() {
     },
   });
 
-  // Unread messages count
+  // Unread messages count (unified: internal + project client messages)
   const { data: unreadMsgData } = useQuery<{ count: number }>({
-    queryKey: ["/api/messages/unread-total"],
+    queryKey: ["/api/messages/unified-unread"],
     queryFn: async () => {
-      const res = await fetch("/api/messages/unread-total", { credentials: "include" });
+      const res = await fetch("/api/messages/unified-unread", { credentials: "include" });
       if (!res.ok) return { count: 0 };
       return res.json();
     },

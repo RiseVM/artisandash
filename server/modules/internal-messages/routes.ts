@@ -94,4 +94,29 @@ export function registerInternalMessageRoutes(app: Express) {
       res.json({ success: true });
     }),
   );
+
+  // ── GET /api/messages/unified-unread ──────
+  // Combined unread count from internal messages + project client messages
+  app.get(
+    "/api/messages/unified-unread",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      // Internal message unread count
+      const threads = await storage.getThreads();
+      const internalUnread = threads.filter((t) => {
+        const readBy = Array.isArray(t.read_by) ? t.read_by as string[] : [];
+        return !readBy.includes(userId);
+      }).length;
+
+      // Project message unread count (client messages not read by admin)
+      let projectUnread = 0;
+      try {
+        const { projectStorage } = await import("../projects/storage");
+        projectUnread = await projectStorage.getTotalUnreadMessageCountForAdmin();
+      } catch { /* projects module may not be available */ }
+
+      res.json({ count: internalUnread + projectUnread, internalUnread, projectUnread });
+    }),
+  );
 }
