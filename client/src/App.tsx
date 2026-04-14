@@ -37,6 +37,9 @@ import { PortalAuthProvider } from "@/features/portal/PortalAuthProvider";
 import { PortalLogin } from "@/features/portal/PortalLogin";
 import { PortalDashboard } from "@/features/portal/PortalDashboard";
 import { PortalProject } from "@/features/portal/PortalProject";
+import { PortalProjects } from "@/features/portal/PortalProjects";
+import { PortalContracts } from "@/features/portal/PortalContracts";
+import { PortalMessagesPage } from "@/features/portal/PortalMessagesPage";
 
 // Phase 6: Agreements
 import { Agreements } from "@/features/agreements/Agreements";
@@ -91,6 +94,15 @@ function PortalRouter() {
         </Route>
         <Route path="/portal/project/:id">
           <PortalProject />
+        </Route>
+        <Route path="/portal/projects">
+          <PortalProjects />
+        </Route>
+        <Route path="/portal/contracts">
+          <PortalContracts />
+        </Route>
+        <Route path="/portal/messages">
+          <PortalMessagesPage />
         </Route>
         <Route path="/portal">
           <PortalDashboard />

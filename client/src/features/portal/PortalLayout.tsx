@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { useLocation } from "wouter";
 import { usePortalAuth } from "./hooks";
 import { Loader2 } from "lucide-react";
@@ -9,8 +9,13 @@ interface PortalLayoutProps {
 }
 
 export function PortalLayout({ children }: PortalLayoutProps) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { isLoading, isAuthenticated } = usePortalAuth();
+
+  // Scroll to top on route change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
 
   if (isLoading) {
     return (

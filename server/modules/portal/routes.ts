@@ -392,6 +392,30 @@ export function registerPortalRoutes(app: Express) {
     }),
   );
 
+  // ── GET /api/portal/messages/unread-total ──────
+  app.get(
+    "/api/portal/messages/unread-total",
+    isPortalAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const count = await portalStorage.getTotalUnreadMessageCountForClient(
+        req.portalUser.customer.id,
+      );
+      res.json({ count });
+    }),
+  );
+
+  // ── GET /api/portal/messages ──────────────────
+  app.get(
+    "/api/portal/messages",
+    isPortalAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const threads = await portalStorage.getMessagesAcrossProjects(
+        req.portalUser.customer.id,
+      );
+      res.json(threads);
+    }),
+  );
+
   // ── POST /api/portal/projects/:id/feedback ─────
   app.post(
     "/api/portal/projects/:id/feedback",

@@ -1,4 +1,5 @@
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { usePortalAuth } from "../hooks";
 import {
   LayoutDashboard,
@@ -15,8 +16,9 @@ import { useState } from "react";
 
 const navItems = [
   { label: "Home", icon: LayoutDashboard, path: "/portal" },
-  { label: "Projects", icon: FolderKanban, path: "/portal", hash: "projects" },
-  { label: "Contracts", icon: FileText, path: "/portal", hash: "contracts" },
+  { label: "Projects", icon: FolderKanban, path: "/portal/projects" },
+  { label: "Contracts", icon: FileText, path: "/portal/contracts" },
+  { label: "Messages", icon: MessageCircle, path: "/portal/messages" },
 ];
 
 export function PortalSidebar() {
@@ -28,6 +30,18 @@ export function PortalSidebar() {
     await logout();
     setLocation("/portal/login");
   };
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["/api/portal/messages/unread-total"],
+    queryFn: async () => {
+      const res = await fetch("/api/portal/messages/unread-total", { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      return res.json();
+    },
+    refetchInterval: 30000, // Poll every 30s
+  });
+
+  const unreadCount = unreadData?.count || 0;
 
   const isActive = (path: string) => {
     if (path === "/portal") return location === "/portal";
@@ -71,7 +85,12 @@ export function PortalSidebar() {
               )}
             >
               <item.icon className="h-5 w-5 shrink-0" />
-              {!collapsed && <span className="truncate">{item.label}</span>}
+              {!collapsed && <span className="truncate flex-1">{item.label}</span>}
+              {!collapsed && item.label === "Messages" && unreadCount > 0 && (
+                <span className="ml-auto bg-white/20 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                  {unreadCount}
+                </span>
+              )}
             </button>
           );
         })}

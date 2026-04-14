@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/hooks";
+import { useQuery } from "@tanstack/react-query";
 
 type NavItem = {
   href: string;
@@ -32,6 +33,17 @@ type NavItem = {
 export function Sidebar() {
   const [location, setLocation] = useLocation();
   const { user, hasPermission, isAdmin, logout } = useAuth();
+
+  const { data: unreadMsgData } = useQuery<{ count: number }>({
+    queryKey: ["/api/messages/unread-total"],
+    queryFn: async () => {
+      const res = await fetch("/api/messages/unread-total", { credentials: "include" });
+      if (!res.ok) return { count: 0 };
+      return res.json();
+    },
+    refetchInterval: 30000,
+  });
+  const adminUnreadCount = unreadMsgData?.count || 0;
 
   // Build permission-gated nav items
   const navItems: NavItem[] = [
@@ -92,7 +104,12 @@ export function Sidebar() {
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {item.label === "Messages" && adminUnreadCount > 0 && (
+                    <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                      {adminUnreadCount}
+                    </span>
+                  )}
                 </div>
               </Link>
             );

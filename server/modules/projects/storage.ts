@@ -95,6 +95,11 @@ export const projectStorage = {
     return project;
   },
 
+  async getCustomerById(id: number): Promise<{ id: number; name: string | null; email: string | null } | undefined> {
+    const [customer] = await db.select().from(customers).where(eq(customers.id, id));
+    return customer as any;
+  },
+
   async getProjectWithDetails(id: number): Promise<ProjectWithDetails | undefined> {
     const projectResult = await db
       .select({
@@ -970,6 +975,19 @@ export const projectStorage = {
       .where(
         and(
           eq(projectMessages.project_id, projectId),
+          eq(projectMessages.read_by_admin, "no"),
+          eq(projectMessages.sender_type, "client")
+        )
+      );
+    return messages.length;
+  },
+
+  async getTotalUnreadMessageCountForAdmin(): Promise<number> {
+    const messages = await db
+      .select()
+      .from(projectMessages)
+      .where(
+        and(
           eq(projectMessages.read_by_admin, "no"),
           eq(projectMessages.sender_type, "client")
         )

@@ -330,6 +330,50 @@ export const portalStorage = {
     return messages.length;
   },
 
+  async getTotalUnreadMessageCountForClient(customerId: number): Promise<number> {
+    const customerProjects = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.customer_id, customerId));
+
+    let total = 0;
+    for (const p of customerProjects) {
+      const msgs = await db
+        .select()
+        .from(projectMessages)
+        .where(
+          and(
+            eq(projectMessages.project_id, p.id),
+            eq(projectMessages.read_by_client, "no"),
+            eq(projectMessages.sender_type, "admin"),
+          ),
+        );
+      total += msgs.length;
+    }
+    return total;
+  },
+
+  async getMessagesAcrossProjects(customerId: number): Promise<{ projectId: number; projectName: string; messages: ProjectMessage[] }[]> {
+    const customerProjects = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.customer_id, customerId))
+      .orderBy(desc(projects.created_at));
+
+    const result: { projectId: number; projectName: string; messages: ProjectMessage[] }[] = [];
+    for (const p of customerProjects) {
+      const msgs = await db
+        .select()
+        .from(projectMessages)
+        .where(eq(projectMessages.project_id, p.id))
+        .orderBy(asc(projectMessages.created_at));
+      if (msgs.length > 0) {
+        result.push({ projectId: p.id, projectName: p.name, messages: msgs });
+      }
+    }
+    return result;
+  },
+
   // ── CLIENT FEEDBACK ─────────────────────────
 
   async createClientFeedback(feedback: InsertClientFeedback): Promise<ClientFeedback> {

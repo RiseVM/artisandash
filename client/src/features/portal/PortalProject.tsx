@@ -5,11 +5,7 @@ import { PortalLayout } from "./PortalLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+// Collapsible removed — phases now use simplified view
 import {
   Dialog,
   DialogContent,
@@ -38,6 +34,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { PortalMessages } from "./components/PortalMessages";
 import type { ProjectWithDetails, ChangeOrder, ProjectDelivery, ProjectFile } from "@shared/schema";
 
@@ -89,7 +86,6 @@ export function PortalProject() {
   const projectId = parseInt(params.id || "0");
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [expandedPhases, setExpandedPhases] = useState<Set<number>>(new Set());
   const [approveChangeOrder, setApproveChangeOrder] = useState<ChangeOrder | null>(null);
   const [previewFile, setPreviewFile] = useState<ProjectFile | null>(null);
 
@@ -153,15 +149,6 @@ export function PortalProject() {
       toast({ title: "Error", description: err?.message, variant: "destructive" });
     },
   });
-
-  const togglePhase = (phaseId: number) => {
-    setExpandedPhases((prev) => {
-      const next = new Set(prev);
-      if (next.has(phaseId)) next.delete(phaseId);
-      else next.add(phaseId);
-      return next;
-    });
-  };
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;
@@ -247,11 +234,11 @@ export function PortalProject() {
         {/* Header */}
         <div>
           <button
-            onClick={() => setLocation("/portal")}
+            onClick={() => setLocation("/portal/projects")}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-4"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+            Back to Projects
           </button>
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -290,9 +277,9 @@ export function PortalProject() {
           </CardContent>
         </Card>
 
-        {/* Phases */}
+        {/* Phases — simplified view showing status and progress only */}
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Project Phases</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Project Timeline</h2>
           {project.phases.length === 0 ? (
             <Card className="border-0 shadow-sm">
               <CardContent className="py-12 text-center">
@@ -301,87 +288,65 @@ export function PortalProject() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {project.phases.map((phase, index) => (
-                <Card key={phase.id} className="border-0 shadow-sm bg-white overflow-hidden">
-                  <Collapsible open={expandedPhases.has(phase.id)} onOpenChange={() => togglePhase(phase.id)}>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer hover:bg-gray-50/80 transition-colors p-4 sm:p-5">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            {expandedPhases.has(phase.id) ? (
-                              <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
+            <Card className="border-0 shadow-sm bg-white overflow-hidden">
+              <CardContent className="p-5 space-y-4">
+                {project.phases
+                  .filter((phase) => {
+                    // Hide internal phases like intake checklists
+                    const name = phase.name.toLowerCase();
+                    return !name.includes("intake") && !name.includes("checklist") && !name.includes("internal");
+                  })
+                  .map((phase, index) => {
+                    const completedTasks = phase.tasks.filter((t) => t.status === "completed").length;
+                    const totalTasks = phase.tasks.length;
+                    return (
+                      <div key={phase.id} className="flex items-center gap-4">
+                        {/* Step indicator */}
+                        <div className="flex flex-col items-center shrink-0">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold",
+                            phase.status === "completed"
+                              ? "bg-emerald-500 text-white"
+                              : phase.status === "in_progress"
+                                ? "bg-[hsl(215,30%,35%)] text-white"
+                                : "bg-gray-100 text-gray-400"
+                          )}>
+                            {phase.status === "completed" ? (
+                              <CheckCircle2 className="h-4 w-4" />
                             ) : (
-                              <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                              index + 1
                             )}
-                            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-[hsl(215,30%,35%)]/10 text-[hsl(215,30%,35%)] text-xs font-bold shrink-0">
-                              {index + 1}
-                            </span>
-                            <div className="min-w-0">
-                              <CardTitle className="text-sm font-semibold text-gray-900 truncate">{phase.name}</CardTitle>
-                              {phase.description && (
-                                <CardDescription className="truncate text-xs">{phase.description}</CardDescription>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3 shrink-0">
-                            <div className="flex items-center gap-1.5 text-xs">
-                              {phaseStatusIcons[phase.status]}
-                              <span className="text-gray-500 hidden sm:inline">
-                                {phaseStatusLabels[phase.status]}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 min-w-[90px]">
-                              <div className="w-16 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-[hsl(215,30%,35%)]"
-                                  style={{ width: `${phase.progress}%` }}
-                                />
-                              </div>
-                              <span className="text-xs text-gray-500 w-8 text-right font-medium">
-                                {phase.progress}%
-                              </span>
-                            </div>
                           </div>
                         </div>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="pt-0 px-4 sm:px-5 pb-4">
-                        {phase.tasks.length === 0 ? (
-                          <p className="text-sm text-gray-400 py-4 pl-10">No tasks in this phase.</p>
-                        ) : (
-                          <div className="space-y-2 pl-10">
-                            {phase.tasks.map((task) => (
-                              <div key={task.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50/80 border border-gray-100">
-                                {task.status === "completed" ? (
-                                  <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
-                                ) : task.status === "in_progress" ? (
-                                  <Clock className="h-5 w-5 text-blue-500 flex-shrink-0" />
-                                ) : (
-                                  <Circle className="h-5 w-5 text-gray-300 flex-shrink-0" />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-medium ${task.status === "completed" ? "line-through text-gray-400" : "text-gray-700"}`}>
-                                    {task.name}
-                                  </p>
-                                  {task.description && <p className="text-xs text-gray-400 mt-0.5">{task.description}</p>}
-                                </div>
-                                {task.status === "completed" && (
-                                  <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-0 text-xs shrink-0">
-                                    Done
-                                  </Badge>
-                                )}
-                              </div>
-                            ))}
+
+                        {/* Phase info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-gray-900 truncate">{phase.name}</p>
+                            <span className="text-xs text-gray-400 shrink-0">
+                              {phaseStatusLabels[phase.status]}
+                            </span>
                           </div>
-                        )}
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </Card>
-              ))}
-            </div>
+                          {phase.description && (
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{phase.description}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-2">
+                            <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[hsl(215,30%,35%)] transition-all"
+                                style={{ width: `${phase.progress}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] text-gray-400 w-12 text-right">
+                              {totalTasks > 0 ? `${completedTasks}/${totalTasks}` : `${phase.progress}%`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </CardContent>
+            </Card>
           )}
         </div>
 

@@ -25,6 +25,7 @@ import {
   insertClientFeedbackSchema,
 } from "@shared/schema";
 import { projectStorage } from "./storage";
+import { sendNewMessageNotification } from "../../services/emailService";
 
 export function registerProjectRoutes(app: Express) {
   // ============================================
@@ -1093,6 +1094,16 @@ export function registerProjectRoutes(app: Express) {
     })
   );
 
+  // GET /api/messages/unread-total - Total unread count across all projects
+  app.get(
+    "/api/messages/unread-total",
+    isAuthenticated,
+    asyncHandler(async (req, res) => {
+      const count = await projectStorage.getTotalUnreadMessageCountForAdmin();
+      res.json({ count });
+    })
+  );
+
   // GET /api/projects/:projectId/messages/unread-count - Get unread count
   app.get(
     "/api/projects/:projectId/messages/unread-count",
@@ -1134,6 +1145,25 @@ export function registerProjectRoutes(app: Express) {
       });
 
       const message = await projectStorage.createProjectMessage(data);
+
+      // Send email notification to client
+      try {
+        if (project.customer_id) {
+          const customer = await projectStorage.getCustomerById(project.customer_id);
+          if (customer?.email) {
+            await sendNewMessageNotification(
+              customer.email,
+              customer.name || "Valued Client",
+              project.name,
+              req.body.content || "",
+              req.user?.name || req.user?.email || "Artisan Tile Team",
+            );
+          }
+        }
+      } catch (emailErr) {
+        console.error("Failed to send message email notification:", emailErr);
+      }
+
       res.status(201).json(message);
     })
   );
