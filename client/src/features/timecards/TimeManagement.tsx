@@ -121,6 +121,11 @@ interface TimecardWithUser {
   status: string;
   totalHours: string | null;
   user: CardUser;
+  clockStatus?: {
+    clockedIn: boolean;
+    clockInTime: string | null;
+    todayHours: number;
+  };
 }
 
 interface TimecardDetail {
@@ -131,12 +136,6 @@ interface TimecardDetail {
   totalHours: string | null;
   entries: TimecardEntry[];
   auditLog: AuditLogEntry[];
-}
-
-interface ClockStatusEntry {
-  user: CardUser;
-  openPunch: { id: number; clockIn: string; clockOut: string | null } | null;
-  todayHours: number;
 }
 
 // ── Identity Verification Gate ──────────────
@@ -254,19 +253,13 @@ export function TimeManagement() {
       return res.json();
     },
     enabled: isAdminUser && isVerified,
+    refetchInterval: 30000,
   });
 
   // Fetch all active users for dropdown
   const { data: activeUsers = [] } = useQuery<CardUser[]>({
     queryKey: ["/api/timecards/admin/users"],
     enabled: isAdminUser && isVerified,
-  });
-
-  // Fetch live clock status for all employees
-  const { data: clockStatuses = [] } = useQuery<ClockStatusEntry[]>({
-    queryKey: ["/api/timecards/admin/clock-status"],
-    enabled: isAdminUser && isVerified,
-    refetchInterval: 30000,
   });
 
   // Fetch expanded card detail
@@ -310,7 +303,6 @@ export function TimeManagement() {
       return { ...(await res.json()), name, action };
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/clock-status"] });
       queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
       toast({ title: `${data.name} clocked ${data.action}`, description: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) });
     },
@@ -424,12 +416,11 @@ export function TimeManagement() {
         <div className="space-y-3">
           {allCards.map((card) => {
             const isExpanded = expandedCard === card.id;
-            const clockInfo = clockStatuses.find((s) => s.user.id === card.userId);
-            const isClockedIn = !!clockInfo?.openPunch;
-            const clockTime = clockInfo?.openPunch
-              ? new Date(clockInfo.openPunch.clockIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+            const isClockedIn = card.clockStatus?.clockedIn ?? false;
+            const clockTime = card.clockStatus?.clockInTime
+              ? new Date(card.clockStatus.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
               : null;
-            const todayHrs = clockInfo?.todayHours ?? 0;
+            const todayHrs = card.clockStatus?.todayHours ?? 0;
             return (
               <div key={card.id} className="bg-card border rounded-lg overflow-hidden">
                 {/* Summary row */}

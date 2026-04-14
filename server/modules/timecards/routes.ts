@@ -167,7 +167,41 @@ export function registerTimecardRoutes(app: Express) {
         userId: userId as string | undefined,
         status: status as string | undefined,
       });
-      res.json(cards);
+
+      // Attach live clock status to each card using raw SQL for reliability
+      const { pool } = await import("../../../db/index");
+      const todayIso = new Date().toISOString().split("T")[0];
+      const enriched = [];
+      for (const card of cards) {
+        try {
+          // Check for open punch (no clock_out)
+          const openRes = await pool.query(
+            `SELECT id, clock_in FROM timecard_punches WHERE user_id = $1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1`,
+            [card.userId],
+          );
+          const openPunch = openRes.rows[0] || null;
+
+          // Get today's total hours
+          const hoursRes = await pool.query(
+            `SELECT COALESCE(SUM(CAST(hours AS NUMERIC)), 0) AS total FROM timecard_punches WHERE user_id = $1 AND punch_date = $2`,
+            [card.userId, todayIso],
+          );
+          const todayHours = parseFloat(hoursRes.rows[0]?.total || "0");
+
+          enriched.push({
+            ...card,
+            clockStatus: {
+              clockedIn: !!openPunch,
+              clockInTime: openPunch?.clock_in || null,
+              todayHours,
+            },
+          });
+        } catch (err: any) {
+          console.error(`[admin/all] clock status for ${card.userId}:`, err?.message);
+          enriched.push({ ...card, clockStatus: { clockedIn: false, clockInTime: null, todayHours: 0 } });
+        }
+      }
+      res.json(enriched);
     }),
   );
 
