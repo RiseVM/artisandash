@@ -410,6 +410,24 @@ export function TimeManagement() {
     },
   });
 
+  // Mutation: admin add punch (for days with no punches)
+  const adminAddPunch = useMutation({
+    mutationFn: async ({ userId, punchDate, clockIn, clockOut }: { userId: string; punchDate: string; clockIn: string; clockOut: string | null }) => {
+      const res = await apiRequest("POST", `/api/timecards/admin/punches`, { userId, punchDate, clockIn, clockOut });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      if (expandedCard) {
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
+      }
+      toast({ title: "Punch added" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to add punch", description: String(err.message), variant: "destructive" });
+    },
+  });
+
   // Mutation: admin delete punch
   const adminDeletePunch = useMutation({
     mutationFn: async (punchId: number) => {
@@ -795,8 +813,44 @@ export function TimeManagement() {
                             ) : (
                               <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
                                 <span className="text-sm font-medium">{formatDayLabel(entry.entryDate)}</span>
-                                <span className="text-xs text-muted-foreground">—</span>
-                                <span className="text-xs text-muted-foreground">—</span>
+                                <TimePicker
+                                  key={`nci-${entry.id}`}
+                                  value={null}
+                                  punchDate={entry.entryDate}
+                                  defaultHour={9}
+                                  defaultMin={0}
+                                  defaultAMPM="AM"
+                                  onChange={(clockInIso) => {
+                                    // Create a new punch with default 5 PM clock out
+                                    const outDate = new Date(entry.entryDate + "T12:00:00");
+                                    outDate.setHours(17, 0, 0, 0);
+                                    adminAddPunch.mutate({
+                                      userId: expandedDetail!.userId,
+                                      punchDate: entry.entryDate,
+                                      clockIn: clockInIso,
+                                      clockOut: outDate.toISOString(),
+                                    });
+                                  }}
+                                />
+                                <TimePicker
+                                  key={`nco-${entry.id}`}
+                                  value={null}
+                                  punchDate={entry.entryDate}
+                                  defaultHour={5}
+                                  defaultMin={0}
+                                  defaultAMPM="PM"
+                                  onChange={(clockOutIso) => {
+                                    // Create a new punch with default 9 AM clock in
+                                    const inDate = new Date(entry.entryDate + "T12:00:00");
+                                    inDate.setHours(9, 0, 0, 0);
+                                    adminAddPunch.mutate({
+                                      userId: expandedDetail!.userId,
+                                      punchDate: entry.entryDate,
+                                      clockIn: inDate.toISOString(),
+                                      clockOut: clockOutIso,
+                                    });
+                                  }}
+                                />
                                 <Input
                                   type="number"
                                   min="0"
