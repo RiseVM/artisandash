@@ -26,6 +26,8 @@ import {
   Clock,
   Play,
   Square,
+  CheckCheck,
+  Send,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -321,6 +323,35 @@ export function TimeManagement() {
     },
   });
 
+  // Mutation: approve all timecards for the week
+  const approveAll = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/timecards/admin/approve-all", { weekStartDate: currentMonday });
+      return res.json();
+    },
+    onSuccess: (data: { approved: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      toast({ title: `${data.approved} timecard${data.approved === 1 ? "" : "s"} approved` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Approve failed", description: String(err.message), variant: "destructive" });
+    },
+  });
+
+  // Mutation: send payroll email
+  const sendPayroll = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/timecards/admin/send-payroll", { weekStartDate: currentMonday });
+      return res.json();
+    },
+    onSuccess: (data: { sentTo: string[]; cardCount: number }) => {
+      toast({ title: "Payroll sent", description: `${data.cardCount} timecards emailed to ${data.sentTo.join(", ")}` });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Send payroll failed", description: String(err.message), variant: "destructive" });
+    },
+  });
+
   const navigateWeek = useCallback((direction: -1 | 1) => {
     setExpandedCard(null);
     setCurrentMonday((prev) => {
@@ -411,8 +442,28 @@ export function TimeManagement() {
             </SelectContent>
           </Select>
 
-          <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="font-semibold text-foreground">{weekTotalHours.toFixed(1)}</span> total hours across {allCards.length} {allCards.length === 1 ? "card" : "cards"}
+          <div className="ml-auto flex items-center gap-3 text-sm text-muted-foreground">
+            <span>
+              <span className="font-semibold text-foreground">{weekTotalHours.toFixed(1)}</span> total hours across {allCards.length} {allCards.length === 1 ? "card" : "cards"}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-green-600 border-green-200 hover:bg-green-50"
+              onClick={() => approveAll.mutate()}
+              disabled={approveAll.isPending || allCards.filter((c) => c.status !== "approved").length === 0}
+            >
+              {approveAll.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCheck className="h-3 w-3 mr-1" />}
+              Approve All
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => sendPayroll.mutate()}
+              disabled={sendPayroll.isPending || allCards.filter((c) => c.status === "approved").length === 0}
+            >
+              {sendPayroll.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
+              Send to Payroll
+            </Button>
           </div>
         </div>
       </div>

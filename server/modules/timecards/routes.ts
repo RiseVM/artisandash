@@ -657,6 +657,102 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // ── APPROVE ALL submitted timecards for a week ──
+  app.post(
+    "/api/timecards/admin/approve-all",
+    canManageTimecards,
+    asyncHandler(async (req: any, res) => {
+      const adminId = req.user?.id;
+      if (!adminId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { weekStartDate } = req.body;
+      if (!weekStartDate) return res.status(400).json({ error: "weekStartDate required" });
+
+      const allCards = await timecardStorage.getAllTimecardsWithUsers({ weekStartDate });
+      const toApprove = allCards.filter((c) => c.status === "submitted" || c.status === "draft");
+      let approved = 0;
+      for (const card of toApprove) {
+        try {
+          await timecardStorage.approveTimecard(card.id, adminId);
+          approved++;
+        } catch (err: any) {
+          console.error(`[approve-all] Failed to approve card ${card.id}:`, err?.message);
+        }
+      }
+      res.json({ success: true, approved, total: allCards.length });
+    }),
+  );
+
+  // ── SEND PAYROLL EMAIL with PDF attachment ──
+  app.post(
+    "/api/timecards/admin/send-payroll",
+    canManageTimecards,
+    asyncHandler(async (req: any, res) => {
+      const { weekStartDate } = req.body;
+      if (!weekStartDate) return res.status(400).json({ error: "weekStartDate required" });
+
+      // Get approved timecards
+      const cards = await timecardStorage.getApprovedTimecardsForWeek(weekStartDate);
+      if (cards.length === 0) {
+        return res.status(400).json({ error: "No approved timecards for this week" });
+      }
+
+      // Get payroll contacts
+      const contacts = await timecardStorage.getPayrollContacts();
+      const activeContacts = contacts.filter((c: any) => c.isActive !== "no");
+      if (activeContacts.length === 0) {
+        return res.status(400).json({ error: "No active payroll contacts configured" });
+      }
+
+      // Generate PDF
+      const { generatePayrollPdf } = await import("./payroll-pdf");
+      const mon = new Date(weekStartDate + "T12:00:00");
+      const sun = new Date(mon);
+      sun.setDate(sun.getDate() + 6);
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const weekLabel = `${months[mon.getMonth()]} ${mon.getDate()} – ${months[sun.getMonth()]} ${sun.getDate()}, ${mon.getFullYear()}`;
+
+      const pdfCards = cards.map((c: any) => ({
+        user: c.user,
+        totalHours: c.totalHours,
+        totalMileage: c.totalMileageMiles || "0",
+        entries: (c.entries || []).map((e: any) => ({
+          entryDate: e.entryDate,
+          hours: e.hours || "0",
+          mileage: e.mileage || "0",
+        })),
+      }));
+
+      const pdfBuffer = await generatePayrollPdf(weekLabel, pdfCards);
+
+      // Send email
+      const { getResendClient } = await import("../../services/emailService");
+      const { client, fromEmail } = await getResendClient();
+
+      const toEmails = activeContacts.map((c: any) => c.email);
+      await client.emails.send({
+        from: fromEmail || "noreply@artisantile.com",
+        to: toEmails,
+        subject: `Timecard Report – Week of ${weekLabel}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2c3e50;">Weekly Timecard Report</h2>
+            <p>Please find the approved timecard report for the week of <strong>${weekLabel}</strong> attached.</p>
+            <p>${cards.length} employee timecard${cards.length === 1 ? "" : "s"} included.</p>
+            <p>Best regards,<br/>Artisan Tile Dashboard</p>
+          </div>`,
+        attachments: [
+          {
+            filename: `Timecards_${weekStartDate}.pdf`,
+            content: pdfBuffer.toString("base64"),
+          },
+        ],
+      });
+
+      res.json({ success: true, sentTo: toEmails, cardCount: cards.length });
+    }),
+  );
+
   // ── ONE-TIME BACKFILL: sync all punch data to timecard entries ──
   app.post(
     "/api/timecards/admin/backfill-punches",
