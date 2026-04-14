@@ -309,9 +309,8 @@ export function InternalMessaging({ compact = false, projectId }: InternalMessag
                 </Badge>
                 <Button
                   variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title={isUnread(thread) ? "Mark as read" : "Mark as unread"}
+                  size="sm"
+                  className="h-7 shrink-0 text-xs text-muted-foreground hover:text-foreground gap-1"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (isUnread(thread)) {
@@ -322,9 +321,9 @@ export function InternalMessaging({ compact = false, projectId }: InternalMessag
                   }}
                 >
                   {isUnread(thread) ? (
-                    <MailOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                    <><MailOpen className="h-3.5 w-3.5" /> Mark Read</>
                   ) : (
-                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                    <><Mail className="h-3.5 w-3.5" /> Mark Unread</>
                   )}
                 </Button>
               </div>

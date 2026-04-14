@@ -177,6 +177,10 @@ declare module "http" {
     // Error handler (must be last middleware)
     app.use(errorHandler);
 
+    // Serve uploaded files
+    const path = await import("path");
+    app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
+
     // Static file serving
     if (process.env.NODE_ENV === "production") {
       const { serveStatic } = await import("./static");

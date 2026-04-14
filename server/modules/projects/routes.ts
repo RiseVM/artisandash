@@ -938,6 +938,80 @@ export function registerProjectRoutes(app: Express) {
     })
   );
 
+  // POST /api/projects/:projectId/files/upload - Upload a file
+  app.post(
+    "/api/projects/:projectId/files/upload",
+    isAuthenticated,
+    requirePermission("manage_projects"),
+    asyncHandler(async (req: any, res) => {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+
+      const project = await projectStorage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Dynamic import multer
+      const multer = (await import("multer")).default;
+      const path = await import("path");
+      const fs = await import("fs");
+
+      const uploadsDir = path.resolve(process.cwd(), "uploads", "projects", String(projectId));
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const storage = multer.diskStorage({
+        destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
+        filename: (_req: any, file: any, cb: any) => {
+          const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+          const ext = path.extname(file.originalname);
+          cb(null, uniqueSuffix + ext);
+        },
+      });
+
+      const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }).single("file");
+
+      // Wrap multer in a promise
+      await new Promise<void>((resolve, reject) => {
+        upload(req, res, (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      const file = (req as any).file;
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const fileUrl = `/uploads/projects/${projectId}/${file.filename}`;
+
+      const data = insertProjectFileSchema.parse({
+        project_id: projectId,
+        name: req.body.name || file.originalname,
+        file_url: fileUrl,
+        file_size: file.size,
+        mime_type: file.mimetype,
+        category: req.body.category || "document",
+        description: req.body.description || null,
+        entity_type: req.body.entity_type || "project",
+        entity_id: req.body.entity_id ? parseInt(req.body.entity_id) : null,
+        is_photo: req.body.is_photo || "no",
+        photo_type: req.body.photo_type || null,
+        client_visible: req.body.client_visible || "yes",
+        uploaded_by_user_id: req.user?.id || null,
+        uploaded_by_user_name: req.user?.email || null,
+      });
+
+      const record = await projectStorage.createProjectFile(data);
+      res.status(201).json(record);
+    })
+  );
+
   // POST /api/projects/:projectId/files - Create file record
   app.post(
     "/api/projects/:projectId/files",

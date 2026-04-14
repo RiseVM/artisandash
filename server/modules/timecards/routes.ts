@@ -697,11 +697,10 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(400).json({ error: "No approved timecards for this week" });
       }
 
-      // Get payroll contacts
-      const contacts = await timecardStorage.getPayrollContacts();
-      const activeContacts = contacts.filter((c: any) => c.isActive !== "no");
+      // Get payroll recipients (timecard_recipients table)
+      const activeContacts = await timecardStorage.getRecipients();
       if (activeContacts.length === 0) {
-        return res.status(400).json({ error: "No active payroll contacts configured" });
+        return res.status(400).json({ error: "No active payroll recipients configured. Add recipients in Settings." });
       }
 
       // Generate PDF
