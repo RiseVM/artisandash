@@ -70,6 +70,9 @@ declare module "http" {
     // ------------------------------------
     // Database migrations (safe to run multiple times)
     // ------------------------------------
+    const { migrateUsers } = await import("./migrate-users");
+    await migrateUsers();
+
     const { migrateContracts } = await import("./migrate-contracts");
     await migrateContracts();
 

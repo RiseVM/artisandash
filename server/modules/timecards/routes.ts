@@ -14,26 +14,31 @@ export function registerTimecardRoutes(app: Express) {
     "/api/timecards/verify-identity",
     isAuthenticated,
     asyncHandler(async (req: any, res) => {
-      const userId = req.user?.id;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const { password } = req.body;
-      if (!password) return res.status(400).json({ error: "Password required" });
+        const { password } = req.body;
+        if (!password) return res.status(400).json({ error: "Password required" });
 
-      const { verifyPassword } = await import("../auth/service");
-      const { storage } = await import("../auth/storage");
-      const user = await storage.getUser(userId);
+        const { verifyPassword } = await import("../auth/service");
+        const { storage } = await import("../auth/storage");
+        const user = await storage.getUser(userId);
 
-      if (!user || !user.passwordHash) {
-        return res.status(400).json({ error: "Account has no password set" });
+        if (!user || !user.passwordHash) {
+          return res.status(400).json({ error: "Account has no password set" });
+        }
+
+        const valid = await verifyPassword(password, user.passwordHash);
+        if (!valid) {
+          return res.status(401).json({ error: "Incorrect password" });
+        }
+
+        res.json({ verified: true, user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
+      } catch (err: any) {
+        console.error("[verify-identity] Error:", err?.message, err?.stack);
+        return res.status(500).json({ error: "Identity verification failed", detail: err?.message });
       }
-
-      const valid = await verifyPassword(password, user.passwordHash);
-      if (!valid) {
-        return res.status(401).json({ error: "Incorrect password" });
-      }
-
-      res.json({ verified: true, user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName } });
     }),
   );
 
