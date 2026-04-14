@@ -3,16 +3,34 @@ import {
   timecards,
   timecardEntries,
   timecardAuditLog,
+  timecardPunches,
+  timecardRecipients,
+  timecardMileage,
+  payrollContacts,
   users,
 } from "@shared/schema";
 import type {
   Timecard,
   TimecardEntry,
+  TimecardPunch,
+  TimecardRecipient,
+  TimecardMileage,
+  PayrollContact,
   TimecardWithEntries,
   TimecardWithUser,
   TimecardAuditLogWithUser,
 } from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, isNull, sql } from "drizzle-orm";
+
+/** Calculate regular + OT hours from HH:MM clockIn/clockOut strings */
+function calcHours(clockIn: string, clockOut: string): { regular: number; ot: number } {
+  const [inH, inM] = clockIn.split(":").map(Number);
+  const [outH, outM] = clockOut.split(":").map(Number);
+  const totalMins = Math.max(0, (outH * 60 + outM) - (inH * 60 + inM));
+  const totalHrs = parseFloat((totalMins / 60).toFixed(2));
+  // OT is weekly (over 40h), not daily — store full hours per entry
+  return { regular: totalHrs, ot: 0 };
+}
 
 /** Return Monday-based ISO date strings for a 7-day week */
 function weekDates(mondayIso: string): string[] {
@@ -82,6 +100,44 @@ export const timecardStorage = {
     return this.getTimecardWithEntries(card.id);
   },
 
+  // ── ADMIN UPSERT ──────────────────────────
+
+  async adminGetOrCreateTimecard(
+    userId: string,
+    weekStartDate: string,
+    adminId: string,
+  ): Promise<TimecardWithEntries> {
+    const existing = await this.getTimecardByUserAndWeek(userId, weekStartDate);
+
+    if (existing) {
+      return this.getTimecardWithEntries(existing.id);
+    }
+
+    // Create new draft timecard on behalf of employee
+    const [card] = await db
+      .insert(timecards)
+      .values({ userId, weekStartDate, status: "draft" })
+      .returning();
+
+    const dates = weekDates(weekStartDate);
+    const entryRows = dates.map((d) => ({
+      timecardId: card.id,
+      entryDate: d,
+      hours: "0" as const,
+    }));
+
+    await db.insert(timecardEntries).values(entryRows);
+
+    await db.insert(timecardAuditLog).values({
+      timecardId: card.id,
+      changedById: adminId,
+      action: "created",
+      description: `Timecard created by admin for week of ${weekStartDate}`,
+    });
+
+    return this.getTimecardWithEntries(card.id);
+  },
+
   // ── READ WITH ENTRIES ─────────────────────
 
   async getTimecardWithEntries(
@@ -100,7 +156,17 @@ export const timecardStorage = {
       .where(eq(timecardEntries.timecardId, timecardId))
       .orderBy(timecardEntries.entryDate);
 
-    return { ...card, entries };
+    // Fetch recipient if set
+    let recipient: TimecardRecipient | null = null;
+    if (card.recipientId) {
+      const [r] = await db
+        .select()
+        .from(timecardRecipients)
+        .where(eq(timecardRecipients.id, card.recipientId));
+      recipient = r || null;
+    }
+
+    return { ...card, entries, recipient };
   },
 
   // ── ADMIN: ALL TIMECARDS ──────────────────
@@ -124,7 +190,7 @@ export const timecardStorage = {
       .innerJoin(users, eq(timecards.userId, users.id))
       .orderBy(desc(timecards.weekStartDate), users.lastName);
 
-    return rows
+    const mapped = rows
       .filter((r) => {
         if (filters?.weekStartDate && r.card.weekStartDate !== filters.weekStartDate) return false;
         if (filters?.userId && r.card.userId !== filters.userId) return false;
@@ -132,6 +198,40 @@ export const timecardStorage = {
         return true;
       })
       .map((r) => ({ ...r.card, user: r.user }));
+
+    // Fetch recipients for cards that have one
+    const cardsWithRecipients: TimecardWithUser[] = [];
+    for (const card of mapped) {
+      let recipient: TimecardRecipient | null = null;
+      if (card.recipientId) {
+        const [r] = await db
+          .select()
+          .from(timecardRecipients)
+          .where(eq(timecardRecipients.id, card.recipientId));
+        recipient = r || null;
+      }
+      cardsWithRecipients.push({ ...card, recipient });
+    }
+    return cardsWithRecipients;
+  },
+
+  /** Same as above but includes entries for each card (for grid view) */
+  async getAllTimecardsWithEntries(filters?: {
+    weekStartDate?: string;
+    userId?: string;
+    status?: string;
+  }): Promise<(TimecardWithUser & { entries: TimecardEntry[] })[]> {
+    const cards = await this.getAllTimecardsWithUsers(filters);
+    const results: (TimecardWithUser & { entries: TimecardEntry[] })[] = [];
+    for (const card of cards) {
+      const entries = await db
+        .select()
+        .from(timecardEntries)
+        .where(eq(timecardEntries.timecardId, card.id))
+        .orderBy(timecardEntries.entryDate);
+      results.push({ ...card, entries });
+    }
+    return results;
   },
 
   // ── LIST OWN TIMECARDS ────────────────────
@@ -148,11 +248,15 @@ export const timecardStorage = {
 
   async updateTimecardEntry(
     entryId: number,
-    hours: string,
+    clockIn: string | null,
+    clockOut: string | null,
+    entryType: string,
+    ptoHours: number,
+    holidayHours: number,
     notes: string | null,
     changedById: string,
+    mileage?: string,
   ): Promise<TimecardEntry> {
-    // Fetch existing entry
     const [existing] = await db
       .select()
       .from(timecardEntries)
@@ -160,30 +264,42 @@ export const timecardStorage = {
 
     if (!existing) throw new Error("Entry not found");
 
-    // Update the entry
+    let hours = "0";
+    let otHours = "0";
+    let finalPtoHours = "0";
+    let finalHolidayHours = "0";
+
+    if (entryType === "work") {
+      if (clockIn && clockOut) {
+        const { regular, ot } = calcHours(clockIn, clockOut);
+        hours = String(regular);
+        otHours = String(ot);
+      }
+    } else if (entryType === "pto") {
+      finalPtoHours = String(ptoHours || 0);
+      clockIn = null;
+      clockOut = null;
+    } else if (entryType === "holiday") {
+      finalHolidayHours = String(holidayHours || 0);
+      clockIn = null;
+      clockOut = null;
+    }
+
+    const setData: any = {
+      clockIn, clockOut, hours, otHours,
+      ptoHours: finalPtoHours, holidayHours: finalHolidayHours,
+      entryType, notes, updatedAt: new Date(),
+    };
+    if (mileage !== undefined) setData.mileage = mileage;
+
     const [updated] = await db
       .update(timecardEntries)
-      .set({ hours, notes, updatedAt: new Date() })
+      .set(setData)
       .where(eq(timecardEntries.id, entryId))
       .returning();
 
-    // Recalculate totalHours on parent timecard
-    const allEntries = await db
-      .select()
-      .from(timecardEntries)
-      .where(eq(timecardEntries.timecardId, existing.timecardId));
+    await this.recalcTimecardTotals(existing.timecardId);
 
-    const total = allEntries.reduce(
-      (sum, e) => sum + parseFloat(e.hours || "0"),
-      0,
-    );
-
-    await db
-      .update(timecards)
-      .set({ totalHours: total.toFixed(2), updatedAt: new Date() })
-      .where(eq(timecards.id, existing.timecardId));
-
-    // Write audit log
     await db.insert(timecardAuditLog).values({
       timecardId: existing.timecardId,
       changedById,
@@ -193,7 +309,7 @@ export const timecardStorage = {
       newHours: hours,
       oldNotes: existing.notes,
       newNotes: notes,
-      description: `${existing.entryDate} hours: ${existing.hours} → ${hours}`,
+      description: `${existing.entryDate} ${entryType}: hours ${existing.hours} → ${hours}, OT ${otHours}`,
     });
 
     return updated;
@@ -203,9 +319,14 @@ export const timecardStorage = {
 
   async adminEditTimecardEntry(
     entryId: number,
-    hours: string,
+    clockIn: string | null,
+    clockOut: string | null,
+    entryType: string,
+    ptoHours: number,
+    holidayHours: number,
     notes: string | null,
     adminId: string,
+    mileage?: string,
   ): Promise<TimecardEntry> {
     const [existing] = await db
       .select()
@@ -214,29 +335,42 @@ export const timecardStorage = {
 
     if (!existing) throw new Error("Entry not found");
 
+    let hours = "0";
+    let otHours = "0";
+    let finalPtoHours = "0";
+    let finalHolidayHours = "0";
+
+    if (entryType === "work") {
+      if (clockIn && clockOut) {
+        const { regular, ot } = calcHours(clockIn, clockOut);
+        hours = String(regular);
+        otHours = String(ot);
+      }
+    } else if (entryType === "pto") {
+      finalPtoHours = String(ptoHours || 0);
+      clockIn = null;
+      clockOut = null;
+    } else if (entryType === "holiday") {
+      finalHolidayHours = String(holidayHours || 0);
+      clockIn = null;
+      clockOut = null;
+    }
+
+    const setData: any = {
+      clockIn, clockOut, hours, otHours,
+      ptoHours: finalPtoHours, holidayHours: finalHolidayHours,
+      entryType, notes, updatedAt: new Date(),
+    };
+    if (mileage !== undefined) setData.mileage = mileage;
+
     const [updated] = await db
       .update(timecardEntries)
-      .set({ hours, notes, updatedAt: new Date() })
+      .set(setData)
       .where(eq(timecardEntries.id, entryId))
       .returning();
 
-    // Recalculate totalHours
-    const allEntries = await db
-      .select()
-      .from(timecardEntries)
-      .where(eq(timecardEntries.timecardId, existing.timecardId));
+    await this.recalcTimecardTotals(existing.timecardId);
 
-    const total = allEntries.reduce(
-      (sum, e) => sum + parseFloat(e.hours || "0"),
-      0,
-    );
-
-    await db
-      .update(timecards)
-      .set({ totalHours: total.toFixed(2), updatedAt: new Date() })
-      .where(eq(timecards.id, existing.timecardId));
-
-    // Audit log with admin_edit action
     await db.insert(timecardAuditLog).values({
       timecardId: existing.timecardId,
       changedById: adminId,
@@ -246,10 +380,74 @@ export const timecardStorage = {
       newHours: hours,
       oldNotes: existing.notes,
       newNotes: notes,
-      description: `Admin edit: ${existing.entryDate} hours: ${existing.hours} → ${hours}`,
+      description: `Admin edit: ${existing.entryDate} ${entryType}: hours ${existing.hours} → ${hours}, OT ${otHours}`,
     });
 
     return updated;
+  },
+
+  /** Recalculate all totals on a timecard from its entries + mileage table */
+  async recalcTimecardTotals(timecardId: number): Promise<void> {
+    const allEntries = await db
+      .select()
+      .from(timecardEntries)
+      .where(eq(timecardEntries.timecardId, timecardId));
+
+    const rawHours = allEntries.reduce((sum, e) => sum + parseFloat(e.hours || "0"), 0);
+    const totalPtoHours = allEntries.reduce((sum, e) => sum + parseFloat(e.ptoHours || "0"), 0);
+    const totalHolidayHours = allEntries.reduce((sum, e) => sum + parseFloat(e.holidayHours || "0"), 0);
+
+    // OT is weekly: hours over 40 (work hours only, PTO/holiday don't count toward OT threshold)
+    const totalHours = Math.min(rawHours, 40);
+    const totalOtHours = Math.max(0, rawHours - 40);
+
+    // Sum mileage from the timecardMileage table (not timecardEntries)
+    const mileageRows = await db
+      .select()
+      .from(timecardMileage)
+      .where(eq(timecardMileage.timecardId, timecardId));
+    const totalMileage = mileageRows.reduce((sum, r) => sum + parseFloat(r.miles || "0"), 0);
+
+    await db
+      .update(timecards)
+      .set({
+        totalHours: totalHours.toFixed(2),
+        totalOtHours: totalOtHours.toFixed(2),
+        totalPtoHours: totalPtoHours.toFixed(2),
+        totalHolidayHours: totalHolidayHours.toFixed(2),
+        totalMileage: totalMileage.toFixed(1),
+        updatedAt: new Date(),
+      })
+      .where(eq(timecards.id, timecardId));
+  },
+
+  /** One-time migration: recalc all entries to remove daily 8h OT cap, then recalc all timecards */
+  async recalcAllWeeklyOt(): Promise<{ entriesFixed: number; timecardsFixed: number }> {
+    // Fix all work entries: set hours to full clock diff, otHours to 0
+    const allEntries = await db.select().from(timecardEntries);
+    let entriesFixed = 0;
+    for (const entry of allEntries) {
+      if (entry.clockIn && entry.clockOut) {
+        const { regular } = calcHours(entry.clockIn, entry.clockOut);
+        if (entry.hours !== String(regular) || entry.otHours !== "0") {
+          await db.update(timecardEntries)
+            .set({ hours: String(regular), otHours: "0", updatedAt: new Date() })
+            .where(eq(timecardEntries.id, entry.id));
+          entriesFixed++;
+        }
+      } else if (parseFloat(entry.otHours || "0") !== 0) {
+        await db.update(timecardEntries)
+          .set({ otHours: "0", updatedAt: new Date() })
+          .where(eq(timecardEntries.id, entry.id));
+        entriesFixed++;
+      }
+    }
+    // Recalc all timecard totals
+    const allCards = await db.select().from(timecards);
+    for (const card of allCards) {
+      await this.recalcTimecardTotals(card.id);
+    }
+    return { entriesFixed, timecardsFixed: allCards.length };
   },
 
   // ── SUBMIT ────────────────────────────────
@@ -300,6 +498,32 @@ export const timecardStorage = {
       changedById: approvedById,
       action: "approved",
       description: "Timecard approved",
+    });
+
+    return updated;
+  },
+
+  /** Revert a timecard to draft status */
+  async unapproveTimecard(
+    timecardId: number,
+    adminId: string,
+  ): Promise<Timecard> {
+    const [updated] = await db
+      .update(timecards)
+      .set({
+        status: "draft",
+        approvedAt: null,
+        approvedById: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(timecards.id, timecardId))
+      .returning();
+
+    await db.insert(timecardAuditLog).values({
+      timecardId,
+      changedById: adminId,
+      action: "unapproved",
+      description: "Timecard reverted to draft",
     });
 
     return updated;
@@ -363,5 +587,606 @@ export const timecardStorage = {
     if (!card) return undefined;
 
     return { entry, timecard: card };
+  },
+
+  // ── CLOCK IN/OUT ─────────────────────────
+
+  /** Get any open punch (clocked in, not yet clocked out) for this user today */
+  async getOpenPunch(userId: string): Promise<TimecardPunch | undefined> {
+    const [row] = await db
+      .select()
+      .from(timecardPunches)
+      .where(
+        and(
+          eq(timecardPunches.userId, userId),
+          isNull(timecardPunches.clockOut),
+        ),
+      )
+      .orderBy(desc(timecardPunches.clockIn))
+      .limit(1);
+    return row;
+  },
+
+  /** Clock in — creates a new punch for today, auto-creates timecard if needed */
+  async clockIn(userId: string): Promise<TimecardPunch> {
+    // Check for existing open punch
+    const open = await this.getOpenPunch(userId);
+    if (open) throw new Error("Already clocked in. Please clock out first.");
+
+    const now = new Date();
+    const todayIso = now.toISOString().split("T")[0];
+
+    // Figure out the Monday of this week
+    const dayObj = new Date(todayIso + "T12:00:00");
+    const dayOfWeek = dayObj.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(dayObj);
+    monday.setDate(dayObj.getDate() + mondayOffset);
+    const mondayIso = monday.toISOString().split("T")[0];
+
+    // Make sure a timecard exists for this week
+    const card = await this.getOrCreateTimecard(userId, mondayIso);
+
+    const [punch] = await db
+      .insert(timecardPunches)
+      .values({
+        timecardId: card.id,
+        userId,
+        punchDate: todayIso,
+        clockIn: now,
+      })
+      .returning();
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: card.id,
+      changedById: userId,
+      action: "clock_in",
+      entryDate: todayIso,
+      description: `Clocked in at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
+    });
+
+    return punch;
+  },
+
+  /** Clock out — closes the open punch, calculates hours, updates timecard entry */
+  async clockOut(userId: string, notes?: string): Promise<TimecardPunch> {
+    const open = await this.getOpenPunch(userId);
+    if (!open) throw new Error("Not currently clocked in.");
+
+    const now = new Date();
+    const diffMs = now.getTime() - new Date(open.clockIn).getTime();
+    const hours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+
+    const [punch] = await db
+      .update(timecardPunches)
+      .set({
+        clockOut: now,
+        hours,
+        notes: notes || null,
+        updatedAt: now,
+      })
+      .where(eq(timecardPunches.id, open.id))
+      .returning();
+
+    // Recalculate the day's total from all punches and update the timecard entry
+    await this.recalcDayFromPunches(open.timecardId, open.punchDate, userId);
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: open.timecardId,
+      changedById: userId,
+      action: "clock_out",
+      entryDate: open.punchDate,
+      description: `Clocked out at ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} (${hours} hrs)`,
+    });
+
+    return punch;
+  },
+
+  /** Recalculate a day's total hours from all completed punches and update the timecard entry */
+  async recalcDayFromPunches(timecardId: number, punchDate: string, userId: string): Promise<void> {
+    // Sum all completed punches for this day
+    const dayPunches = await db
+      .select()
+      .from(timecardPunches)
+      .where(
+        and(
+          eq(timecardPunches.timecardId, timecardId),
+          eq(timecardPunches.punchDate, punchDate),
+        ),
+      );
+
+    const totalDayHours = dayPunches.reduce((sum, p) => {
+      return sum + parseFloat(p.hours || "0");
+    }, 0);
+
+    // Find the matching timecard entry for this day and update
+    const [entry] = await db
+      .select()
+      .from(timecardEntries)
+      .where(
+        and(
+          eq(timecardEntries.timecardId, timecardId),
+          eq(timecardEntries.entryDate, punchDate),
+        ),
+      );
+
+    if (entry) {
+      await db
+        .update(timecardEntries)
+        .set({ hours: totalDayHours.toFixed(2), updatedAt: new Date() })
+        .where(eq(timecardEntries.id, entry.id));
+    }
+
+    // Recalculate totals on parent timecard
+    await this.recalcTimecardTotals(timecardId);
+  },
+
+  /** Get all punches for a specific timecard */
+  async getPunchesByTimecard(timecardId: number): Promise<TimecardPunch[]> {
+    return db
+      .select()
+      .from(timecardPunches)
+      .where(eq(timecardPunches.timecardId, timecardId))
+      .orderBy(timecardPunches.punchDate, timecardPunches.clockIn);
+  },
+
+  /** Get today's punches for a user */
+  async getTodayPunches(userId: string): Promise<TimecardPunch[]> {
+    const todayIso = new Date().toISOString().split("T")[0];
+    return db
+      .select()
+      .from(timecardPunches)
+      .where(
+        and(
+          eq(timecardPunches.userId, userId),
+          eq(timecardPunches.punchDate, todayIso),
+        ),
+      )
+      .orderBy(timecardPunches.clockIn);
+  },
+
+  // ── EMPLOYEE NOTES COUNT ─────────────────
+  async getEmployeeNotesCount(weekStartDate: string): Promise<number> {
+    const rows = await db
+      .select({ id: timecardEntries.id })
+      .from(timecardEntries)
+      .innerJoin(timecards, eq(timecards.id, timecardEntries.timecardId))
+      .innerJoin(users, eq(users.id, timecards.userId))
+      .where(
+        and(
+          eq(timecards.weekStartDate, weekStartDate),
+          sql`${timecardEntries.notes} IS NOT NULL`,
+          sql`trim(${timecardEntries.notes}) != ''`,
+          sql`${users.role} != 'admin'`,
+        ),
+      );
+    return rows.length;
+  },
+
+  // ── PAYROLL CONTACTS ─────────────────────
+
+  async getPayrollContacts(): Promise<PayrollContact[]> {
+    return db.select().from(payrollContacts).orderBy(payrollContacts.name);
+  },
+
+  async createPayrollContact(data: { name: string; email: string }): Promise<PayrollContact> {
+    const [contact] = await db.insert(payrollContacts).values(data).returning();
+    return contact;
+  },
+
+  async updatePayrollContact(id: number, data: Partial<{ name: string; email: string; isActive: string }>): Promise<PayrollContact> {
+    const [updated] = await db.update(payrollContacts).set({ ...data, updatedAt: new Date() }).where(eq(payrollContacts.id, id)).returning();
+    return updated;
+  },
+
+  async deletePayrollContact(id: number): Promise<void> {
+    await db.delete(payrollContacts).where(eq(payrollContacts.id, id));
+  },
+
+  // ── APPROVED TIMECARDS FOR PAYROLL EMAIL ──
+
+  async getApprovedTimecardsForWeek(weekStartDate: string): Promise<(TimecardWithUser & { entries: TimecardEntry[] })[]> {
+    const rows = await db
+      .select({
+        card: timecards,
+        user: {
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          mileageRate: users.mileageRate,
+          mileageEnabled: users.mileageEnabled,
+        },
+      })
+      .from(timecards)
+      .innerJoin(users, eq(timecards.userId, users.id))
+      .where(and(eq(timecards.weekStartDate, weekStartDate), eq(timecards.status, "approved")))
+      .orderBy(users.lastName);
+
+    const results: any[] = [];
+    for (const r of rows) {
+      const entries = await db
+        .select()
+        .from(timecardEntries)
+        .where(eq(timecardEntries.timecardId, r.card.id))
+        .orderBy(timecardEntries.entryDate);
+      results.push({ ...r.card, user: r.user, entries });
+    }
+    return results;
+  },
+
+  // ── EMPLOYEE MILEAGE SETTINGS ─────────────
+
+  async updateEmployeeMileageSettings(userId: string, mileageEnabled: string, mileageRate: string | null): Promise<void> {
+    await db.update(users).set({
+      mileageEnabled,
+      mileageRate: mileageRate,
+      updatedAt: new Date(),
+    }).where(eq(users.id, userId));
+  },
+
+  async getEmployeeWithMileageSettings(userId: string): Promise<{ mileageEnabled: string; mileageRate: string | null } | undefined> {
+    const [user] = await db.select({
+      mileageEnabled: users.mileageEnabled,
+      mileageRate: users.mileageRate,
+    }).from(users).where(eq(users.id, userId));
+    return user;
+  },
+
+  // ── ADMIN: ALL EMPLOYEES CLOCK STATUS ─────
+
+  /** Get current clock status for all active employees */
+  async getAllEmployeesClockStatus(): Promise<Array<{
+    user: { id: string; firstName: string | null; lastName: string | null; email: string };
+    openPunch: TimecardPunch | null;
+    todayHours: number;
+  }>> {
+    const allUsers = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+      })
+      .from(users)
+      .where(eq(users.isActive, "yes"))
+      .orderBy(users.lastName);
+
+    const todayIso = new Date().toISOString().split("T")[0];
+    const results: Array<{
+      user: { id: string; firstName: string | null; lastName: string | null; email: string };
+      openPunch: TimecardPunch | null;
+      todayHours: number;
+    }> = [];
+
+    for (const u of allUsers) {
+      // Get open punch
+      const [openPunch] = await db
+        .select()
+        .from(timecardPunches)
+        .where(
+          and(
+            eq(timecardPunches.userId, u.id),
+            isNull(timecardPunches.clockOut),
+          ),
+        )
+        .orderBy(desc(timecardPunches.clockIn))
+        .limit(1);
+
+      // Get today's completed punches for total
+      const todayPunches = await db
+        .select()
+        .from(timecardPunches)
+        .where(
+          and(
+            eq(timecardPunches.userId, u.id),
+            eq(timecardPunches.punchDate, todayIso),
+          ),
+        );
+
+      const todayHours = todayPunches.reduce((sum, p) => sum + parseFloat(p.hours || "0"), 0);
+
+      results.push({ user: u, openPunch: openPunch || null, todayHours });
+    }
+
+    return results;
+  },
+
+  // ── ADMIN: EDIT PUNCH ────────────────────
+
+  /** Admin edit a clock punch (change in/out times) */
+  async adminEditPunch(
+    punchId: number,
+    clockIn: Date,
+    clockOut: Date | null,
+    adminId: string,
+  ): Promise<TimecardPunch> {
+    const [existing] = await db
+      .select()
+      .from(timecardPunches)
+      .where(eq(timecardPunches.id, punchId));
+
+    if (!existing) throw new Error("Punch not found");
+
+    // Calculate hours if both in and out are set
+    let hours: string | null = null;
+    if (clockOut) {
+      const diffMs = clockOut.getTime() - clockIn.getTime();
+      hours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+    }
+
+    const [updated] = await db
+      .update(timecardPunches)
+      .set({
+        clockIn,
+        clockOut,
+        hours,
+        updatedAt: new Date(),
+      })
+      .where(eq(timecardPunches.id, punchId))
+      .returning();
+
+    // Recalculate day totals
+    await this.recalcDayFromPunches(existing.timecardId, existing.punchDate, existing.userId);
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: existing.timecardId,
+      changedById: adminId,
+      action: "admin_edit_punch",
+      entryDate: existing.punchDate,
+      description: `Admin edited punch: ${clockIn.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} → ${clockOut ? clockOut.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "open"}`,
+    });
+
+    return updated;
+  },
+
+  /** Admin delete a punch */
+  async adminDeletePunch(punchId: number, adminId: string): Promise<void> {
+    const [existing] = await db
+      .select()
+      .from(timecardPunches)
+      .where(eq(timecardPunches.id, punchId));
+
+    if (!existing) throw new Error("Punch not found");
+
+    await db.delete(timecardPunches).where(eq(timecardPunches.id, punchId));
+
+    // Recalculate day totals
+    await this.recalcDayFromPunches(existing.timecardId, existing.punchDate, existing.userId);
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: existing.timecardId,
+      changedById: adminId,
+      action: "admin_delete_punch",
+      entryDate: existing.punchDate,
+      description: `Admin deleted punch from ${new Date(existing.clockIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
+    });
+  },
+
+  /** Admin add a manual punch */
+  async adminAddPunch(
+    userId: string,
+    punchDate: string,
+    clockIn: Date,
+    clockOut: Date | null,
+    adminId: string,
+  ): Promise<TimecardPunch> {
+    // Figure out the Monday of the punch date
+    const dayObj = new Date(punchDate + "T12:00:00");
+    const dayOfWeek = dayObj.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(dayObj);
+    monday.setDate(dayObj.getDate() + mondayOffset);
+    const mondayIso = monday.toISOString().split("T")[0];
+
+    // Ensure timecard exists
+    const card = await this.getOrCreateTimecard(userId, mondayIso);
+
+    let hours: string | null = null;
+    if (clockOut) {
+      const diffMs = clockOut.getTime() - clockIn.getTime();
+      hours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+    }
+
+    const [punch] = await db
+      .insert(timecardPunches)
+      .values({
+        timecardId: card.id,
+        userId,
+        punchDate,
+        clockIn,
+        clockOut,
+        hours,
+      })
+      .returning();
+
+    // Recalculate day totals
+    await this.recalcDayFromPunches(card.id, punchDate, userId);
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId: card.id,
+      changedById: adminId,
+      action: "admin_add_punch",
+      entryDate: punchDate,
+      description: `Admin added punch: ${clockIn.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })} → ${clockOut ? clockOut.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "open"}`,
+    });
+
+    return punch;
+  },
+
+  // ── TIMECARD RECIPIENTS ──────────────────
+
+  async getRecipients(): Promise<TimecardRecipient[]> {
+    return db
+      .select()
+      .from(timecardRecipients)
+      .where(eq(timecardRecipients.isActive, "yes"))
+      .orderBy(timecardRecipients.name);
+  },
+
+  async getAllRecipients(): Promise<TimecardRecipient[]> {
+    return db.select().from(timecardRecipients).orderBy(timecardRecipients.name);
+  },
+
+  async createRecipient(name: string, email: string, title?: string): Promise<TimecardRecipient> {
+    const [recipient] = await db
+      .insert(timecardRecipients)
+      .values({ name, email, title: title || null })
+      .returning();
+    return recipient;
+  },
+
+  async updateRecipient(id: number, data: Partial<{ name: string; email: string; title: string }>): Promise<TimecardRecipient> {
+    const [updated] = await db
+      .update(timecardRecipients)
+      .set(data)
+      .where(eq(timecardRecipients.id, id))
+      .returning();
+    return updated;
+  },
+
+  async deactivateRecipient(id: number): Promise<void> {
+    await db
+      .update(timecardRecipients)
+      .set({ isActive: "no" })
+      .where(eq(timecardRecipients.id, id));
+  },
+
+  async setTimecardRecipient(
+    timecardId: number,
+    recipientId: number,
+    changedById: string,
+  ): Promise<Timecard> {
+    // Get current card for audit
+    const [card] = await db
+      .select()
+      .from(timecards)
+      .where(eq(timecards.id, timecardId));
+
+    if (!card) throw new Error("Timecard not found");
+
+    // Get old recipient name for audit
+    let oldRecipientName = "none";
+    if (card.recipientId) {
+      const [old] = await db
+        .select()
+        .from(timecardRecipients)
+        .where(eq(timecardRecipients.id, card.recipientId));
+      if (old) oldRecipientName = old.name;
+    }
+
+    // Get new recipient name
+    const [newRecipient] = await db
+      .select()
+      .from(timecardRecipients)
+      .where(eq(timecardRecipients.id, recipientId));
+    const newRecipientName = newRecipient?.name || "unknown";
+
+    const [updated] = await db
+      .update(timecards)
+      .set({ recipientId, updatedAt: new Date() })
+      .where(eq(timecards.id, timecardId))
+      .returning();
+
+    // Audit log
+    await db.insert(timecardAuditLog).values({
+      timecardId,
+      changedById,
+      action: "recipient_changed",
+      description: `Recipient changed: ${oldRecipientName} → ${newRecipientName}`,
+    });
+
+    return updated;
+  },
+
+  // ── MILEAGE ──────────────────────────────
+
+  async getMileageForTimecard(timecardId: number): Promise<TimecardMileage[]> {
+    return db
+      .select()
+      .from(timecardMileage)
+      .where(eq(timecardMileage.timecardId, timecardId))
+      .orderBy(timecardMileage.entryDate);
+  },
+
+  async upsertMileageEntry(
+    timecardId: number,
+    entryDate: string,
+    miles: string,
+    purpose: string | null,
+  ): Promise<TimecardMileage> {
+    // Check if entry exists for this date
+    const [existing] = await db
+      .select()
+      .from(timecardMileage)
+      .where(
+        and(
+          eq(timecardMileage.timecardId, timecardId),
+          eq(timecardMileage.entryDate, entryDate),
+        ),
+      );
+
+    if (existing) {
+      const [updated] = await db
+        .update(timecardMileage)
+        .set({ miles, purpose, updatedAt: new Date() })
+        .where(eq(timecardMileage.id, existing.id))
+        .returning();
+      return updated;
+    }
+
+    const [created] = await db
+      .insert(timecardMileage)
+      .values({ timecardId, entryDate, miles, purpose })
+      .returning();
+    return created;
+  },
+
+  /** Replace all mileage entries for a timecard with a single weekly total */
+  async replaceWeeklyMileage(
+    timecardId: number,
+    entryDate: string,
+    miles: string,
+    purpose: string | null,
+  ): Promise<TimecardMileage> {
+    // Delete all existing mileage entries for this timecard
+    await db.delete(timecardMileage).where(eq(timecardMileage.timecardId, timecardId));
+
+    // Insert single weekly total entry
+    const [created] = await db
+      .insert(timecardMileage)
+      .values({ timecardId, entryDate, miles, purpose })
+      .returning();
+    return created;
+  },
+
+  async deleteMileageEntry(id: number): Promise<void> {
+    await db.delete(timecardMileage).where(eq(timecardMileage.id, id));
+  },
+
+  async getMileageEntryById(id: number): Promise<TimecardMileage | undefined> {
+    const [row] = await db.select().from(timecardMileage).where(eq(timecardMileage.id, id));
+    return row;
+  },
+
+  async getTotalMileageForTimecard(timecardId: number): Promise<number> {
+    const rows = await db
+      .select()
+      .from(timecardMileage)
+      .where(eq(timecardMileage.timecardId, timecardId));
+    return rows.reduce((sum, r) => sum + parseFloat(r.miles || "0"), 0);
+  },
+
+  async getUserMileageRate(userId: string): Promise<number> {
+    const [user] = await db
+      .select({ mileageRate: users.mileageRate })
+      .from(users)
+      .where(eq(users.id, userId));
+    return user?.mileageRate ? parseFloat(user.mileageRate) : 0.67;
   },
 };
