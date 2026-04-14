@@ -819,6 +819,34 @@ export function useMarkMessagesRead() {
   });
 }
 
+export function useMarkMessageRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, projectId }: { id: number; projectId: number }) =>
+      api.post(`/api/messages/${id}/mark-read`),
+    onSuccess: (_, { projectId }) => {
+      qc.invalidateQueries({ queryKey: ["projects", projectId, "messages"] });
+      qc.invalidateQueries({ queryKey: ["projects", projectId, "messages", "unreadCount"] });
+      qc.invalidateQueries({ queryKey: ["/api/messages/unified-unread"] });
+      qc.invalidateQueries({ queryKey: ["/api/messages/client-messages"] });
+    },
+  });
+}
+
+export function useMarkMessageUnread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, projectId }: { id: number; projectId: number }) =>
+      api.post(`/api/messages/${id}/mark-unread`),
+    onSuccess: (_, { projectId }) => {
+      qc.invalidateQueries({ queryKey: ["projects", projectId, "messages"] });
+      qc.invalidateQueries({ queryKey: ["projects", projectId, "messages", "unreadCount"] });
+      qc.invalidateQueries({ queryKey: ["/api/messages/unified-unread"] });
+      qc.invalidateQueries({ queryKey: ["/api/messages/client-messages"] });
+    },
+  });
+}
+
 export function useDeleteProjectMessage() {
   const qc = useQueryClient();
   return useMutation({

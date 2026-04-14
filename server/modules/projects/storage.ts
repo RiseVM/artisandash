@@ -947,6 +947,15 @@ export const projectStorage = {
     return updated;
   },
 
+  async markMessageUnreadByAdmin(id: number): Promise<ProjectMessage | undefined> {
+    const [updated] = await db
+      .update(projectMessages)
+      .set({ read_by_admin: "no", read_by_admin_at: null })
+      .where(eq(projectMessages.id, id))
+      .returning();
+    return updated;
+  },
+
   async markMessageReadByClient(id: number): Promise<ProjectMessage | undefined> {
     const [updated] = await db
       .update(projectMessages)

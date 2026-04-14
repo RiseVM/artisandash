@@ -1281,6 +1281,44 @@ export function registerProjectRoutes(app: Express) {
     })
   );
 
+  // POST /api/messages/:id/mark-read - Mark single message read by admin
+  app.post(
+    "/api/messages/:id/mark-read",
+    isAuthenticated,
+    requirePermission("manage_projects"),
+    asyncHandler(async (req, res) => {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid message ID" });
+      }
+
+      const updated = await projectStorage.markMessageReadByAdmin(id);
+      if (!updated) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+      res.json(updated);
+    })
+  );
+
+  // POST /api/messages/:id/mark-unread - Mark single message unread by admin
+  app.post(
+    "/api/messages/:id/mark-unread",
+    isAuthenticated,
+    requirePermission("manage_projects"),
+    asyncHandler(async (req, res) => {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid message ID" });
+      }
+
+      const updated = await projectStorage.markMessageUnreadByAdmin(id);
+      if (!updated) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+      res.json(updated);
+    })
+  );
+
   // DELETE /api/messages/:id - Delete message
   app.delete(
     "/api/messages/:id",

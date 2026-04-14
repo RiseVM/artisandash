@@ -3,6 +3,8 @@ import {
   useProjectMessages,
   useSendProjectMessage,
   useMarkMessagesRead,
+  useMarkMessageRead,
+  useMarkMessageUnread,
   useDeleteProjectMessage,
   useUnreadMessageCount,
 } from "../hooks";
@@ -25,7 +27,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Send, MessageCircle, Trash2, User, Building } from "lucide-react";
+import { Loader2, Send, MessageCircle, Trash2, User, Building, Mail, MailOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -39,6 +41,8 @@ export function ProjectMessages({ projectId }: ProjectMessagesProps) {
   const { data: unreadData } = useUnreadMessageCount(projectId);
   const sendMessage = useSendProjectMessage();
   const markRead = useMarkMessagesRead();
+  const markOneRead = useMarkMessageRead();
+  const markOneUnread = useMarkMessageUnread();
   const deleteMessage = useDeleteProjectMessage();
   const { toast } = useToast();
 
@@ -54,14 +58,7 @@ export function ProjectMessages({ projectId }: ProjectMessagesProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Mark messages as read when component mounts with unread messages
   const unreadCount = unreadData?.count ?? 0;
-  useEffect(() => {
-    if (unreadCount > 0) {
-      markRead.mutate({ projectId });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,15 +122,28 @@ export function ProjectMessages({ projectId }: ProjectMessagesProps) {
   return (
     <Card className="flex flex-col h-[400px] sm:h-[600px]">
       <CardHeader className="flex-none border-b py-3 sm:py-6">
-        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-          <MessageCircle className="h-5 w-5" />
-          Messages
-          {unreadData?.count ? (
-            <Badge variant="destructive" className="ml-2">
-              {unreadData.count} unread
-            </Badge>
-          ) : null}
-        </CardTitle>
+        <div className="flex items-center justify-between w-full">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <MessageCircle className="h-5 w-5" />
+            Messages
+            {unreadCount > 0 && (
+              <Badge variant="destructive" className="ml-2">
+                {unreadCount} unread
+              </Badge>
+            )}
+          </CardTitle>
+          {unreadCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1"
+              onClick={() => markRead.mutate({ projectId })}
+            >
+              <MailOpen className="h-3.5 w-3.5" />
+              Mark All Read
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
         {/* Messages area */}
@@ -207,6 +217,26 @@ export function ProjectMessages({ projectId }: ProjectMessagesProps) {
                             <span>Sent</span>
                           )}
                         </>
+                      )}
+                      {message.sender_type === "client" && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
+                          onClick={() => {
+                            if (message.read_by_admin === "no") {
+                              markOneRead.mutate({ id: message.id, projectId });
+                            } else {
+                              markOneUnread.mutate({ id: message.id, projectId });
+                            }
+                          }}
+                        >
+                          {message.read_by_admin === "no" ? (
+                            <><MailOpen className="h-3 w-3" /> Mark Read</>
+                          ) : (
+                            <><Mail className="h-3 w-3" /> Mark Unread</>
+                          )}
+                        </Button>
                       )}
                       {message.sender_type === "admin" && (
                         <AlertDialog>
