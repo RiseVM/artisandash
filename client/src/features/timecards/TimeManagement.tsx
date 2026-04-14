@@ -710,66 +710,71 @@ export function TimeManagement() {
                           <div key={entry.id} className="border-b last:border-b-0 py-2">
                             {/* Row 1: Day, Clock In, Clock Out, Hours, Clear */}
                             {dayPunches.length > 0 ? (
-                              dayPunches.map((p) => (
-                                <div key={p.id} className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
-                                  <span className="text-sm font-medium">{formatDayLabel(entry.entryDate)}</span>
-                                  <TimePicker
-                                    key={`ci-${p.id}-${p.clockIn}`}
-                                    value={p.clockIn}
-                                    defaultHour={9}
-                                    defaultMin={0}
-                                    defaultAMPM="AM"
-                                    onChange={(iso) => {
-                                      adminEditPunch.mutate({
-                                        punchId: p.id,
-                                        clockIn: iso,
-                                        clockOut: p.clockOut || null,
-                                      });
-                                    }}
-                                  />
-                                  {p.clockOut ? (
+                              <>
+                                {dayPunches.map((p, pi) => (
+                                  <div key={p.id} className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
+                                    <span className="text-sm font-medium">{pi === 0 ? formatDayLabel(entry.entryDate) : ""}</span>
                                     <TimePicker
-                                      key={`co-${p.id}-${p.clockOut}`}
-                                      value={p.clockOut}
-                                      defaultHour={5}
+                                      key={`ci-${p.id}-${p.clockIn}`}
+                                      value={p.clockIn}
+                                      defaultHour={9}
                                       defaultMin={0}
-                                      defaultAMPM="PM"
+                                      defaultAMPM="AM"
                                       onChange={(iso) => {
                                         adminEditPunch.mutate({
                                           punchId: p.id,
-                                          clockIn: p.clockIn,
-                                          clockOut: iso,
+                                          clockIn: iso,
+                                          clockOut: p.clockOut || null,
                                         });
                                       }}
                                     />
-                                  ) : (
-                                    <span className="text-xs text-orange-500 italic font-medium">Active</span>
-                                  )}
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    max="24"
-                                    step="0.5"
-                                    defaultValue={entry.hours}
-                                    className="w-16 text-center text-sm h-7"
-                                    onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
-                                    key={`ah-${entry.id}-${entry.hours}`}
-                                  />
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
-                                      onClick={() => adminDeletePunch.mutate(p.id)}
-                                      disabled={adminDeletePunch.isPending}
-                                      title="Clear times"
-                                    >
-                                      <Trash2 className="h-3 w-3 mr-1" />
-                                      Clear
-                                    </Button>
+                                    {p.clockOut ? (
+                                      <TimePicker
+                                        key={`co-${p.id}-${p.clockOut}`}
+                                        value={p.clockOut}
+                                        defaultHour={5}
+                                        defaultMin={0}
+                                        defaultAMPM="PM"
+                                        onChange={(iso) => {
+                                          adminEditPunch.mutate({
+                                            punchId: p.id,
+                                            clockIn: p.clockIn,
+                                            clockOut: iso,
+                                          });
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className="text-xs text-orange-500 italic font-medium">Active</span>
+                                    )}
+                                    <span className="text-sm text-center tabular-nums" title="Auto-calculated from clock times">
+                                      {p.hours ? parseFloat(p.hours).toFixed(1) : "—"}
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+                                        onClick={() => adminDeletePunch.mutate(p.id)}
+                                        disabled={adminDeletePunch.isPending}
+                                        title="Clear times"
+                                      >
+                                        <Trash2 className="h-3 w-3 mr-1" />
+                                        Clear
+                                      </Button>
+                                    </div>
                                   </div>
-                                </div>
-                              ))
+                                ))}
+                                {/* Day total row when multiple punches */}
+                                {dayPunches.length > 1 && (
+                                  <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
+                                    <span></span>
+                                    <span></span>
+                                    <span className="text-xs text-muted-foreground text-right">Day total:</span>
+                                    <span className="text-sm font-semibold text-center tabular-nums">{parseFloat(entry.hours || "0").toFixed(1)}</span>
+                                    <span></span>
+                                  </div>
+                                )}
+                              </>
                             ) : (
                               <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
                                 <span className="text-sm font-medium">{formatDayLabel(entry.entryDate)}</span>
