@@ -89,11 +89,10 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
   const { toast } = useToast();
 
   const [newMessage, setNewMessage] = useState({ subject: "", content: "" });
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const viewport = scrollContainerRef.current?.closest("[data-radix-scroll-area-viewport]");
-    if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   useEffect(() => {
@@ -123,22 +122,22 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="border-0 shadow-sm mt-8">
         <CardContent className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="flex flex-col h-[350px] sm:h-[500px] mt-6">
-      <CardHeader className="flex-none border-b py-3">
-        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-          <MessageCircle className="h-5 w-5" />
+    <Card className="flex flex-col h-[350px] sm:h-[500px] mt-8 border-0 shadow-sm bg-white overflow-hidden">
+      <CardHeader className="flex-none border-b border-gray-100 py-4 px-5">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold text-gray-900">
+          <MessageCircle className="h-5 w-5 text-gray-400" />
           Messages
           {unreadData?.count ? (
-            <Badge variant="destructive" className="ml-2">
+            <Badge className="bg-[hsl(215,30%,35%)] text-white border-0 text-[10px] px-2 py-0">
               {unreadData.count} new
             </Badge>
           ) : null}
@@ -147,10 +146,10 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
       <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
         <ScrollArea className="flex-1 p-4">
           {!messages || messages.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">No messages yet</p>
-              <p className="text-xs">Send a message to contact your project team</p>
+            <div className="text-center py-12 text-gray-400">
+              <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">No messages yet</p>
+              <p className="text-xs mt-1">Send a message to contact your project team</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -162,46 +161,56 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
                   <div
                     className={cn(
                       "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-                      message.sender_type === "client" ? "bg-primary text-primary-foreground" : "bg-muted",
+                      message.sender_type === "client"
+                        ? "bg-[hsl(215,30%,35%)] text-white"
+                        : "bg-gray-100",
                     )}
                   >
-                    {message.sender_type === "client" ? <User className="h-4 w-4" /> : <Building className="h-4 w-4" />}
+                    {message.sender_type === "client" ? (
+                      <User className="h-4 w-4" />
+                    ) : (
+                      <Building className="h-4 w-4 text-gray-500" />
+                    )}
                   </div>
                   <div className={cn("flex-1 max-w-[80%]", message.sender_type === "client" ? "text-right" : "")}>
                     <div
                       className={cn(
-                        "inline-block rounded-lg p-3",
-                        message.sender_type === "client" ? "bg-primary text-primary-foreground" : "bg-muted",
+                        "inline-block rounded-2xl px-4 py-2.5",
+                        message.sender_type === "client"
+                          ? "bg-[hsl(215,30%,35%)] text-white rounded-tr-md"
+                          : "bg-gray-100 text-gray-800 rounded-tl-md",
                       )}
                     >
-                      {message.subject && <p className="font-medium mb-1 text-sm">{message.subject}</p>}
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      {message.subject && (
+                        <p className="font-medium mb-1 text-sm">{message.subject}</p>
+                      )}
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                     </div>
                     <div
                       className={cn(
-                        "flex items-center gap-2 mt-1 text-xs text-muted-foreground",
+                        "flex items-center gap-2 mt-1.5 text-[11px] text-gray-400",
                         message.sender_type === "client" ? "justify-end" : "",
                       )}
                     >
                       <span>{message.sender_type === "admin" ? "Project Team" : "You"}</span>
-                      <span>&bull;</span>
+                      <span className="text-gray-300">&bull;</span>
                       <span>{format(new Date(message.created_at), "MMM d, h:mm a")}</span>
                     </div>
                   </div>
                 </div>
               ))}
-              <div ref={scrollContainerRef} />
+              <div ref={messagesEndRef} />
             </div>
           )}
         </ScrollArea>
 
-        <div className="flex-none border-t p-3">
+        <div className="flex-none border-t border-gray-100 p-4">
           <form onSubmit={handleSend} className="space-y-2">
             <Input
               placeholder="Subject (optional)"
               value={newMessage.subject}
               onChange={(e) => setNewMessage({ ...newMessage, subject: e.target.value })}
-              className="text-sm"
+              className="text-sm h-9 bg-gray-50 border-gray-200"
             />
             <div className="flex gap-2">
               <Textarea
@@ -209,15 +218,19 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
                 value={newMessage.content}
                 onChange={(e) => setNewMessage({ ...newMessage, content: e.target.value })}
                 rows={2}
-                className="flex-1 resize-none text-sm"
+                className="flex-1 resize-none text-sm bg-gray-50 border-gray-200"
               />
               <Button
                 type="submit"
                 size="icon"
-                className="h-auto"
+                className="h-auto bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)]"
                 disabled={sendMessage.isPending || !newMessage.content.trim()}
               >
-                {sendMessage.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sendMessage.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
           </form>
