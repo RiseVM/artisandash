@@ -268,7 +268,7 @@ function EmptyDayTimePicker({
   );
 }
 
-/** Row for days with no punches — lets admin pick times then explicitly add */
+/** Row for days with no punches — auto-saves punch once both times are picked */
 function EmptyDayRow({
   entryDate,
   entryHours,
@@ -284,6 +284,7 @@ function EmptyDayRow({
 }) {
   const [ciTime, setCiTime] = useState<{ h: number; m: number; a: "AM" | "PM" } | null>(null);
   const [coTime, setCoTime] = useState<{ h: number; m: number; a: "AM" | "PM" } | null>(null);
+  const [submitted, setSubmitted] = useState(false);
 
   const buildIso = (h: number, m: number, a: "AM" | "PM") => {
     const { h24 } = hmaTo24(h, m, a);
@@ -292,7 +293,16 @@ function EmptyDayRow({
     return d.toISOString();
   };
 
-  const canAdd = ciTime !== null && coTime !== null;
+  // Auto-save as soon as both times are set
+  const tryAutoSave = (
+    ci: { h: number; m: number; a: "AM" | "PM" } | null,
+    co: { h: number; m: number; a: "AM" | "PM" } | null,
+  ) => {
+    if (ci && co && !submitted) {
+      setSubmitted(true);
+      onAddPunch(buildIso(ci.h, ci.m, ci.a), buildIso(co.h, co.m, co.a));
+    }
+  };
 
   return (
     <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
@@ -302,35 +312,109 @@ function EmptyDayRow({
         defaultHour={9}
         defaultMin={0}
         defaultAMPM="AM"
-        onTimeSet={(h, m, a) => setCiTime({ h, m, a })}
+        onTimeSet={(h, m, a) => {
+          const ci = { h, m, a };
+          setCiTime(ci);
+          tryAutoSave(ci, coTime);
+        }}
       />
       <EmptyDayTimePicker
         punchDate={entryDate}
         defaultHour={5}
         defaultMin={0}
         defaultAMPM="PM"
-        onTimeSet={(h, m, a) => setCoTime({ h, m, a })}
+        onTimeSet={(h, m, a) => {
+          const co = { h, m, a };
+          setCoTime(co);
+          tryAutoSave(ciTime, co);
+        }}
       />
-      <span className="text-sm text-center text-muted-foreground">—</span>
-      <div>
-        {canAdd && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-green-600 hover:text-green-700 hover:bg-green-50 px-2"
-            disabled={isPending}
-            onClick={() => {
-              onAddPunch(
-                buildIso(ciTime.h, ciTime.m, ciTime.a),
-                buildIso(coTime.h, coTime.m, coTime.a),
-              );
-            }}
-          >
-            {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
-            Add
-          </Button>
-        )}
+      <span className="text-sm text-center text-muted-foreground">
+        {isPending ? <Loader2 className="h-3 w-3 animate-spin mx-auto" /> : "—"}
+      </span>
+      <span></span>
+    </div>
+  );
+}
+
+/** Inline row to add a break / additional punch on a day that already has punches */
+function AddBreakRow({
+  entryDate,
+  onAddPunch,
+  isPending,
+}: {
+  entryDate: string;
+  onAddPunch: (clockIn: string, clockOut: string) => void;
+  isPending: boolean;
+}) {
+  const [showPickers, setShowPickers] = useState(false);
+  const [ciTime, setCiTime] = useState<{ h: number; m: number; a: "AM" | "PM" } | null>(null);
+  const [coTime, setCoTime] = useState<{ h: number; m: number; a: "AM" | "PM" } | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  const buildIso = (h: number, m: number, a: "AM" | "PM") => {
+    const { h24 } = hmaTo24(h, m, a);
+    const d = new Date(entryDate + "T12:00:00");
+    d.setHours(h24, m, 0, 0);
+    return d.toISOString();
+  };
+
+  const tryAutoSave = (
+    ci: { h: number; m: number; a: "AM" | "PM" } | null,
+    co: { h: number; m: number; a: "AM" | "PM" } | null,
+  ) => {
+    if (ci && co && !submitted) {
+      setSubmitted(true);
+      onAddPunch(buildIso(ci.h, ci.m, ci.a), buildIso(co.h, co.m, co.a));
+    }
+  };
+
+  if (!showPickers) {
+    return (
+      <div className="grid grid-cols-[90px_1fr] gap-2 items-center mb-1">
+        <span></span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-xs text-muted-foreground hover:text-foreground w-fit px-2"
+          onClick={() => setShowPickers(true)}
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          Add punch
+        </Button>
       </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-[90px_1fr_1fr_70px_70px] gap-2 items-center mb-1">
+      <span></span>
+      <EmptyDayTimePicker
+        punchDate={entryDate}
+        defaultHour={12}
+        defaultMin={0}
+        defaultAMPM="PM"
+        onTimeSet={(h, m, a) => {
+          const ci = { h, m, a };
+          setCiTime(ci);
+          tryAutoSave(ci, coTime);
+        }}
+      />
+      <EmptyDayTimePicker
+        punchDate={entryDate}
+        defaultHour={5}
+        defaultMin={0}
+        defaultAMPM="PM"
+        onTimeSet={(h, m, a) => {
+          const co = { h, m, a };
+          setCoTime(co);
+          tryAutoSave(ciTime, co);
+        }}
+      />
+      <span className="text-sm text-center text-muted-foreground">
+        {isPending ? <Loader2 className="h-3 w-3 animate-spin mx-auto" /> : "—"}
+      </span>
+      <span></span>
     </div>
   );
 }
@@ -962,6 +1046,20 @@ export function TimeManagement() {
                                     <span></span>
                                   </div>
                                 )}
+                                {/* Add another punch / break */}
+                                <AddBreakRow
+                                  key={`abr-${entry.id}-${dayPunches.length}`}
+                                  entryDate={entry.entryDate}
+                                  onAddPunch={(clockIn, clockOut) => {
+                                    adminAddPunch.mutate({
+                                      userId: expandedDetail!.userId,
+                                      punchDate: entry.entryDate,
+                                      clockIn,
+                                      clockOut,
+                                    });
+                                  }}
+                                  isPending={adminAddPunch.isPending}
+                                />
                               </>
                             ) : (
                               <EmptyDayRow
