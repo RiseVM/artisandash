@@ -59,6 +59,13 @@ import { AdminTimesheets } from "@/features/timesheets/AdminTimesheets";
 import { Timecards } from "@/features/timecards/Timecards";
 import { TimeManagement } from "@/features/timecards/TimeManagement";
 
+// Phase 10: Messages, Quotes, Team, Service Catalog
+import { Messages } from "@/features/messages/Messages";
+import { QuoteBuilder } from "@/features/quotes/QuoteBuilder";
+import { Estimates } from "@/features/quotes/Estimates";
+import { TeamResources } from "@/features/team/TeamResources";
+import { ServiceCatalog } from "@/features/admin/ServiceCatalog";
+
 // Placeholder component shown until feature modules are built
 function Placeholder({ name }: { name: string }) {
   return (
@@ -201,6 +208,22 @@ function AdminRouter() {
           <TimeManagement />
         </Route>
 
+        {/* Quotes & Team */}
+        <Route path="/quote-builder">
+          <QuoteBuilder />
+        </Route>
+        <Route path="/estimates">
+          <Estimates />
+        </Route>
+        <Route path="/team">
+          <TeamResources />
+        </Route>
+
+        {/* Messages */}
+        <Route path="/messages">
+          <Messages />
+        </Route>
+
         {/* Admin */}
         <Route path="/admin/users">
           <UserManagement />
@@ -210,6 +233,9 @@ function AdminRouter() {
         </Route>
         <Route path="/admin/bug-reports">
           <BugReports />
+        </Route>
+        <Route path="/admin/service-catalog">
+          <ServiceCatalog />
         </Route>
 
         <Route>
