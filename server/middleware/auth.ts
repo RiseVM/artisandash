@@ -67,17 +67,22 @@ export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  // Lazy import to avoid circular deps
-  const { storage } = await import("../modules/auth/storage");
-  const user = await storage.getUser(req.session.userId);
+  try {
+    // Lazy import to avoid circular deps
+    const { storage } = await import("../modules/auth/storage");
+    const user = await storage.getUser(req.session.userId);
 
-  if (!user || user.isActive !== "yes") {
-    req.session.destroy(() => {});
-    return res.status(401).json({ error: "User account is inactive" });
+    if (!user || user.isActive !== "yes") {
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: "User account is inactive" });
+    }
+
+    req.user = user;
+    next();
+  } catch (err: any) {
+    console.error("[isAuthenticated] Failed to load user:", req.session.userId, err?.message, err?.stack);
+    return res.status(500).json({ error: "Authentication check failed", detail: err?.message });
   }
-
-  req.user = user;
-  next();
 };
 
 /**
@@ -88,15 +93,20 @@ export const isAdmin: RequestHandler = async (req: any, res, next) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  const { storage } = await import("../modules/auth/storage");
-  const user = await storage.getUser(req.session.userId);
+  try {
+    const { storage } = await import("../modules/auth/storage");
+    const user = await storage.getUser(req.session.userId);
 
-  if (!user || user.role !== "admin") {
-    return res.status(403).json({ error: "Admin access required" });
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    req.user = user;
+    next();
+  } catch (err: any) {
+    console.error("[isAdmin] Failed to load user:", req.session.userId, err?.message);
+    return res.status(500).json({ error: "Authentication check failed", detail: err?.message });
   }
-
-  req.user = user;
-  next();
 };
 
 /**
@@ -111,21 +121,26 @@ export const requirePermission = (permission: string): RequestHandler => {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    const { storage } = await import("../modules/auth/storage");
-    const user = await storage.getUser(req.session.userId);
+    try {
+      const { storage } = await import("../modules/auth/storage");
+      const user = await storage.getUser(req.session.userId);
 
-    if (!user || user.isActive !== "yes") {
-      req.session.destroy(() => {});
-      return res.status(401).json({ error: "User account is inactive" });
+      if (!user || user.isActive !== "yes") {
+        req.session.destroy(() => {});
+        return res.status(401).json({ error: "User account is inactive" });
+      }
+
+      req.user = user;
+
+      const hasPermission = await storage.hasPermission(user.role, permission);
+      if (!hasPermission) {
+        return res.status(403).json({ error: `Permission required: ${permission}` });
+      }
+
+      next();
+    } catch (err: any) {
+      console.error("[requirePermission] Failed:", permission, req.session.userId, err?.message);
+      return res.status(500).json({ error: "Authentication check failed", detail: err?.message });
     }
-
-    req.user = user;
-
-    const hasPermission = await storage.hasPermission(user.role, permission);
-    if (!hasPermission) {
-      return res.status(403).json({ error: `Permission required: ${permission}` });
-    }
-
-    next();
   };
 };

@@ -116,7 +116,8 @@ export function Sidebar() {
     { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/team", label: "Team Resources", icon: Users2 },
-    { href: "/timecards", label: "Timecards", icon: Timer },
+    // Timecards page is for non-admin employees (shared kiosk login)
+    ...(!isAdmin ? [{ href: "/timecards", label: "Timecards", icon: Timer }] : []),
     { href: "/messages", label: "Messages", icon: MessageSquare },
   ];
 
@@ -170,7 +171,7 @@ export function Sidebar() {
             </button>
             {clockToggle.isError && (
               <p className="text-[10px] text-red-500 mt-0.5">
-                {clockToggle.error?.message || "Error"}
+                {String(clockToggle.error instanceof Error ? clockToggle.error.message : "Clock error")}
               </p>
             )}
           </div>
