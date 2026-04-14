@@ -385,6 +385,10 @@ export function TimeManagement() {
       if (expandedCard) {
         queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
       }
+      toast({ title: "Entry updated" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update entry", description: String(err.message), variant: "destructive" });
     },
   });
 
@@ -492,8 +496,14 @@ export function TimeManagement() {
 
   const handleAdminBlur = useCallback(
     (entry: TimecardEntry, field: "hours" | "notes", value: string) => {
-      const currentVal = field === "hours" ? entry.hours : (entry.notes || "");
-      if (value === currentVal) return;
+      if (field === "hours") {
+        // Compare numerically to avoid "0.00" vs "0" vs "0.0" mismatches
+        const newVal = parseFloat(value) || 0;
+        const oldVal = parseFloat(entry.hours) || 0;
+        if (newVal === oldVal) return;
+      } else {
+        if (value === (entry.notes || "")) return;
+      }
 
       adminEditEntry.mutate({
         entryId: entry.id,
@@ -791,11 +801,12 @@ export function TimeManagement() {
                                   type="number"
                                   min="0"
                                   max="24"
-                                  step="0.5"
-                                  defaultValue={entry.hours}
+                                  step="0.25"
+                                  defaultValue={parseFloat(entry.hours || "0")}
                                   className="w-16 text-center text-sm h-7"
                                   onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
                                   key={`ah-${entry.id}-${entry.hours}`}
+                                  placeholder="0"
                                 />
                                 <span></span>
                               </div>
