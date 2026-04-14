@@ -267,7 +267,7 @@ function ProjectRequestDialog({
           {/* Error */}
           {mutation.isError && (
             <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
-              {mutation.error?.message || "Something went wrong. Please try again."}
+              {String(mutation.error?.message || "Something went wrong. Please try again.")}
             </div>
           )}
 

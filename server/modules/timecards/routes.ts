@@ -252,10 +252,15 @@ export function registerTimecardRoutes(app: Express) {
     "/api/timecards/admin/notes-count",
     canManageTimecards,
     asyncHandler(async (req: any, res) => {
-      const { weekStartDate } = req.query;
-      if (!weekStartDate) return res.json({ count: 0 });
-      const count = await timecardStorage.getEmployeeNotesCount(weekStartDate as string);
-      res.json({ count });
+      try {
+        const { weekStartDate } = req.query;
+        if (!weekStartDate) return res.json({ count: 0 });
+        const count = await timecardStorage.getEmployeeNotesCount(weekStartDate as string);
+        res.json({ count });
+      } catch (err: any) {
+        console.error("[notes-count] Error:", err?.message);
+        res.json({ count: 0 });
+      }
     }),
   );
 

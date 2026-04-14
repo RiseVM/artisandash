@@ -488,12 +488,12 @@ export function TimeManagement() {
                                 {log.action === "admin_edit" && (
                                   <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-orange-600 border-orange-200">Admin</Badge>
                                 )}
-                                <p className="text-muted-foreground">{log.description}</p>
+                                {log.description && <p className="text-muted-foreground">{String(log.description)}</p>}
                                 {log.oldHours && log.newHours && (
                                   <p className="text-muted-foreground">
-                                    <span className="line-through text-red-400">{log.oldHours}h</span>
+                                    <span className="line-through text-red-400">{String(log.oldHours)}h</span>
                                     <span className="mx-1">→</span>
-                                    <span className="text-green-600 font-medium">{log.newHours}h</span>
+                                    <span className="text-green-600 font-medium">{String(log.newHours)}h</span>
                                   </p>
                                 )}
                               </div>
