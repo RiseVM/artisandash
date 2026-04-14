@@ -105,15 +105,15 @@ export function Sidebar() {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/messages", label: "Messages", icon: MessageSquare },
+    { href: "/new", label: "New Checkout", icon: PlusCircle },
+    { href: "/checkouts", label: "Checkouts", icon: FileText },
     { href: "/projects", label: "Projects", icon: FolderKanban },
     { href: "/quote-builder", label: "Quote Builder", icon: Wrench },
     { href: "/estimates", label: "Quotes", icon: Calculator },
-    { href: "/messages", label: "Messages", icon: MessageSquare },
-    { href: "/customers", label: "Customers", icon: Users },
-    { href: "/new", label: "New Checkout", icon: PlusCircle },
-    { href: "/checkouts", label: "Checkouts", icon: FileText },
     { href: "/contracts", label: "Contracts", icon: ClipboardList },
     { href: "/calendar", label: "Calendar", icon: Calendar },
+    { href: "/customers", label: "Customers", icon: Users },
     { href: "/inventory", label: "Inventory", icon: Package },
     { href: "/team", label: "Team Resources", icon: Users2 },
     // Timecards page is for non-admin employees (shared kiosk login)
