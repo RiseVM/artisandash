@@ -215,7 +215,7 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
-  // GET single timecard with entries + audit log (admin)
+  // GET single timecard with entries + audit log + punches (admin)
   app.get(
     "/api/timecards/admin/:id",
     canManageTimecards,
@@ -225,7 +225,31 @@ export function registerTimecardRoutes(app: Express) {
 
       const card = await timecardStorage.getTimecardWithEntries(timecardId);
       const auditLog = await timecardStorage.getTimecardAuditLog(timecardId);
-      res.json({ ...card, auditLog });
+
+      // Fetch punches for this timecard using raw SQL for reliability
+      let punches: any[] = [];
+      try {
+        const { pool } = await import("../../../db/index");
+        const punchRes = await pool.query(
+          `SELECT id, punch_date, clock_in, clock_out, hours, notes
+           FROM timecard_punches
+           WHERE timecard_id = $1
+           ORDER BY punch_date, clock_in`,
+          [timecardId],
+        );
+        punches = punchRes.rows.map((r: any) => ({
+          id: r.id,
+          punchDate: r.punch_date,
+          clockIn: r.clock_in,
+          clockOut: r.clock_out,
+          hours: r.hours,
+          notes: r.notes,
+        }));
+      } catch (err: any) {
+        console.error("[admin/:id] punches query error:", err?.message);
+      }
+
+      res.json({ ...card, auditLog, punches });
     }),
   );
 

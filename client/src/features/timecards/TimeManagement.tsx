@@ -128,6 +128,15 @@ interface TimecardWithUser {
   };
 }
 
+interface TimecardPunch {
+  id: number;
+  punchDate: string;
+  clockIn: string;
+  clockOut: string | null;
+  hours: string | null;
+  notes: string | null;
+}
+
 interface TimecardDetail {
   id: number;
   userId: string;
@@ -136,6 +145,7 @@ interface TimecardDetail {
   totalHours: string | null;
   entries: TimecardEntry[];
   auditLog: AuditLogEntry[];
+  punches: TimecardPunch[];
 }
 
 // ── Identity Verification Gate ──────────────
@@ -505,8 +515,10 @@ export function TimeManagement() {
                   <div className="border-t">
                     {/* Entries grid */}
                     <div className="px-4 py-2">
-                      <div className="grid grid-cols-[1fr_100px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
+                      <div className="grid grid-cols-[100px_90px_90px_70px_1fr_80px] gap-2 text-xs font-medium text-muted-foreground mb-1">
                         <span>Day</span>
+                        <span className="text-center">Clock In</span>
+                        <span className="text-center">Clock Out</span>
                         <span className="text-center">Hours</span>
                         <span>Notes</span>
                         <span></span>
@@ -515,33 +527,62 @@ export function TimeManagement() {
                         const wasAdminEdited = expandedDetail.auditLog.some(
                           (l) => l.action === "admin_edit" && l.entryDate === entry.entryDate,
                         );
+                        const dayPunches = (expandedDetail.punches || []).filter(
+                          (p) => p.punchDate === entry.entryDate,
+                        );
+                        const formatPunchTime = (iso: string) =>
+                          new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
                         return (
-                          <div key={entry.id} className="grid grid-cols-[1fr_100px_1fr_80px] gap-2 items-center py-1.5 border-b last:border-b-0">
-                            <span className="text-sm">{formatDayLabel(entry.entryDate)}</span>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="24"
-                              step="0.5"
-                              defaultValue={entry.hours}
-                              className="w-20 text-center text-sm"
-                              onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
-                              key={`ah-${entry.id}-${entry.hours}`}
-                            />
-                            <Input
-                              type="text"
-                              placeholder="Notes…"
-                              defaultValue={entry.notes || ""}
-                              className="text-sm"
-                              onBlur={(e) => handleAdminBlur(entry, "notes", e.target.value)}
-                              key={`an-${entry.id}-${entry.notes}`}
-                            />
-                            <div className="flex justify-end">
-                              {wasAdminEdited && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-200">
-                                  Admin edited
-                                </Badge>
-                              )}
+                          <div key={entry.id} className="border-b last:border-b-0">
+                            <div className="grid grid-cols-[100px_90px_90px_70px_1fr_80px] gap-2 items-center py-1.5">
+                              <span className="text-sm">{formatDayLabel(entry.entryDate)}</span>
+                              <div className="text-center text-xs">
+                                {dayPunches.length > 0 ? (
+                                  dayPunches.map((p) => (
+                                    <div key={p.id} className="text-green-600">
+                                      {formatPunchTime(p.clockIn)}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </div>
+                              <div className="text-center text-xs">
+                                {dayPunches.length > 0 ? (
+                                  dayPunches.map((p) => (
+                                    <div key={p.id} className={p.clockOut ? "text-red-600" : "text-orange-500 italic"}>
+                                      {p.clockOut ? formatPunchTime(p.clockOut) : "Active"}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </div>
+                              <Input
+                                type="number"
+                                min="0"
+                                max="24"
+                                step="0.5"
+                                defaultValue={entry.hours}
+                                className="w-16 text-center text-sm"
+                                onBlur={(e) => handleAdminBlur(entry, "hours", e.target.value)}
+                                key={`ah-${entry.id}-${entry.hours}`}
+                              />
+                              <Input
+                                type="text"
+                                placeholder="Notes…"
+                                defaultValue={entry.notes || ""}
+                                className="text-sm"
+                                onBlur={(e) => handleAdminBlur(entry, "notes", e.target.value)}
+                                key={`an-${entry.id}-${entry.notes}`}
+                              />
+                              <div className="flex justify-end">
+                                {wasAdminEdited && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-200">
+                                    Admin edited
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
