@@ -92,10 +92,15 @@ export function registerTimecardRoutes(app: Express) {
         return res.status(400).json({ error: "Cannot edit an approved timecard" });
       }
 
-      const { hours, notes } = req.body;
+      // Employees can only update notes — time edits are admin-only
+      const { notes } = req.body;
       const updated = await timecardStorage.updateTimecardEntry(
         entryId,
-        String(hours ?? found.entry.hours),
+        found.entry.clockIn || null,
+        found.entry.clockOut || null,
+        found.entry.entryType || "work",
+        parseFloat(found.entry.ptoHours || "0"),
+        parseFloat(found.entry.holidayHours || "0"),
         notes !== undefined ? notes : found.entry.notes,
         userId,
       );
@@ -185,12 +190,17 @@ export function registerTimecardRoutes(app: Express) {
       const found = await timecardStorage.getEntryWithTimecard(entryId);
       if (!found) return res.status(404).json({ error: "Entry not found" });
 
-      const { hours, notes } = req.body;
+      const { clockIn, clockOut, entryType, ptoHours, holidayHours, notes, mileage } = req.body;
       const updated = await timecardStorage.adminEditTimecardEntry(
         entryId,
-        String(hours ?? found.entry.hours),
+        clockIn !== undefined ? clockIn : (found.entry.clockIn || null),
+        clockOut !== undefined ? clockOut : (found.entry.clockOut || null),
+        entryType || found.entry.entryType || "work",
+        parseFloat(ptoHours ?? found.entry.ptoHours ?? "0"),
+        parseFloat(holidayHours ?? found.entry.holidayHours ?? "0"),
         notes !== undefined ? notes : found.entry.notes,
         adminId,
+        mileage,
       );
 
       res.json(updated);

@@ -1318,6 +1318,46 @@ export type TimecardAuditLogWithUser = TimecardAuditLog & {
   changedBy: { id: string; firstName: string | null; lastName: string | null; email: string };
 };
 
+// Timecard Recipients (who receives payroll reports)
+export const timecardRecipients = pgTable("timecard_recipients", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  email: varchar("email").notNull(),
+  title: text("title"),
+  isActive: varchar("is_active").notNull().default("yes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type TimecardRecipient = typeof timecardRecipients.$inferSelect;
+
+// Timecard Mileage entries
+export const timecardMileage = pgTable("timecard_mileage", {
+  id: serial("id").primaryKey(),
+  timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
+  entryDate: varchar("entry_date").notNull(),
+  miles: numeric("miles", { precision: 6, scale: 1 }),
+  purpose: text("purpose"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_mileage_timecard_id").on(table.timecardId),
+]);
+
+export type TimecardMileage = typeof timecardMileage.$inferSelect;
+
+// Payroll Contacts (general payroll email recipients)
+export const payrollContacts = pgTable("payroll_contacts", {
+  id: serial("id").primaryKey(),
+  name: varchar("name").notNull(),
+  email: varchar("email").notNull(),
+  isActive: varchar("is_active").notNull().default("yes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type PayrollContact = typeof payrollContacts.$inferSelect;
+
 // ============================================
 // PROJECT REQUESTS (Client Portal)
 // ============================================
