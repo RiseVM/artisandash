@@ -349,98 +349,29 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-primary">Dashboard</h1>
-          <p className="text-muted-foreground">Overview of checkouts and returns.</p>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <ClipboardList className="h-6 w-6" /> Checkouts
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {stats.activeCount} active{stats.overdueCount > 0 ? ` · ${stats.overdueCount} overdue` : ""} · {returnedCheckouts.length} returned
+          </p>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Active Checkouts</p>
-                <p className="text-3xl font-bold text-primary">{stats.activeCount}</p>
-              </div>
-              <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                <ClipboardList className="h-6 w-6 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Overdue Items</p>
-                <p className={`text-3xl font-bold ${stats.overdueCount > 0 ? "text-red-600" : "text-primary"}`}>{stats.overdueCount}</p>
-              </div>
-              <div className={`h-12 w-12 rounded-full ${stats.overdueCount > 0 ? "bg-red-100" : "bg-gray-100"} flex items-center justify-center`}>
-                <AlertTriangle className={`h-6 w-6 ${stats.overdueCount > 0 ? "text-red-600" : "text-gray-400"}`} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Link href="/contracts">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Contracts This Month</p>
-                  <p className="text-3xl font-bold text-primary">{stats.contractsThisMonth}</p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <Link href="/new">
+          <Button><Package className="h-4 w-4 mr-2" /> New Checkout</Button>
         </Link>
       </div>
 
-      {/* Recent Activity */}
-      {recentActivity.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-lg">Recent Activity</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentActivity.map((activity) => {
-                const Icon = activity.icon;
-                const handleClick = () => {
-                  if (activity.checkoutId) {
-                    const sample = checkouts.find((c) => c.id === activity.checkoutId);
-                    if (sample) openEditDialog(sample);
-                  } else if (activity.href) {
-                    setLocation(activity.href);
-                  }
-                };
-                return (
-                  <div key={activity.id} className="flex items-center gap-3 text-sm cursor-pointer rounded-md px-2 py-1 -mx-2 hover:bg-muted/50 transition-colors" onClick={handleClick}>
-                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                      <Icon className={`h-4 w-4 ${activity.color}`} />
-                    </div>
-                    <div className="flex-1 min-w-0"><p className="truncate">{activity.description}</p></div>
-                    <div className="text-xs text-muted-foreground flex-shrink-0">{formatShortDateEST(format(activity.date, "yyyy-MM-dd"))}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Search & Sort */}
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search checkouts..." className="pl-8 bg-card" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="h-4 w-4 text-muted-foreground" />
+      {/* Search, Sort, Bulk Actions */}
+      <div className="bg-card border rounded-lg p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-center">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search customers, samples, emails..." className="pl-8" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
           <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Sort by" /></SelectTrigger>
             <SelectContent>
@@ -450,35 +381,32 @@ export function Dashboard() {
             </SelectContent>
           </Select>
         </div>
+
+        {selectedIds.size > 0 && (
+          <div className="flex items-center justify-between p-3 bg-muted rounded-md">
+            <span className="text-sm font-medium">{selectedIds.size} sample{selectedIds.size > 1 ? "s" : ""} selected</span>
+            <Button size="sm" onClick={handleBulkReturn} disabled={isBulkReturning}>
+              {isBulkReturning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Mark as Returned</>}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
+        <TabsList className="mb-2">
           <TabsTrigger value="active">Active ({activeCheckouts.length})</TabsTrigger>
           <TabsTrigger value="returned">Returned ({returnedCheckouts.length})</TabsTrigger>
           <TabsTrigger value="all">All ({checkouts.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="active">
-          <Card>
-            <CardContent className="pt-6">
-              {selectedIds.size > 0 && (
-                <div className="flex items-center justify-between mb-4 p-3 bg-muted rounded-md">
-                  <span className="text-sm font-medium">{selectedIds.size} sample{selectedIds.size > 1 ? "s" : ""} selected</span>
-                  <Button onClick={handleBulkReturn} disabled={isBulkReturning}>
-                    {isBulkReturning ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing...</> : <><CheckCircle2 className="mr-2 h-4 w-4" />Mark Selected as Returned</>}
-                  </Button>
-                </div>
-              )}
-              <CheckoutTable data={activeCheckouts} showCheckboxes={true} />
-            </CardContent>
-          </Card>
+          <CheckoutTable data={activeCheckouts} showCheckboxes={true} />
         </TabsContent>
         <TabsContent value="returned">
-          <Card><CardContent className="pt-6"><CheckoutTable data={returnedCheckouts} /></CardContent></Card>
+          <CheckoutTable data={returnedCheckouts} />
         </TabsContent>
         <TabsContent value="all">
-          <Card><CardContent className="pt-6"><CheckoutTable data={filterAndSort(checkouts)} showCheckboxes={true} /></CardContent></Card>
+          <CheckoutTable data={filterAndSort(checkouts)} showCheckboxes={true} />
         </TabsContent>
       </Tabs>
 
