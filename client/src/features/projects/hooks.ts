@@ -815,6 +815,8 @@ export function useMarkMessagesRead() {
     onSuccess: (_, { projectId }) => {
       qc.invalidateQueries({ queryKey: ["projects", projectId, "messages"] });
       qc.invalidateQueries({ queryKey: ["projects", projectId, "messages", "unreadCount"] });
+      qc.invalidateQueries({ queryKey: ["/api/messages/unified-unread"] });
+      qc.invalidateQueries({ queryKey: ["/api/messages/client-messages"] });
     },
   });
 }
