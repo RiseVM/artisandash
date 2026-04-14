@@ -294,6 +294,24 @@ export function TimeManagement() {
     },
   });
 
+  // Mutation: admin edit punch time
+  const adminEditPunch = useMutation({
+    mutationFn: async ({ punchId, clockIn, clockOut }: { punchId: number; clockIn: string; clockOut: string | null }) => {
+      const res = await apiRequest("PATCH", `/api/timecards/admin/punches/${punchId}`, { clockIn, clockOut });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      if (expandedCard) {
+        queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
+      }
+      toast({ title: "Punch time updated" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update punch", description: String(err.message), variant: "destructive" });
+    },
+  });
+
   // Mutation: approve
   const approveTimecard = useMutation({
     mutationFn: async (timecardId: number) => {
@@ -587,26 +605,65 @@ export function TimeManagement() {
                           <div key={entry.id} className="border-b last:border-b-0">
                             <div className="grid grid-cols-[100px_90px_90px_70px_1fr_80px] gap-2 items-center py-1.5">
                               <span className="text-sm">{formatDayLabel(entry.entryDate)}</span>
-                              <div className="text-center text-xs">
+                              <div className="text-center">
                                 {dayPunches.length > 0 ? (
-                                  dayPunches.map((p) => (
-                                    <div key={p.id} className="text-green-600">
-                                      {formatPunchTime(p.clockIn)}
-                                    </div>
-                                  ))
+                                  dayPunches.map((p) => {
+                                    const ciDate = new Date(p.clockIn);
+                                    const ciTime = `${String(ciDate.getHours()).padStart(2, "0")}:${String(ciDate.getMinutes()).padStart(2, "0")}`;
+                                    return (
+                                      <Input
+                                        key={`ci-${p.id}`}
+                                        type="time"
+                                        defaultValue={ciTime}
+                                        className="w-[90px] text-xs text-center h-7"
+                                        onBlur={(e) => {
+                                          if (e.target.value === ciTime) return;
+                                          const [h, m] = e.target.value.split(":");
+                                          const newCi = new Date(ciDate);
+                                          newCi.setHours(parseInt(h), parseInt(m), 0, 0);
+                                          adminEditPunch.mutate({
+                                            punchId: p.id,
+                                            clockIn: newCi.toISOString(),
+                                            clockOut: p.clockOut || null,
+                                          });
+                                        }}
+                                      />
+                                    );
+                                  })
                                 ) : (
-                                  <span className="text-muted-foreground">—</span>
+                                  <span className="text-xs text-muted-foreground">—</span>
                                 )}
                               </div>
-                              <div className="text-center text-xs">
+                              <div className="text-center">
                                 {dayPunches.length > 0 ? (
-                                  dayPunches.map((p) => (
-                                    <div key={p.id} className={p.clockOut ? "text-red-600" : "text-orange-500 italic"}>
-                                      {p.clockOut ? formatPunchTime(p.clockOut) : "Active"}
-                                    </div>
-                                  ))
+                                  dayPunches.map((p) => {
+                                    if (!p.clockOut) {
+                                      return <span key={`co-${p.id}`} className="text-xs text-orange-500 italic">Active</span>;
+                                    }
+                                    const coDate = new Date(p.clockOut);
+                                    const coTime = `${String(coDate.getHours()).padStart(2, "0")}:${String(coDate.getMinutes()).padStart(2, "0")}`;
+                                    return (
+                                      <Input
+                                        key={`co-${p.id}`}
+                                        type="time"
+                                        defaultValue={coTime}
+                                        className="w-[90px] text-xs text-center h-7"
+                                        onBlur={(e) => {
+                                          if (e.target.value === coTime) return;
+                                          const [h, m] = e.target.value.split(":");
+                                          const newCo = new Date(coDate);
+                                          newCo.setHours(parseInt(h), parseInt(m), 0, 0);
+                                          adminEditPunch.mutate({
+                                            punchId: p.id,
+                                            clockIn: p.clockIn,
+                                            clockOut: newCo.toISOString(),
+                                          });
+                                        }}
+                                      />
+                                    );
+                                  })
                                 ) : (
-                                  <span className="text-muted-foreground">—</span>
+                                  <span className="text-xs text-muted-foreground">—</span>
                                 )}
                               </div>
                               <Input
