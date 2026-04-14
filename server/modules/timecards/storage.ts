@@ -185,6 +185,7 @@ export const timecardStorage = {
           lastName: users.lastName,
           email: users.email,
         },
+        role: users.role,
       })
       .from(timecards)
       .innerJoin(users, eq(timecards.userId, users.id))
@@ -192,6 +193,8 @@ export const timecardStorage = {
 
     const mapped = rows
       .filter((r) => {
+        // Exclude admin users from the employee list
+        if (r.role === "admin") return false;
         if (filters?.weekStartDate && r.card.weekStartDate !== filters.weekStartDate) return false;
         if (filters?.userId && r.card.userId !== filters.userId) return false;
         if (filters?.status && r.card.status !== filters.status) return false;
@@ -909,10 +912,10 @@ export const timecardStorage = {
 
   // ── ADMIN: ALL EMPLOYEES CLOCK STATUS ─────
 
-  /** Get current clock status for all active employees */
+  /** Get current clock status for all active non-admin employees */
   async getAllEmployeesClockStatus(): Promise<Array<{
     user: { id: string; firstName: string | null; lastName: string | null; email: string };
-    openPunch: TimecardPunch | null;
+    openPunch: { id: number; clockIn: string; clockOut: string | null; punchDate: string; timecardId: number } | null;
     todayHours: number;
   }>> {
     const allUsers = await db
@@ -921,6 +924,7 @@ export const timecardStorage = {
         firstName: users.firstName,
         lastName: users.lastName,
         email: users.email,
+        role: users.role,
       })
       .from(users)
       .where(eq(users.isActive, "yes"))
@@ -929,38 +933,54 @@ export const timecardStorage = {
     const todayIso = new Date().toISOString().split("T")[0];
     const results: Array<{
       user: { id: string; firstName: string | null; lastName: string | null; email: string };
-      openPunch: TimecardPunch | null;
+      openPunch: { id: number; clockIn: string; clockOut: string | null; punchDate: string; timecardId: number } | null;
       todayHours: number;
     }> = [];
 
     for (const u of allUsers) {
-      // Get open punch
-      const [openPunch] = await db
-        .select()
-        .from(timecardPunches)
-        .where(
-          and(
-            eq(timecardPunches.userId, u.id),
-            sql`${timecardPunches.clockOut} IS NULL`,
-          ),
-        )
-        .orderBy(desc(timecardPunches.clockIn))
-        .limit(1);
+      // Skip admin users
+      if (u.role === "admin") continue;
 
-      // Get today's completed punches for total
-      const todayPunches = await db
-        .select()
-        .from(timecardPunches)
-        .where(
-          and(
-            eq(timecardPunches.userId, u.id),
-            eq(timecardPunches.punchDate, todayIso),
-          ),
-        );
+      try {
+        // Get open punch — select only specific columns to avoid schema mismatches
+        const [openPunch] = await db
+          .select({
+            id: timecardPunches.id,
+            clockIn: timecardPunches.clockIn,
+            clockOut: timecardPunches.clockOut,
+            punchDate: timecardPunches.punchDate,
+            timecardId: timecardPunches.timecardId,
+          })
+          .from(timecardPunches)
+          .where(
+            and(
+              eq(timecardPunches.userId, u.id),
+              sql`${timecardPunches.clockOut} IS NULL`,
+            ),
+          )
+          .orderBy(desc(timecardPunches.clockIn))
+          .limit(1);
 
-      const todayHours = todayPunches.reduce((sum, p) => sum + parseFloat(p.hours || "0"), 0);
+        // Get today's completed punches for total
+        const todayPunches = await db
+          .select({
+            hours: timecardPunches.hours,
+          })
+          .from(timecardPunches)
+          .where(
+            and(
+              eq(timecardPunches.userId, u.id),
+              eq(timecardPunches.punchDate, todayIso),
+            ),
+          );
 
-      results.push({ user: u, openPunch: openPunch || null, todayHours });
+        const todayHours = todayPunches.reduce((sum, p) => sum + parseFloat(String(p.hours) || "0"), 0);
+
+        results.push({ user: { id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email }, openPunch: openPunch || null, todayHours });
+      } catch (err: any) {
+        console.error(`[clock-status] Error for user ${u.id}:`, err?.message);
+        results.push({ user: { id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email }, openPunch: null, todayHours: 0 });
+      }
     }
 
     return results;

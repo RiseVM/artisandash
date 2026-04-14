@@ -280,8 +280,13 @@ export function registerTimecardRoutes(app: Express) {
     "/api/timecards/admin/clock-status",
     canManageTimecards,
     asyncHandler(async (_req: any, res) => {
-      const statuses = await timecardStorage.getAllEmployeesClockStatus();
-      res.json(statuses);
+      try {
+        const statuses = await timecardStorage.getAllEmployeesClockStatus();
+        res.json(statuses);
+      } catch (err: any) {
+        console.error("[admin/clock-status] Error:", err?.message, err?.stack);
+        res.json([]);
+      }
     }),
   );
 

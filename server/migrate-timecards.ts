@@ -66,6 +66,13 @@ export async function migrateTimecards() {
     await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS entry_date TEXT`).catch(() => {});
     await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS previous_value TEXT`).catch(() => {});
     await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS new_value TEXT`).catch(() => {});
+    // Drizzle schema expects changed_at, not created_at
+    await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS changed_at TIMESTAMP DEFAULT now()`).catch(() => {});
+    // Drizzle schema expects old_hours, new_hours, old_notes, new_notes
+    await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS old_hours NUMERIC(4,2)`).catch(() => {});
+    await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS new_hours NUMERIC(4,2)`).catch(() => {});
+    await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS old_notes TEXT`).catch(() => {});
+    await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS new_notes TEXT`).catch(() => {});
     await client.query(`CREATE INDEX IF NOT EXISTS "IDX_timecard_audit_log_timecard_id" ON timecard_audit_log(timecard_id)`);
 
     // ── timecard_recipients table ──
