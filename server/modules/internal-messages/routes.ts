@@ -95,6 +95,20 @@ export function registerInternalMessageRoutes(app: Express) {
     }),
   );
 
+  // ── POST /api/internal-messages/:id/unread ──
+  app.post(
+    "/api/internal-messages/:id/unread",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid message ID" });
+
+      const userId = req.user?.id;
+      await storage.markThreadAsUnread(id, userId);
+      res.json({ success: true });
+    }),
+  );
+
   // ── GET /api/messages/unified-unread ──────
   // Combined unread count from internal messages + project client messages
   app.get(

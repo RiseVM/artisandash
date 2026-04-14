@@ -51,6 +51,18 @@ export function useMarkThreadRead() {
     mutationFn: (id: number) => api.post(`/api/internal-messages/${id}/read`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["internalMessages"] });
+      qc.invalidateQueries({ queryKey: ["/api/messages/unified-unread"] });
+    },
+  });
+}
+
+export function useMarkThreadUnread() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.post(`/api/internal-messages/${id}/unread`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["internalMessages"] });
+      qc.invalidateQueries({ queryKey: ["/api/messages/unified-unread"] });
     },
   });
 }

@@ -157,4 +157,34 @@ export const storage = {
       await this.markAsRead(reply.id, userId);
     }
   },
+
+  // ── Mark as unread ─────────────────────────────
+  async markAsUnread(id: number, userId: string): Promise<InternalMessage | undefined> {
+    const [msg] = await db.select().from(internalMessages).where(eq(internalMessages.id, id));
+    if (!msg) return undefined;
+
+    const readBy = Array.isArray(msg.read_by) ? (msg.read_by as string[]).filter((uid) => uid !== userId) : [];
+
+    const [updated] = await db
+      .update(internalMessages)
+      .set({ read_by: readBy, updated_at: new Date() })
+      .where(eq(internalMessages.id, id))
+      .returning();
+
+    return updated;
+  },
+
+  // ── Mark thread as unread ────────────────────────
+  async markThreadAsUnread(threadId: number, userId: string): Promise<void> {
+    await this.markAsUnread(threadId, userId);
+
+    const replies = await db
+      .select()
+      .from(internalMessages)
+      .where(eq(internalMessages.parent_id, threadId));
+
+    for (const reply of replies) {
+      await this.markAsUnread(reply.id, userId);
+    }
+  },
 };

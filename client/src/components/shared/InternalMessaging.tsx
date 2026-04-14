@@ -4,6 +4,7 @@ import {
   useSendInternalMessage,
   useDeleteInternalMessage,
   useMarkThreadRead,
+  useMarkThreadUnread,
 } from "@/features/messages/hooks";
 import { useAuth } from "@/features/auth/hooks";
 import { useToast } from "@/hooks/use-toast";
@@ -36,6 +37,8 @@ import {
   Circle,
   AlertCircle,
   ArrowUp,
+  Mail,
+  MailOpen,
 } from "lucide-react";
 import type { InternalMessageThread, InternalMessageWithUser } from "@shared/schema";
 
@@ -65,6 +68,7 @@ export function InternalMessaging({ compact = false, projectId }: InternalMessag
   const sendMutation = useSendInternalMessage();
   const deleteMutation = useDeleteInternalMessage();
   const markReadMutation = useMarkThreadRead();
+  const markUnreadMutation = useMarkThreadUnread();
 
   const [selectedThreadId, setSelectedThreadId] = useState<number | null>(null);
   const [isNewThreadOpen, setIsNewThreadOpen] = useState(false);
@@ -269,7 +273,7 @@ export function InternalMessaging({ compact = false, projectId }: InternalMessag
             {threads.map((thread) => (
               <div
                 key={thread.id}
-                className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-l-4 ${
+                className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-l-4 group ${
                   priorityBorder[thread.priority]
                 } ${isUnread(thread) ? "bg-blue-50/50" : ""}`}
                 onClick={() => setSelectedThreadId(thread.id)}
@@ -303,6 +307,26 @@ export function InternalMessaging({ compact = false, projectId }: InternalMessag
                 <Badge className={`text-xs shrink-0 ${priorityColors[thread.priority]}`}>
                   {thread.priority}
                 </Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title={isUnread(thread) ? "Mark as read" : "Mark as unread"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isUnread(thread)) {
+                      markReadMutation.mutate(thread.id);
+                    } else {
+                      markUnreadMutation.mutate(thread.id);
+                    }
+                  }}
+                >
+                  {isUnread(thread) ? (
+                    <MailOpen className="h-3.5 w-3.5 text-muted-foreground" />
+                  ) : (
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </Button>
               </div>
             ))}
           </div>
