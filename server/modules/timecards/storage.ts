@@ -567,6 +567,21 @@ export const timecardStorage = {
       .orderBy(users.lastName);
   },
 
+  /** Ensure every active non-admin employee has a draft timecard for the given week */
+  async ensureTimecardsForWeek(weekStartDate: string): Promise<void> {
+    const activeUsers = await this.getAllActiveUsers();
+    for (const u of activeUsers) {
+      // Skip admin users — they don't need timecards
+      const [fullUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, u.id));
+      if (fullUser?.role === "admin") continue;
+
+      const existing = await this.getTimecardByUserAndWeek(u.id, weekStartDate);
+      if (!existing) {
+        await this.getOrCreateTimecard(u.id, weekStartDate);
+      }
+    }
+  },
+
   // ── FIND ENTRY WITH OWNERSHIP ─────────────
 
   async getEntryWithTimecard(

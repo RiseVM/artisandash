@@ -146,11 +146,22 @@ export function registerTimecardRoutes(app: Express) {
   // ── ADMIN ROUTES ──────────────────────────
 
   // GET all timecards with user info (filterable)
+  // Auto-creates draft timecards for all active employees when viewing a specific week
   app.get(
     "/api/timecards/admin/all",
     canManageTimecards,
     asyncHandler(async (req: any, res) => {
       const { weekStartDate, userId, status } = req.query;
+
+      // Auto-ensure timecards exist for all employees for the selected week
+      if (weekStartDate && !userId) {
+        try {
+          await timecardStorage.ensureTimecardsForWeek(weekStartDate as string);
+        } catch (err: any) {
+          console.error("[admin/all] ensureTimecardsForWeek error:", err?.message);
+        }
+      }
+
       const cards = await timecardStorage.getAllTimecardsWithUsers({
         weekStartDate: weekStartDate as string | undefined,
         userId: userId as string | undefined,
