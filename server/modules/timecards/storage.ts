@@ -699,6 +699,25 @@ export const timecardStorage = {
     return punch;
   },
 
+  /** Log when admin clocks someone in/out on their behalf */
+  async logAdminClockAction(
+    timecardId: number,
+    adminId: string,
+    employeeId: string,
+    action: string,
+    punchDate: string,
+  ): Promise<void> {
+    const [admin] = await db.select({ firstName: users.firstName, lastName: users.lastName }).from(users).where(eq(users.id, adminId));
+    const adminName = [admin?.firstName, admin?.lastName].filter(Boolean).join(" ") || "Admin";
+    await db.insert(timecardAuditLog).values({
+      timecardId,
+      changedById: adminId,
+      action,
+      entryDate: punchDate,
+      description: `${adminName} ${action === "admin_clock_in" ? "clocked in" : "clocked out"} employee`,
+    });
+  },
+
   /** Recalculate a day's total hours from all completed punches and update the timecard entry */
   async recalcDayFromPunches(timecardId: number, punchDate: string, userId: string): Promise<void> {
     // Sum all completed punches for this day

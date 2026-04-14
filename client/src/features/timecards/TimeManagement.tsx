@@ -24,7 +24,10 @@ import {
   ShieldCheck,
   Loader2,
   Clock,
+  Play,
+  Square,
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // ── Helpers ─────────────────────────────────
 
@@ -225,6 +228,7 @@ function AdminIdentityGate({ onVerified }: { onVerified: (user: VerifiedUser) =>
 
 export function TimeManagement() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [currentMonday, setCurrentMonday] = useState(() => formatIso(getMonday(new Date())));
   const [userFilter, setUserFilter] = useState("all");
@@ -296,6 +300,22 @@ export function TimeManagement() {
       if (expandedCard) {
         queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/" + expandedCard] });
       }
+    },
+  });
+
+  // Mutation: admin clock in/out an employee
+  const adminClock = useMutation({
+    mutationFn: async ({ userId, action, name }: { userId: string; action: "in" | "out"; name: string }) => {
+      const res = await apiRequest("POST", `/api/timecards/admin/clock-${action}`, { userId });
+      return { ...(await res.json()), name, action };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/clock-status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
+      toast({ title: `${data.name} clocked ${data.action}`, description: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Clock action failed", description: String(err.message), variant: "destructive" });
     },
   });
 
@@ -439,11 +459,42 @@ export function TimeManagement() {
                   <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
                   {statusBadge(card.status)}
 
-                  {card.status === "submitted" && (
+                  {/* Admin clock in/out */}
+                  {isClockedIn ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        adminClock.mutate({ userId: card.userId, action: "out", name: fullName(card.user) });
+                      }}
+                      disabled={adminClock.isPending}
+                    >
+                      <Square className="h-3 w-3 mr-1 fill-current" />
+                      Clock Out
+                    </Button>
+                  ) : (
                     <Button
                       size="sm"
                       variant="outline"
                       className="text-green-600 border-green-200 hover:bg-green-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        adminClock.mutate({ userId: card.userId, action: "in", name: fullName(card.user) });
+                      }}
+                      disabled={adminClock.isPending}
+                    >
+                      <Play className="h-3 w-3 mr-1 fill-current" />
+                      Clock In
+                    </Button>
+                  )}
+
+                  {card.status === "submitted" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-blue-600 border-blue-200 hover:bg-blue-50"
                       onClick={(e) => {
                         e.stopPropagation();
                         approveTimecard.mutate(card.id);

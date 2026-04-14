@@ -285,6 +285,49 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // POST admin clock in an employee
+  app.post(
+    "/api/timecards/admin/clock-in",
+    canManageTimecards,
+    asyncHandler(async (req: any, res) => {
+      const adminId = req.user?.id;
+      if (!adminId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ error: "userId required" });
+
+      try {
+        const punch = await timecardStorage.clockIn(userId);
+        // Audit log the admin action
+        await timecardStorage.logAdminClockAction(punch.timecardId, adminId, userId, "admin_clock_in", punch.punchDate);
+        res.json(punch);
+      } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+      }
+    }),
+  );
+
+  // POST admin clock out an employee
+  app.post(
+    "/api/timecards/admin/clock-out",
+    canManageTimecards,
+    asyncHandler(async (req: any, res) => {
+      const adminId = req.user?.id;
+      if (!adminId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ error: "userId required" });
+
+      try {
+        const punch = await timecardStorage.clockOut(userId);
+        await timecardStorage.logAdminClockAction(punch.timecardId, adminId, userId, "admin_clock_out", punch.punchDate);
+        res.json(punch);
+      } catch (err: any) {
+        return res.status(400).json({ error: err.message });
+      }
+    }),
+  );
+
   // ── CLOCK IN/OUT ROUTES ─────────────────
 
   // GET clock status for current user
