@@ -18,7 +18,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDateEST } from "@/lib/utils";
-import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus, PenLine, Printer, Send, Mail, UserPlus, Bath, Wrench, BookOpen, ShieldCheck } from "lucide-react";
+import { Search, ClipboardList, Trash2, Eye, Loader2, ExternalLink, FileText, Home, Plus, PenLine, Printer, Send, Mail, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Contract } from "@shared/schema";
 
@@ -37,10 +37,6 @@ export function Contracts() {
   const getContractTypeName = (type: string) => {
     if (type === 'custom_cabinetry') return 'Cabinet Design & Layout Agreement';
     if (type === 'kitchen_design_retainer') return 'Kitchen Design Retainer';
-    if (type === 'bathroom_remodel_checklist') return 'Bathroom Remodel Checklist';
-    if (type === 'bathroom_scope_of_work') return 'Bathroom Scope of Work';
-    if (type === 'bathroom_remodel_instructions') return 'Bathroom Remodel Instructions';
-    if (type === 'bathroom_permit_checklist') return 'Bathroom Permit Checklist';
     return 'Home Improvement Contract';
   };
 
@@ -200,86 +196,6 @@ export function Contracts() {
               <Button className="w-full" data-testid="button-new-kitchen-design-retainer">
                 <Plus className="h-4 w-4 mr-2" />
                 Create New Agreement
-              </Button>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/contracts/bathroom-remodel-checklist">
-          <Card className="cursor-pointer hover:border-primary transition-colors">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bath className="h-5 w-5" />
-                Bathroom Remodel Checklist
-              </CardTitle>
-              <CardDescription>
-                Tailored project checklist covering permits, planning, demolition, rough-in, finishing, and final inspection.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Checklist
-              </Button>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/contracts/bathroom-scope-of-work">
-          <Card className="cursor-pointer hover:border-primary transition-colors">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wrench className="h-5 w-5" />
-                Bathroom Scope of Work
-              </CardTitle>
-              <CardDescription>
-                Formal scope of work for bathroom gut renovation — demolition, plumbing, electrical, tile, and all finish work.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New SOW
-              </Button>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/contracts/bathroom-remodel-instructions">
-          <Card className="cursor-pointer hover:border-primary transition-colors">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="h-5 w-5" />
-                Bathroom Remodel Instructions
-              </CardTitle>
-              <CardDescription>
-                Site assessment, measurements, trade scheduling, design selections, and showroom appointments.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Instructions
-              </Button>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/contracts/bathroom-permit-checklist">
-          <Card className="cursor-pointer hover:border-primary transition-colors">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-5 w-5" />
-                Bathroom Permit Checklist
-              </CardTitle>
-              <CardDescription>
-                Guilford, CT permit checklist — required permits, application submission, inspections, and completion.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full">
-                <Plus className="h-4 w-4 mr-2" />
-                Create New Checklist
               </Button>
             </CardContent>
           </Card>
