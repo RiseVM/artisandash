@@ -52,6 +52,10 @@ import { Contracts } from "@/features/contracts/Contracts";
 import { CabinetryContractForm } from "@/features/contracts/CabinetryContractForm";
 import { HomeImprovementContractForm } from "@/features/contracts/HomeImprovementContractForm";
 import { KitchenDesignRetainerForm } from "@/features/contracts/KitchenDesignRetainerForm";
+import { BathroomRemodelChecklistForm } from "@/features/contracts/BathroomRemodelChecklistForm";
+import { BathroomScopeOfWorkForm } from "@/features/contracts/BathroomScopeOfWorkForm";
+import { BathroomRemodelInstructionsForm } from "@/features/contracts/BathroomRemodelInstructionsForm";
+import { BathroomPermitChecklistForm } from "@/features/contracts/BathroomPermitChecklistForm";
 import { RemoteSign } from "@/features/RemoteSign";
 
 // Phase 8: Timesheets
@@ -189,6 +193,18 @@ function AdminRouter() {
         </Route>
         <Route path="/contracts/kitchen-design-retainer">
           <KitchenDesignRetainerForm />
+        </Route>
+        <Route path="/contracts/bathroom-remodel-checklist">
+          <BathroomRemodelChecklistForm />
+        </Route>
+        <Route path="/contracts/bathroom-scope-of-work">
+          <BathroomScopeOfWorkForm />
+        </Route>
+        <Route path="/contracts/bathroom-remodel-instructions">
+          <BathroomRemodelInstructionsForm />
+        </Route>
+        <Route path="/contracts/bathroom-permit-checklist">
+          <BathroomPermitChecklistForm />
         </Route>
 
         {/* Projects */}
