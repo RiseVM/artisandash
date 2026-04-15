@@ -72,6 +72,7 @@ import { CatalogSettings } from "@/features/admin/CatalogSettings";
 // Phase 11: Team
 import { TeamResources } from "@/features/team/TeamResources";
 import { TeamMemberDetail } from "@/features/team/TeamMemberDetail";
+import { AdminOnboarding } from "@/features/team/AdminOnboarding";
 
 // Placeholder component shown until feature modules are built
 function Placeholder({ name }: { name: string }) {
@@ -245,6 +246,9 @@ function AdminRouter() {
         </Route>
 
         {/* Admin */}
+        <Route path="/admin/onboarding">
+          <AdminOnboarding />
+        </Route>
         <Route path="/admin/users">
           <UserManagement />
         </Route>

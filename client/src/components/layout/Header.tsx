@@ -20,6 +20,7 @@ import {
   Timer,
   MessageSquare,
   Wrench,
+  UserPlus,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks";
 
@@ -51,6 +52,7 @@ export function Header() {
 
   const adminItems: NavItem[] = [
     ...(isAdmin ? [{ href: "/time-management", label: "Time Management", icon: Clock }] : []),
+    ...(isAdmin ? [{ href: "/admin/onboarding", label: "New Member Setup", icon: UserPlus }] : []),
     ...(isAdmin ? [{ href: "/admin/users", label: "User Management", icon: Shield }] : []),
     ...(isAdmin ? [{ href: "/admin/activity", label: "Activity Reports", icon: Activity }] : []),
     ...(hasPermission("view_bug_reports") ? [{ href: "/admin/bug-reports", label: "Bug Reports", icon: Bug }] : []),
