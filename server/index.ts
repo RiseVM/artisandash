@@ -85,6 +85,9 @@ declare module "http" {
     const { migrateTimecards } = await import("./migrate-timecards");
     await migrateTimecards();
 
+    const { migrateBathroomResources } = await import("./migrate-bathroom-resources");
+    await migrateBathroomResources();
+
     // ------------------------------------
     // Route registration
     // ------------------------------------
