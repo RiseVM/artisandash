@@ -152,7 +152,19 @@ export function TeamResources() {
   };
 
   const getViewerUrl = (r: TeamResource): string | null => {
-    if (r.file_url) return r.file_url;
+    // For file-based resources, route through the backend API
+    if (r.file_name) {
+      return `/api/team/resources/file/${encodeURIComponent(r.file_name)}`;
+    }
+    if (r.file_url) {
+      // Extract filename from path-style file_url (e.g. "/resources/foo.pdf" → "foo.pdf")
+      const segments = r.file_url.split("/");
+      const filename = segments[segments.length - 1];
+      if (filename) {
+        return `/api/team/resources/file/${encodeURIComponent(filename)}`;
+      }
+      return r.file_url;
+    }
     if (r.external_url) return r.external_url;
     return null;
   };
@@ -160,6 +172,11 @@ export function TeamResources() {
   const isPdf = (r: TeamResource): boolean => {
     const name = r.file_url || r.file_name || r.title || "";
     return /\.(pdf)$/i.test(name);
+  };
+
+  const isDocx = (r: TeamResource): boolean => {
+    const name = r.file_url || r.file_name || r.title || "";
+    return /\.(docx?|doc)$/i.test(name);
   };
 
   const handleCreate = async () => {
@@ -405,6 +422,30 @@ export function TeamResources() {
                       className="w-full h-full border-0"
                       title={selectedResource.title}
                     />
+                  ) : isDocx(selectedResource) ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                      <FileText className="h-16 w-16 text-blue-400/50" />
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-foreground">Word Document</p>
+                        <p className="text-xs mt-1">Preview not available in browser</p>
+                      </div>
+                      <Button
+                        onClick={() => {
+                          const url = getViewerUrl(selectedResource);
+                          if (url) {
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = selectedResource.file_name || selectedResource.title || "document.docx";
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download to Open
+                      </Button>
+                    </div>
                   ) : selectedResource.external_url ? (
                     <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
                       <ExternalLink className="h-12 w-12 text-muted-foreground/30" />

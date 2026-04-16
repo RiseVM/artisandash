@@ -1,4 +1,6 @@
 import type { Express } from "express";
+import fs from "fs";
+import path from "path";
 import { asyncHandler, isAuthenticated } from "../../middleware";
 import { teamStorage } from "./storage";
 
@@ -161,5 +163,53 @@ export function registerTeamRoutes(app: Express) {
       if (!deleted) return res.status(404).json({ error: "Resource not found" });
       res.json({ success: true });
     }),
+  );
+
+  // ── GET /api/team/resources/file/:filename ────
+  // Serves resource files (PDFs, DOCX) from known asset directories
+  app.get(
+    "/api/team/resources/file/:filename",
+    isAuthenticated,
+    (req, res) => {
+      const { filename } = req.params;
+
+      // Prevent path traversal
+      const safeName = path.basename(filename);
+      if (safeName !== filename || filename.includes("..")) {
+        return res.status(400).json({ error: "Invalid filename" });
+      }
+
+      // Search directories for the file
+      const searchDirs = [
+        path.resolve(process.cwd(), "client", "public", "resources"),
+        path.resolve(process.cwd(), "public", "templates"),
+      ];
+
+      let filePath: string | null = null;
+      for (const dir of searchDirs) {
+        const candidate = path.join(dir, safeName);
+        if (fs.existsSync(candidate)) {
+          filePath = candidate;
+          break;
+        }
+      }
+
+      if (!filePath) {
+        return res.status(404).json({ error: "Resource file not found" });
+      }
+
+      // Determine content type
+      const ext = path.extname(safeName).toLowerCase();
+      const contentTypes: Record<string, string> = {
+        ".pdf": "application/pdf",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".doc": "application/msword",
+      };
+      const contentType = contentTypes[ext] || "application/octet-stream";
+
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+      fs.createReadStream(filePath).pipe(res);
+    },
   );
 }
