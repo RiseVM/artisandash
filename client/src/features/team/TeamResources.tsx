@@ -53,6 +53,8 @@ import {
   Download,
   ArrowLeft,
   X,
+  PanelLeftOpen,
+  PanelLeftClose,
 } from "lucide-react";
 import type { TeamResource } from "@shared/schema";
 
@@ -95,6 +97,7 @@ export function TeamResources() {
   const deleteMutation = useDeleteTeamResource();
 
   const [selectedResource, setSelectedResource] = useState<TeamResource | null>(null);
+  const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -242,7 +245,7 @@ export function TeamResources() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setSelectedResource(null)}
+            onClick={() => { setSelectedResource(null); setSidebarExpanded(true); }}
             className="mb-2"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -252,123 +255,173 @@ export function TeamResources() {
       )}
 
       {/* Split pane layout */}
-      <div className="flex gap-4 min-h-[calc(100vh-220px)]">
-        {/* Left pane: document list */}
+      <div className="flex gap-0 min-h-[calc(100vh-220px)]">
+        {/* Left pane: document list — collapses to mini sidebar when doc is selected */}
         <div
-          className={`w-full md:w-1/3 md:min-w-[280px] md:max-w-[380px] flex flex-col gap-3 ${
-            selectedResource ? "hidden md:flex" : "flex"
+          className={`flex flex-col transition-all duration-200 ease-in-out shrink-0 ${
+            selectedResource && !sidebarExpanded
+              ? "hidden md:flex w-12 border-r"
+              : selectedResource
+                ? "hidden md:flex w-80 border-r"
+                : "w-full md:w-80 md:border-r"
           }`}
         >
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search resources..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Category filter pills */}
-          {allCategories.length > 1 && (
-            <div className="flex flex-wrap gap-1.5">
+          {/* Collapsed mini sidebar */}
+          {selectedResource && !sidebarExpanded ? (
+            <div className="flex flex-col h-full">
               <button
-                onClick={() => setActiveCategory(null)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                  !activeCategory
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
+                onClick={() => setSidebarExpanded(true)}
+                className="p-3 hover:bg-muted/50 border-b flex items-center justify-center"
+                title="Expand document list"
               >
-                All
+                <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
               </button>
-              {allCategories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
-                    activeCategory === cat
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  {categoryShort[cat] || cat}
-                </button>
-              ))}
+              <div className="flex-1 overflow-y-auto py-1">
+                {flatFiltered.map((r) => {
+                  const isSelected = selectedResource?.id === r.id;
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => setSelectedResource(r)}
+                      className={`w-full flex items-center justify-center p-2.5 transition-colors ${
+                        isSelected
+                          ? "bg-primary/10 border-r-2 border-primary"
+                          : "hover:bg-muted/50"
+                      }`}
+                      title={r.title}
+                    >
+                      {getResourceIcon(r)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Expanded sidebar */
+            <div className="flex flex-col gap-3 p-3 h-full">
+              {/* Collapse button + Search */}
+              <div className="flex items-center gap-2">
+                {selectedResource && (
+                  <button
+                    onClick={() => setSidebarExpanded(false)}
+                    className="p-1.5 rounded-md hover:bg-muted/50 shrink-0"
+                    title="Collapse document list"
+                  >
+                    <PanelLeftClose className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                )}
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search resources..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              {/* Category filter pills */}
+              {allCategories.length > 1 && (
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => setActiveCategory(null)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      !activeCategory
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    All
+                  </button>
+                  {allCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                        activeCategory === cat
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      {categoryShort[cat] || cat}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Document list */}
+              <div className="flex-1 overflow-y-auto space-y-4">
+                {categoryOrder.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground">
+                      <BookOpen className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+                      {searchQuery || activeCategory
+                        ? "No resources match your filters."
+                        : "No resources yet. Add your first one above."}
+                    </CardContent>
+                  </Card>
+                ) : (
+                  categoryOrder.map((cat) => {
+                    const catResources = grouped.get(cat) || [];
+                    return (
+                      <div key={cat}>
+                        {/* Category header */}
+                        <div className="flex items-center gap-2 mb-1.5 px-1">
+                          <span className={categoryColors[cat] || "text-gray-600"}>
+                            {categoryIcons[cat] || <FolderOpen className="h-4 w-4" />}
+                          </span>
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            {categoryLabels[cat] || cat}
+                          </span>
+                          <span className="text-xs text-muted-foreground/60">({catResources.length})</span>
+                        </div>
+
+                        {/* Resource items */}
+                        <div className="space-y-1">
+                          {catResources.map((r) => {
+                            const isSelected = selectedResource?.id === r.id;
+                            return (
+                              <button
+                                key={r.id}
+                                onClick={() => { setSelectedResource(r); setSidebarExpanded(false); }}
+                                className={`w-full text-left flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+                                  isSelected
+                                    ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                                    : "border-transparent hover:bg-muted/50"
+                                }`}
+                              >
+                                {getResourceIcon(r)}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{r.title}</p>
+                                  {r.description && (
+                                    <p className="text-xs text-muted-foreground truncate">{r.description}</p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground/50 hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100"
+                                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(r); }}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           )}
-
-          {/* Document list */}
-          <div className="flex-1 overflow-y-auto space-y-4">
-            {categoryOrder.length === 0 ? (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  <BookOpen className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
-                  {searchQuery || activeCategory
-                    ? "No resources match your filters."
-                    : "No resources yet. Add your first one above."}
-                </CardContent>
-              </Card>
-            ) : (
-              categoryOrder.map((cat) => {
-                const catResources = grouped.get(cat) || [];
-                return (
-                  <div key={cat}>
-                    {/* Category header */}
-                    <div className="flex items-center gap-2 mb-1.5 px-1">
-                      <span className={categoryColors[cat] || "text-gray-600"}>
-                        {categoryIcons[cat] || <FolderOpen className="h-4 w-4" />}
-                      </span>
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {categoryLabels[cat] || cat}
-                      </span>
-                      <span className="text-xs text-muted-foreground/60">({catResources.length})</span>
-                    </div>
-
-                    {/* Resource items */}
-                    <div className="space-y-1">
-                      {catResources.map((r) => {
-                        const isSelected = selectedResource?.id === r.id;
-                        return (
-                          <button
-                            key={r.id}
-                            onClick={() => setSelectedResource(r)}
-                            className={`w-full text-left flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
-                              isSelected
-                                ? "border-primary bg-primary/5 ring-1 ring-primary/20"
-                                : "border-transparent hover:bg-muted/50"
-                            }`}
-                          >
-                            {getResourceIcon(r)}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{r.title}</p>
-                              {r.description && (
-                                <p className="text-xs text-muted-foreground truncate">{r.description}</p>
-                              )}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground/50 hover:text-destructive shrink-0 opacity-0 group-hover:opacity-100"
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(r); }}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
         </div>
 
         {/* Right pane: document viewer */}
         <div
-          className={`flex-1 flex flex-col border rounded-lg bg-card overflow-hidden ${
+          className={`flex-1 min-w-0 flex flex-col bg-card overflow-hidden ${
             selectedResource ? "flex" : "hidden md:flex"
           }`}
         >
@@ -406,7 +459,7 @@ export function TeamResources() {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 md:hidden"
-                    onClick={() => setSelectedResource(null)}
+                    onClick={() => { setSelectedResource(null); setSidebarExpanded(true); }}
                   >
                     <X className="h-4 w-4" />
                   </Button>
