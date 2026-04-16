@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import fs from "fs";
 import path from "path";
+import mammoth from "mammoth";
 import { asyncHandler, isAuthenticated } from "../../middleware";
 import { teamStorage } from "./storage";
 
@@ -166,11 +167,11 @@ export function registerTeamRoutes(app: Express) {
   );
 
   // ── GET /api/team/resources/file/:filename ────
-  // Serves resource files (PDFs, DOCX) from known asset directories
+  // Serves resource files — PDFs streamed raw, DOCX converted to styled HTML
   app.get(
     "/api/team/resources/file/:filename",
     isAuthenticated,
-    (req, res) => {
+    async (req, res) => {
       const { filename } = req.params;
 
       // Prevent path traversal
@@ -198,11 +199,137 @@ export function registerTeamRoutes(app: Express) {
         return res.status(404).json({ error: "Resource file not found" });
       }
 
-      // Determine content type
       const ext = path.extname(safeName).toLowerCase();
+
+      // For .docx files, convert to styled HTML page
+      if (ext === ".docx") {
+        try {
+          const result = await mammoth.convertToHtml({ path: filePath });
+          const title = safeName.replace(/\.docx$/i, "").replace(/[-_]/g, " ");
+          const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${title}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html {
+    background: #f0f1f3;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #1a1a2e;
+    padding: 40px 20px;
+  }
+
+  .page {
+    max-width: 780px;
+    margin: 0 auto;
+    background: #ffffff;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+    padding: 56px 64px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    color: #1a1a2e;
+    margin-top: 1.6em;
+    margin-bottom: 0.5em;
+    line-height: 1.3;
+  }
+
+  h1 { font-size: 1.75em; font-weight: 700; border-bottom: 2px solid #e2e4e9; padding-bottom: 0.3em; }
+  h2 { font-size: 1.35em; font-weight: 600; }
+  h3 { font-size: 1.15em; font-weight: 600; }
+
+  p { margin-bottom: 0.8em; }
+
+  ul, ol {
+    margin: 0.5em 0 1em 1.5em;
+    padding: 0;
+  }
+
+  li {
+    margin-bottom: 0.35em;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+    font-size: 13px;
+  }
+
+  th, td {
+    border: 1px solid #dde0e5;
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background: #f5f6f8;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #555;
+  }
+
+  tr:nth-child(even) td { background: #fafbfc; }
+
+  strong, b { font-weight: 600; }
+
+  a { color: #2563eb; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  img { max-width: 100%; height: auto; border-radius: 4px; margin: 1em 0; }
+
+  blockquote {
+    border-left: 3px solid #d1d5db;
+    margin: 1em 0;
+    padding: 0.5em 1em;
+    color: #555;
+    background: #f9fafb;
+    border-radius: 0 4px 4px 0;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 1.5em 0;
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 16px 8px; }
+    .page { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    ${result.value}
+  </div>
+</body>
+</html>`;
+          res.setHeader("Content-Type", "text/html; charset=utf-8");
+          return res.send(html);
+        } catch (err) {
+          console.error("[team/resources] Failed to convert docx:", err);
+          return res.status(500).json({ error: "Failed to convert document" });
+        }
+      }
+
+      // For PDFs and other files, stream raw
       const contentTypes: Record<string, string> = {
         ".pdf": "application/pdf",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ".doc": "application/msword",
       };
       const contentType = contentTypes[ext] || "application/octet-stream";
