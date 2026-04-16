@@ -6,6 +6,8 @@ import {
 } from "../../middleware";
 import { insertEstimateSchema, insertEstimateLineItemSchema } from "@shared/schema";
 import { storage } from "./storage";
+import { generateEstimatePdf } from "./estimatePdfService";
+import { uploadQuotePdf } from "../../services/googleDriveService";
 
 export function registerEstimateRoutes(app: Express) {
   // ── GET /api/estimates ────────────────────────
@@ -173,6 +175,116 @@ export function registerEstimateRoutes(app: Express) {
       }
 
       res.json({ success: true });
+    }),
+  );
+
+  // ── POST /api/estimates/:id/generate-pdf ─────
+  // Generates a branded PDF, uploads to Google Drive, saves link on the estimate
+  app.post(
+    "/api/estimates/:id/generate-pdf",
+    isAuthenticated,
+    asyncHandler(async (req, res) => {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid estimate ID" });
+
+      const estimate = await storage.getEstimate(id);
+      if (!estimate) return res.status(404).json({ error: "Estimate not found" });
+
+      const pdfBuffer = await generateEstimatePdf({
+        id: estimate.id,
+        estimate_number: estimate.estimate_number,
+        title: estimate.title,
+        description: estimate.description,
+        status: estimate.status,
+        issue_date: estimate.issue_date,
+        expiry_date: estimate.expiry_date,
+        notes: estimate.notes,
+        created_at: estimate.created_at,
+        customer: {
+          name: estimate.customer?.name || "Unknown",
+          email: estimate.customer?.email,
+          phone: estimate.customer?.phone,
+          address: estimate.customer?.address,
+        },
+        lineItems: estimate.lineItems || [],
+        subtotal: estimate.subtotal,
+        tax_rate: estimate.tax_rate,
+        tax_amount: estimate.tax_amount,
+        total: estimate.total,
+      });
+
+      // Upload to Google Drive
+      let driveResult: { fileId: string; webViewLink: string } | null = null;
+      try {
+        driveResult = await uploadQuotePdf({
+          customerId: estimate.customer_id!,
+          customerName: estimate.customer?.name || "Unknown",
+          projectId: estimate.project_id || undefined,
+          projectName: undefined, // could look up project name if needed
+          quoteNumber: estimate.estimate_number,
+          pdfBuffer,
+        });
+
+        // Save Drive link on the estimate
+        if (driveResult) {
+          await storage.updateEstimate(id, {
+            drive_file_id: driveResult.fileId,
+            drive_link: driveResult.webViewLink,
+          } as any);
+        }
+      } catch (driveErr) {
+        console.error("Drive upload failed (non-fatal):", driveErr);
+      }
+
+      res.json({
+        success: true,
+        drive_file_id: driveResult?.fileId || null,
+        drive_link: driveResult?.webViewLink || null,
+      });
+    }),
+  );
+
+  // ── GET /api/estimates/:id/pdf ───────────────
+  // Direct PDF download (streamed)
+  app.get(
+    "/api/estimates/:id/pdf",
+    isAuthenticated,
+    asyncHandler(async (req, res) => {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid estimate ID" });
+
+      const estimate = await storage.getEstimate(id);
+      if (!estimate) return res.status(404).json({ error: "Estimate not found" });
+
+      const pdfBuffer = await generateEstimatePdf({
+        id: estimate.id,
+        estimate_number: estimate.estimate_number,
+        title: estimate.title,
+        description: estimate.description,
+        status: estimate.status,
+        issue_date: estimate.issue_date,
+        expiry_date: estimate.expiry_date,
+        notes: estimate.notes,
+        created_at: estimate.created_at,
+        customer: {
+          name: estimate.customer?.name || "Unknown",
+          email: estimate.customer?.email,
+          phone: estimate.customer?.phone,
+          address: estimate.customer?.address,
+        },
+        lineItems: estimate.lineItems || [],
+        subtotal: estimate.subtotal,
+        tax_rate: estimate.tax_rate,
+        tax_amount: estimate.tax_amount,
+        total: estimate.total,
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${estimate.estimate_number}.pdf"`,
+      );
+      res.send(pdfBuffer);
     }),
   );
 }

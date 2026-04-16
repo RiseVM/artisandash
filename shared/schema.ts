@@ -1441,6 +1441,15 @@ export const estimates = pgTable("estimates", {
   // Linked project (if converted)
   project_id: integer("project_id").references(() => projects.id, { onDelete: 'set null' }),
 
+  // Status timestamps
+  sent_at: timestamp("sent_at"),
+  approved_at: timestamp("approved_at"),
+  expired_at: timestamp("expired_at"),
+
+  // Google Drive
+  drive_file_id: text("drive_file_id"),
+  drive_link: text("drive_link"),
+
   // Metadata
   created_by_user_id: varchar("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
   created_by_user_name: varchar("created_by_user_name"),

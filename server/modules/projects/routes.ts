@@ -1,5 +1,7 @@
 import type { Express } from "express";
 import { z } from "zod";
+import multer from "multer";
+import sharp from "sharp";
 import {
   asyncHandler,
   isAuthenticated,
@@ -26,6 +28,12 @@ import {
 } from "@shared/schema";
 import { projectStorage } from "./storage";
 import { sendNewMessageNotification } from "../../services/emailService";
+import {
+  uploadProjectFile,
+  uploadThumbnail,
+} from "../../services/googleDriveService";
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 export function registerProjectRoutes(app: Express) {
   // ============================================
@@ -962,11 +970,12 @@ export function registerProjectRoutes(app: Express) {
     })
   );
 
-  // POST /api/projects/:projectId/files/upload - Upload a file
+  // POST /api/projects/:projectId/files/upload - Upload file to Google Drive + create record
   app.post(
     "/api/projects/:projectId/files/upload",
     isAuthenticated,
     requirePermission("manage_projects"),
+    upload.single("file"),
     asyncHandler(async (req: any, res) => {
       const projectId = parseInt(req.params.projectId);
       if (isNaN(projectId)) {
@@ -978,61 +987,84 @@ export function registerProjectRoutes(app: Express) {
         return res.status(404).json({ error: "Project not found" });
       }
 
-      // Dynamic import multer
-      const multer = (await import("multer")).default;
-      const path = await import("path");
-      const fs = await import("fs");
-
-      const uploadsDir = path.resolve(process.cwd(), "uploads", "projects", String(projectId));
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-
-      const storage = multer.diskStorage({
-        destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
-        filename: (_req: any, file: any, cb: any) => {
-          const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-          const ext = path.extname(file.originalname);
-          cb(null, uniqueSuffix + ext);
-        },
-      });
-
-      const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }).single("file");
-
-      // Wrap multer in a promise
-      await new Promise<void>((resolve, reject) => {
-        upload(req, res, (err: any) => {
-          if (err) reject(err);
-          else resolve();
-        });
-      });
-
-      const file = (req as any).file;
+      const file = req.file;
       if (!file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const fileUrl = `/uploads/projects/${projectId}/${file.filename}`;
+      // Get customer info for Drive folder hierarchy
+      const customer = await projectStorage.getCustomerById(project.customer_id);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
 
+      const fileName = req.body.name || file.originalname;
+      const category = req.body.category || "document";
+      const isPhoto = req.body.is_photo === "yes" || file.mimetype?.startsWith("image/");
+
+      let driveResult: { fileId: string; webViewLink: string } | null = null;
+      let thumbnailUrl: string | null = null;
+
+      try {
+        // Upload to Google Drive in unified folder hierarchy
+        driveResult = await uploadProjectFile({
+          customerId: customer.id,
+          customerName: customer.name || "Unknown",
+          projectId,
+          projectName: project.name,
+          fileName,
+          fileBuffer: file.buffer,
+          mimeType: file.mimetype,
+          category,
+          isPhoto,
+        });
+
+        // Generate and upload thumbnail for images
+        if (isPhoto && driveResult) {
+          try {
+            const thumbBuffer = await sharp(file.buffer)
+              .resize(300, 300, { fit: "cover" })
+              .jpeg({ quality: 80 })
+              .toBuffer();
+
+            thumbnailUrl = await uploadThumbnail({
+              customerId: customer.id,
+              customerName: customer.name || "Unknown",
+              projectId,
+              projectName: project.name,
+              originalFileName: fileName,
+              thumbnailBuffer: thumbBuffer,
+            });
+          } catch (thumbErr) {
+            console.error("Thumbnail generation failed (non-fatal):", thumbErr);
+          }
+        }
+      } catch (driveErr) {
+        console.error("Google Drive upload failed:", driveErr);
+        // Fall through — still create DB record without Drive link
+      }
+
+      // Create DB record
       const data = insertProjectFileSchema.parse({
         project_id: projectId,
-        name: req.body.name || file.originalname,
-        file_url: fileUrl,
-        file_size: file.size,
-        mime_type: file.mimetype,
-        category: req.body.category || "document",
-        description: req.body.description || null,
         entity_type: req.body.entity_type || "project",
         entity_id: req.body.entity_id ? parseInt(req.body.entity_id) : null,
-        is_photo: req.body.is_photo || "no",
-        photo_type: req.body.photo_type || null,
+        name: fileName,
+        file_url: driveResult?.webViewLink || "",
+        file_size: file.size,
+        mime_type: file.mimetype,
+        category,
+        description: req.body.description || null,
+        is_photo: isPhoto ? "yes" : "no",
+        thumbnail_url: thumbnailUrl || null,
+        photo_type: isPhoto ? req.body.photo_type || null : null,
         client_visible: req.body.client_visible || "yes",
         uploaded_by_user_id: req.user?.id || null,
         uploaded_by_user_name: req.user?.email || null,
       });
 
-      const record = await projectStorage.createProjectFile(data);
-      res.status(201).json(record);
+      const fileRecord = await projectStorage.createProjectFile(data);
+      res.status(201).json(fileRecord);
     })
   );
 
