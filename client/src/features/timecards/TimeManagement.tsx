@@ -633,7 +633,7 @@ function AdminIdentityGate({ onVerified }: { onVerified: (user: VerifiedUser) =>
 // ── Component ───────────────────────────────
 
 export function TimeManagement() {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [currentMonday, setCurrentMonday] = useState(() => formatIso(getMonday(new Date())));
@@ -642,7 +642,10 @@ export function TimeManagement() {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
 
-  const isAdminUser = user?.role === "admin";
+  // Anyone with `manage_timecards` can manage timecards here — typically admin
+  // and designated payroll staff (e.g. Maria). Variable kept for minimal churn
+  // in the rest of this file.
+  const isAdminUser = hasPermission("manage_timecards");
   const isVerified = !!verifiedUser;
 
   // ALL hooks must be above any conditional returns (React Rules of Hooks)
@@ -841,7 +844,9 @@ export function TimeManagement() {
     return (
       <div className="text-center py-20">
         <h1 className="text-2xl font-bold text-destructive">Access Denied</h1>
-        <p className="text-muted-foreground mt-2">Admin access required</p>
+        <p className="text-muted-foreground mt-2">
+          You need the "Manage Timecards & Payroll" permission to view this page.
+        </p>
       </div>
     );
   }

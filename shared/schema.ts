@@ -506,6 +506,7 @@ export const AVAILABLE_PERMISSIONS = [
   { key: "view_messages", label: "Messages", description: "Send and receive messages" },
   { key: "view_team_resources", label: "Team Resources", description: "Access training and operational resources" },
   { key: "view_bug_reports", label: "Bug Reports", description: "Submit and view bug reports" },
+  { key: "manage_timecards", label: "Manage Timecards & Payroll", description: "View all employee timecards, approve, edit punches, and send payroll reports" },
 ] as const;
 
 export type PermissionKey = typeof AVAILABLE_PERMISSIONS[number]["key"];

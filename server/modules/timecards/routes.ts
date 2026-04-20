@@ -1,8 +1,11 @@
 import type { Express } from "express";
 import { isAuthenticated, requirePermission } from "../../middleware/auth";
 
-// Use permission-based access so managers (not just admins) can manage timecards
-const canManageTimecards = requirePermission("manage_users");
+// Use permission-based access so managers (not just admins) can manage timecards.
+// `manage_timecards` is a narrower permission than `manage_users` so non-admin
+// staff (e.g. the payroll submitter) can approve timecards and send the payroll
+// report without also being able to manage user accounts.
+const canManageTimecards = requirePermission("manage_timecards");
 import { asyncHandler } from "../../middleware/errorHandler";
 import { timecardStorage } from "./storage";
 

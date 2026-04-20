@@ -39,7 +39,8 @@ export function Sidebar() {
   const { user, hasPermission, logout } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // Fetch employee notes count for sidebar badge (admin only)
+  // Fetch employee notes count for sidebar badge (anyone with manage_timecards)
+  const canManageTimecards = hasPermission("manage_timecards");
   const { data: notesData } = useQuery<{ count: number }>({
     queryKey: ["/api/timecards/admin/notes-count", { weekStartDate: getCurrentMonday() }],
     queryFn: async () => {
@@ -47,7 +48,7 @@ export function Sidebar() {
       if (!res.ok) return { count: 0 };
       return res.json();
     },
-    enabled: isAdmin,
+    enabled: canManageTimecards,
     refetchInterval: 60000,
   });
   const notesCount = notesData?.count || 0;
@@ -101,7 +102,7 @@ export function Sidebar() {
   ];
 
   const adminItems = [
-    { href: "/time-management", label: "Time Management", icon: Timer, permission: "manage_users" },
+    { href: "/time-management", label: "Time Management", icon: Timer, permission: "manage_timecards" },
     { href: "/admin/onboarding", label: "New Member Setup", icon: UserPlus, permission: "manage_users" },
     { href: "/admin/users", label: "User Management", icon: Shield, permission: "manage_users" },
     { href: "/admin/activity", label: "Activity Reports", icon: Activity, permission: "view_reports" },
