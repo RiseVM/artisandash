@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -276,9 +277,8 @@ export function UserManagement() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Password *</Label>
-                    <Input
+                    <PasswordInput
                       id="password"
-                      type="password"
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       required
@@ -518,15 +518,17 @@ export function UserManagement() {
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="new-password">New Password</Label>
-                  <Input
+                  <PasswordInput
                     id="new-password"
-                    type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
                     minLength={6}
                     data-testid="input-new-password"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Click the eye icon to confirm what you typed before sharing it with the user.
+                  </p>
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>

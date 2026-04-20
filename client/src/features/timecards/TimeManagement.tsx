@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/features/auth/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import {
@@ -598,9 +599,8 @@ function AdminIdentityGate({ onVerified }: { onVerified: (user: VerifiedUser) =>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <Label htmlFor="admin-verify-password">Password</Label>
-              <Input
+              <PasswordInput
                 id="admin-verify-password"
-                type="password"
                 autoFocus
                 autoComplete="current-password"
                 value={password}
