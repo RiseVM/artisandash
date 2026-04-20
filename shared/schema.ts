@@ -492,6 +492,23 @@ export const insertRolePermissionSchema = createInsertSchema(rolePermissions).om
 export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
 export type RolePermission = typeof rolePermissions.$inferSelect;
 
+// Per-user permission overrides. A row here takes precedence over the user's
+// role default, letting Ed grant (or revoke) a specific permission for a
+// specific person without changing the baseline for their whole role.
+// Absence of a row = "inherit from role". The admin role always has every
+// permission regardless of overrides.
+export const userPermissions = pgTable("user_permissions", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  permission: varchar("permission").notNull(),
+  enabled: text("enabled").notNull(), // yes | no
+}, (table) => [
+  unique("unique_user_permission").on(table.userId, table.permission),
+  index("IDX_user_permissions_user_id").on(table.userId),
+]);
+
+export type UserPermission = typeof userPermissions.$inferSelect;
+
 // Available permissions list
 export const AVAILABLE_PERMISSIONS = [
   { key: "manage_customers", label: "Manage Customers", description: "Create, edit, and delete customers" },

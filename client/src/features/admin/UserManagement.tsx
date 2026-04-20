@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Key, Loader2, Shield, Archive, RotateCcw } from "lucide-react";
+import { Plus, Pencil, Trash2, Key, Loader2, Shield, Archive, RotateCcw, ShieldCheck, RefreshCw } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { AVAILABLE_PERMISSIONS } from "@shared/schema";
 import { useAuth } from "@/features/auth/hooks";
@@ -44,6 +44,7 @@ export function UserManagement() {
   const [changingPassword, setChangingPassword] = useState<User | null>(null);
   const [archivingUser, setArchivingUser] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [managingPermissions, setManagingPermissions] = useState<User | null>(null);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -371,6 +372,18 @@ export function UserManagement() {
                               <Pencil className="h-4 w-4 mr-1" />
                               Edit
                             </Button>
+                            {isAdmin && user.role !== "admin" && user.isActive === "yes" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setManagingPermissions(user)}
+                                data-testid={`button-permissions-user-${user.id}`}
+                                title="Set permissions for this specific user"
+                              >
+                                <ShieldCheck className="h-4 w-4 mr-1" />
+                                Permissions
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
@@ -642,6 +655,145 @@ export function UserManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <UserPermissionsDialog
+        user={managingPermissions}
+        onClose={() => setManagingPermissions(null)}
+      />
     </div>
+  );
+}
+
+// ── Per-user permissions dialog ──────────────
+
+interface UserPermissionsPayload {
+  userId: string;
+  role: string;
+  effective: Record<string, boolean>;
+  overrides: Record<string, "yes" | "no">;
+}
+
+function UserPermissionsDialog({
+  user,
+  onClose,
+}: {
+  user: { id: string; email: string; firstName: string | null; lastName: string | null; role: string } | null;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading } = useQuery<UserPermissionsPayload>({
+    queryKey: ["/api/users", user?.id, "permissions"],
+    queryFn: async () => {
+      const res = await fetch(`/api/users/${user!.id}/permissions`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load permissions");
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const setPermission = useMutation({
+    mutationFn: async ({ permission, enabled }: { permission: string; enabled: boolean | null }) => {
+      return apiRequest("PUT", `/api/users/${user!.id}/permissions`, { permission, enabled });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id, "permissions"] });
+      // In case the admin is editing their own permissions
+      queryClient.invalidateQueries({ queryKey: ["/api/my-permissions"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update permission", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const displayName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email
+    : "";
+
+  return (
+    <Dialog open={!!user} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5" />
+            Permissions for {displayName}
+          </DialogTitle>
+        </DialogHeader>
+
+        <p className="text-sm text-muted-foreground">
+          Role: <span className="font-medium capitalize">{user?.role}</span>. Toggles below
+          override the role default for this person only. Tap the reset icon to go back to the role default.
+        </p>
+
+        {isLoading || !data ? (
+          <div className="py-8 flex items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+            {AVAILABLE_PERMISSIONS.map((perm) => {
+              const effective = !!data.effective[perm.key];
+              const override = data.overrides[perm.key];
+              const isOverridden = override === "yes" || override === "no";
+              return (
+                <div
+                  key={perm.key}
+                  className={`flex items-start gap-3 py-2 px-3 rounded border ${
+                    isOverridden ? "bg-amber-50/60 border-amber-200" : "border-transparent"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{perm.label}</span>
+                      {isOverridden ? (
+                        <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border border-amber-200">
+                          Custom
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+                          From role
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{perm.description}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 pt-1">
+                    {isOverridden && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted-foreground"
+                        title="Clear override — use role default"
+                        disabled={setPermission.isPending}
+                        onClick={() =>
+                          setPermission.mutate({ permission: perm.key, enabled: null })
+                        }
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </Button>
+                    )}
+                    <Switch
+                      checked={effective}
+                      disabled={setPermission.isPending}
+                      onCheckedChange={(checked) =>
+                        setPermission.mutate({ permission: perm.key, enabled: checked })
+                      }
+                      data-testid={`switch-user-perm-${perm.key}`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

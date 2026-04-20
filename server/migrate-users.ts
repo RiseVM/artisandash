@@ -15,6 +15,18 @@ export async function migrateUsers() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image_url VARCHAR`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TEXT NOT NULL DEFAULT 'yes'`);
 
+    // Per-user permission overrides — take precedence over role defaults.
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_permissions (
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        permission VARCHAR NOT NULL,
+        enabled TEXT NOT NULL,
+        CONSTRAINT unique_user_permission UNIQUE (user_id, permission)
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS "IDX_user_permissions_user_id" ON user_permissions(user_id)`);
+
     console.log("[migration] Users: All columns ready.");
   } catch (err) {
     console.error("[migration] Users error:", err);

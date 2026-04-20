@@ -132,7 +132,7 @@ export const requirePermission = (permission: string): RequestHandler => {
 
       req.user = user;
 
-      const hasPermission = await storage.hasPermission(user.role, permission);
+      const hasPermission = await storage.hasPermission(user, permission);
       if (!hasPermission) {
         return res.status(403).json({ error: `Permission required: ${permission}` });
       }

@@ -2,13 +2,12 @@ import type { Express } from "express";
 import { asyncHandler, isAdmin, isAuthenticated } from "../../middleware";
 import { hashPassword } from "../auth/service";
 import { storage } from "./storage";
+import { AVAILABLE_PERMISSIONS } from "@shared/schema";
 
 const validRoles = ["manager", "staff"];
-const validPermissions = [
-  "manage_customers", "manage_inventory", "create_checkouts", "manage_checkouts",
-  "view_signed_docs", "manage_contracts", "manage_projects", "manage_quotes",
-  "view_calendar", "view_messages", "view_team_resources", "view_bug_reports",
-];
+// Derive from AVAILABLE_PERMISSIONS so the server and client stay in sync —
+// a new permission added to shared/schema.ts is automatically valid here.
+const validPermissions: string[] = AVAILABLE_PERMISSIONS.map((p) => p.key);
 
 export function registerAdminRoutes(app: Express) {
   // ---- User CRUD ----
@@ -275,7 +274,9 @@ export function registerAdminRoutes(app: Express) {
     }),
   );
 
-  // Get current user's permissions
+  // Get current user's EFFECTIVE permissions (role defaults + per-user overrides).
+  // Shape is kept compatible with the existing client: a list of
+  // { role, permission, enabled: "yes" | "no" } rows, one per permission.
   app.get(
     "/api/my-permissions",
     isAuthenticated,
@@ -285,16 +286,16 @@ export function registerAdminRoutes(app: Express) {
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      if (user.role === "admin") {
-        const allPermissions = validPermissions;
-        return res.json(
-          allPermissions.map((p) => ({ role: "admin", permission: p, enabled: "yes" })),
-        );
-      }
+      const { storage: authStorage } = await import("../auth/storage");
+      const effective = await authStorage.getEffectivePermissions(user);
 
-      const allPermissions = await storage.getRolePermissions();
-      const userPermissions = allPermissions.filter((p) => p.role === user.role);
-      res.json(userPermissions);
+      res.json(
+        Object.entries(effective).map(([permission, on]) => ({
+          role: user.role,
+          permission,
+          enabled: on ? "yes" : "no",
+        })),
+      );
     }),
   );
 
@@ -330,6 +331,81 @@ export function registerAdminRoutes(app: Express) {
       });
 
       res.json(result);
+    }),
+  );
+
+  // ---- Per-user Permission Overrides ----
+
+  // GET: effective permissions for a specific user, plus their overrides
+  // Response: { effective: { [permission]: boolean }, overrides: { [permission]: "yes"|"no" } }
+  app.get(
+    "/api/users/:id/permissions",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.params;
+      const user = await storage.getUser(id);
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const { storage: authStorage } = await import("../auth/storage");
+      const effective = await authStorage.getEffectivePermissions(user);
+      const overrides = await authStorage.getUserPermissionOverrides(id);
+
+      res.json({
+        userId: id,
+        role: user.role,
+        effective,
+        overrides: Object.fromEntries(overrides.map((o) => [o.permission, o.enabled])),
+      });
+    }),
+  );
+
+  // PUT: set or clear a per-user permission override
+  // Body: { permission: string, enabled: boolean | null }
+  //   - enabled=true|false → add/update an override (takes precedence over role)
+  //   - enabled=null      → clear the override (user inherits role default again)
+  app.put(
+    "/api/users/:id/permissions",
+    isAdmin,
+    asyncHandler(async (req: any, res) => {
+      const { id } = req.params;
+      const { permission, enabled } = req.body || {};
+
+      const user = await storage.getUser(id);
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      if (user.role === "admin") {
+        return res
+          .status(400)
+          .json({ error: "Admin users have all permissions by default. Change the role first to set overrides." });
+      }
+
+      if (!permission || !validPermissions.includes(permission)) {
+        return res.status(400).json({ error: "Invalid permission" });
+      }
+
+      if (enabled !== null && typeof enabled !== "boolean") {
+        return res
+          .status(400)
+          .json({ error: "enabled must be boolean (to set) or null (to clear)" });
+      }
+
+      const { storage: authStorage } = await import("../auth/storage");
+      await authStorage.setUserPermission(id, permission, enabled);
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: "update_user_permission",
+        entityType: "user_permission",
+        entityId: id,
+        details:
+          enabled === null
+            ? `Cleared override on '${permission}' for ${user.email} (inherits role default)`
+            : `Set '${permission}'=${enabled ? "enabled" : "disabled"} override for ${user.email}`,
+        ipAddress: req.ip,
+      });
+
+      res.json({ success: true });
     }),
   );
 }
