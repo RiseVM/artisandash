@@ -1,4 +1,4 @@
-import { useState, useCallback, FormEvent } from "react";
+import { useState, useCallback, useEffect, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/features/auth/hooks";
@@ -89,6 +89,63 @@ function initials(firstName: string | null, lastName: string | null): string {
 function fullName(u: { firstName: string | null; lastName: string | null; email: string }): string {
   const n = [u.firstName, u.lastName].filter(Boolean).join(" ");
   return n || u.email;
+}
+
+/**
+ * Live-ticking "hours today" display. When the employee is clocked in, combines
+ * completed punches today with the running length of the current shift (now -
+ * clockInTime) and re-renders every second so payroll can see the number tick.
+ * When clocked out, just shows the static completed total.
+ */
+function LiveTodayHours({
+  clockedIn,
+  clockInTime,
+  completedHours,
+}: {
+  clockedIn: boolean;
+  clockInTime: string | null;
+  completedHours: number;
+}) {
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    if (!clockedIn || !clockInTime) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [clockedIn, clockInTime]);
+
+  let liveTotal = completedHours;
+  let runningMinutes: number | null = null;
+  if (clockedIn && clockInTime) {
+    const diffMs = Math.max(0, Date.now() - new Date(clockInTime).getTime());
+    const currentShiftHours = diffMs / 3_600_000;
+    liveTotal = completedHours + currentShiftHours;
+    runningMinutes = Math.floor(diffMs / 60_000);
+  }
+
+  if (!clockedIn) {
+    if (completedHours <= 0) return null;
+    return <span>{completedHours.toFixed(1)}h today</span>;
+  }
+
+  // Format the running shift as "Xh YYm" for a clearer live read
+  const runningLabel = (() => {
+    if (runningMinutes === null) return "";
+    const h = Math.floor(runningMinutes / 60);
+    const m = runningMinutes % 60;
+    if (h === 0) return `${m}m`;
+    return `${h}h ${String(m).padStart(2, "0")}m`;
+  })();
+
+  return (
+    <span
+      className="font-medium text-green-700 tabular-nums"
+      title={`${completedHours.toFixed(2)}h completed earlier + ${runningLabel} current shift`}
+    >
+      {liveTotal.toFixed(2)}h today{" "}
+      <span className="text-green-600 font-normal">({runningLabel} this shift)</span>
+    </span>
+  );
 }
 
 // ── Time Picker ────────────────────────────
@@ -905,13 +962,18 @@ export function TimeManagement() {
                   </div>
                   <div className="flex-1 text-left">
                     <div className="font-medium text-sm">{fullName(card.user)}</div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
                       {isClockedIn ? (
                         <>
                           <span className="text-green-600 font-medium flex items-center gap-1">
                             <Clock className="h-3 w-3" /> In since {clockTime}
                           </span>
-                          {todayHrs > 0 && <span>· {todayHrs.toFixed(1)}h today</span>}
+                          <span>·</span>
+                          <LiveTodayHours
+                            clockedIn={true}
+                            clockInTime={card.clockStatus?.clockInTime ?? null}
+                            completedHours={todayHrs}
+                          />
                         </>
                       ) : (
                         <span>{todayHrs > 0 ? `${todayHrs.toFixed(1)}h today · Clocked out` : "Clocked out"}</span>
