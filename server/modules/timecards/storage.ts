@@ -318,6 +318,83 @@ export const timecardStorage = {
     return updated;
   },
 
+  // ── EMPLOYEE SELF-CORRECTION ──────────────
+
+  /**
+   * Employee-facing correction: an employee fixes a mistake on one of their own
+   * days (wrong clock-in, forgot to clock out, etc.). Requires a reason, locks
+   * the entry so later punch-driven recalcs can't overwrite it, writes an
+   * `employee_correction` audit row, and flags the parent timecard with
+   * `hasCorrections = true` so the payroll submitter sees it stand out.
+   *
+   * Callers must have already verified: userId owns this entry, and the card
+   * status is not "approved".
+   */
+  async employeeCorrectEntry(
+    entryId: number,
+    clockIn: string | null,
+    clockOut: string | null,
+    reason: string,
+    userId: string,
+  ): Promise<TimecardEntry> {
+    const [existing] = await db
+      .select()
+      .from(timecardEntries)
+      .where(eq(timecardEntries.id, entryId));
+
+    if (!existing) throw new Error("Entry not found");
+
+    // Compute new hours. For work entries with both clock times set, use
+    // calcHours; otherwise preserve 0. PTO/holiday entries aren't corrected
+    // through this flow (those are admin-adjusted).
+    let hours = "0";
+    if (clockIn && clockOut) {
+      const { regular } = calcHours(clockIn, clockOut);
+      hours = String(regular);
+    }
+
+    const [updated] = await db
+      .update(timecardEntries)
+      .set({
+        clockIn,
+        clockOut,
+        hours,
+        otHours: "0", // OT is weekly-rollup, recalcTimecardTotals handles it
+        entryType: "work",
+        hoursLocked: true,
+        updatedAt: new Date(),
+      })
+      .where(eq(timecardEntries.id, entryId))
+      .returning();
+
+    await this.recalcTimecardTotals(existing.timecardId);
+
+    // Flag the parent card so payroll sees the "Corrected" badge
+    await db
+      .update(timecards)
+      .set({
+        hasCorrections: true,
+        lastCorrectionAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(timecards.id, existing.timecardId));
+
+    const prettyIn = clockIn || "—";
+    const prettyOut = clockOut || "—";
+    await db.insert(timecardAuditLog).values({
+      timecardId: existing.timecardId,
+      changedById: userId,
+      action: "employee_correction",
+      entryDate: existing.entryDate,
+      oldHours: existing.hours,
+      newHours: hours,
+      reason,
+      description: `Employee correction on ${existing.entryDate}: ${existing.hours}h → ${hours}h (${prettyIn} – ${prettyOut})`,
+    });
+
+    return updated;
+  },
+
   // ── ADMIN EDIT ENTRY ──────────────────────
 
   /** Simple admin edit — directly set hours and/or notes on an entry */
@@ -334,9 +411,11 @@ export const timecardStorage = {
 
     if (!existing) throw new Error("Entry not found");
 
+    // Admin edits supersede employee self-corrections — clear the lock so the
+    // entry follows normal punch-driven recalcs again.
     const [updated] = await db
       .update(timecardEntries)
-      .set({ hours, notes, updatedAt: new Date() })
+      .set({ hours, notes, hoursLocked: false, updatedAt: new Date() })
       .where(eq(timecardEntries.id, entryId))
       .returning();
 
@@ -399,10 +478,12 @@ export const timecardStorage = {
       clockOut = null;
     }
 
+    // Admin edits supersede employee self-corrections — clear the lock so the
+    // entry follows normal punch-driven recalcs again.
     const setData: any = {
       clockIn, clockOut, hours, otHours,
       ptoHours: finalPtoHours, holidayHours: finalHolidayHours,
-      entryType, notes, updatedAt: new Date(),
+      entryType, notes, hoursLocked: false, updatedAt: new Date(),
     };
     if (mileage !== undefined) setData.mileage = mileage;
 
@@ -790,6 +871,15 @@ export const timecardStorage = {
       );
 
     if (entry) {
+      // If the employee has self-corrected this day, don't overwrite their
+      // corrected hours/clock times when later punches come in (e.g. a
+      // subsequent clock-out or an admin punch edit). We still re-run
+      // recalcTimecardTotals below so the card's rollup stays in sync.
+      if (entry.hoursLocked) {
+        await this.recalcTimecardTotals(timecardId);
+        return;
+      }
+
       // Find first clock-in and last clock-out of the day for display
       const completedPunches = dayPunches.filter(p => p.clockOut);
       const sortedByIn = [...dayPunches].sort((a, b) => new Date(a.clockIn).getTime() - new Date(b.clockIn).getTime());

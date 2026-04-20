@@ -117,6 +117,65 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // PATCH own entry — EMPLOYEE SELF-CORRECTION
+  // Lets an employee fix a mistake on one of their own days. Requires a reason.
+  // Allowed while the card is in "draft" or "submitted"; blocked once "approved".
+  // Flags the card as corrected so payroll sees it at a glance.
+  app.patch(
+    "/api/timecards/entries/:entryId/correct",
+    isAuthenticated,
+    asyncHandler(async (req: any, res) => {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const entryId = parseInt(req.params.entryId, 10);
+      if (isNaN(entryId)) return res.status(400).json({ error: "Invalid entry ID" });
+
+      const found = await timecardStorage.getEntryWithTimecard(entryId);
+      if (!found) return res.status(404).json({ error: "Entry not found" });
+
+      // Must own the timecard
+      if (found.timecard.userId !== userId) {
+        return res.status(403).json({ error: "Not your timecard" });
+      }
+
+      // Approved cards are locked — employee can't correct after payroll approves
+      if (found.timecard.status === "approved") {
+        return res.status(400).json({
+          error: "This timecard has been approved and is locked. Ask your manager if a correction is still needed.",
+        });
+      }
+
+      const { clockIn, clockOut, reason } = req.body || {};
+
+      // Reason is required and must be meaningful (min 3 chars)
+      const reasonStr = typeof reason === "string" ? reason.trim() : "";
+      if (reasonStr.length < 3) {
+        return res.status(400).json({ error: "Please provide a reason for this correction (at least 3 characters)." });
+      }
+
+      // Validate HH:MM format if provided
+      const timeRe = /^\d{2}:\d{2}$/;
+      const inStr = clockIn ? String(clockIn) : null;
+      const outStr = clockOut ? String(clockOut) : null;
+      if (inStr && !timeRe.test(inStr)) return res.status(400).json({ error: "clockIn must be in HH:MM format" });
+      if (outStr && !timeRe.test(outStr)) return res.status(400).json({ error: "clockOut must be in HH:MM format" });
+      if (inStr && outStr && outStr <= inStr) {
+        return res.status(400).json({ error: "Clock out time must be after clock in time." });
+      }
+
+      const updated = await timecardStorage.employeeCorrectEntry(
+        entryId,
+        inStr,
+        outStr,
+        reasonStr,
+        userId,
+      );
+
+      res.json(updated);
+    }),
+  );
+
   // POST submit own timecard
   app.post(
     "/api/timecards/:id/submit",

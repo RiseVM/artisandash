@@ -1220,6 +1220,11 @@ export const timecards = pgTable("timecards", {
   totalHolidayHours: numeric("total_holiday_hours", { precision: 5, scale: 2 }).default("0"),
   mileageCost: numeric("mileage_cost", { precision: 8, scale: 2 }).default("0"),
   notes: text("notes"),
+  // Employee self-correction tracking — flips true the first time an employee edits
+  // their own hours after the fact. Payroll uses this to spot rows that need a
+  // fresh look before approving.
+  hasCorrections: boolean("has_corrections").default(false),
+  lastCorrectionAt: timestamp("last_correction_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1240,6 +1245,10 @@ export const timecardEntries = pgTable("timecard_entries", {
   holidayHours: numeric("holiday_hours", { precision: 4, scale: 2 }).notNull().default("0"),
   mileage: varchar("mileage"),
   notes: text("notes"),
+  // When an employee self-corrects this day, we lock the entry so that later
+  // punch-driven recalcs (clock-out, admin punch edits, backfills) don't clobber
+  // the corrected value. Admin edits still pass through.
+  hoursLocked: boolean("hours_locked").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1251,13 +1260,14 @@ export const timecardAuditLog = pgTable("timecard_audit_log", {
   timecardId: integer("timecard_id").notNull().references(() => timecards.id, { onDelete: "cascade" }),
   changedById: varchar("changed_by_id").notNull().references(() => users.id),
   changedAt: timestamp("changed_at").defaultNow(),
-  action: varchar("action").notNull(), // created | updated_hours | submitted | approved | admin_edit
+  action: varchar("action").notNull(), // created | updated_hours | submitted | approved | admin_edit | employee_correction
   entryDate: varchar("entry_date"), // which day was changed (null if whole card action)
   oldHours: numeric("old_hours", { precision: 4, scale: 2 }),
   newHours: numeric("new_hours", { precision: 4, scale: 2 }),
   oldNotes: text("old_notes"),
   newNotes: text("new_notes"),
   description: text("description"), // human readable summary
+  reason: text("reason"), // employee-provided reason for a correction (required for employee_correction)
 }, (table) => [
   index("IDX_timecard_audit_timecard_id").on(table.timecardId),
 ]);

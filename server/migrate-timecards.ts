@@ -16,6 +16,9 @@ export async function migrateTimecards() {
     await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS total_pto_hours NUMERIC(5,2) DEFAULT '0'`);
     await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS total_holiday_hours NUMERIC(5,2) DEFAULT '0'`);
     await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS mileage_cost NUMERIC(8,2) DEFAULT '0'`);
+    // Employee self-correction tracking on the parent card
+    await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS has_corrections BOOLEAN DEFAULT false`);
+    await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS last_correction_at TIMESTAMP`);
 
     // ── timecard_entries table additions ──
     await client.query(`ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS clock_in TEXT`);
@@ -25,6 +28,9 @@ export async function migrateTimecards() {
     await client.query(`ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS pto_hours NUMERIC(5,2) DEFAULT '0'`);
     await client.query(`ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS holiday_hours NUMERIC(5,2) DEFAULT '0'`);
     await client.query(`ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS mileage NUMERIC(8,2) DEFAULT '0'`);
+    // Lock flag — set when an employee self-corrects so recalcDayFromPunches
+    // doesn't overwrite the corrected hours on later clock-outs / admin punch edits.
+    await client.query(`ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS hours_locked BOOLEAN DEFAULT false`);
 
     // ── timecard_punches table ──
     // Schema expects: id, timecard_id, user_id, punch_date, clock_in, clock_out, hours, notes, created_at, updated_at
@@ -73,6 +79,8 @@ export async function migrateTimecards() {
     await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS new_hours NUMERIC(4,2)`).catch(() => {});
     await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS old_notes TEXT`).catch(() => {});
     await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS new_notes TEXT`).catch(() => {});
+    // Employee-provided reason for a correction (required on employee_correction rows)
+    await client.query(`ALTER TABLE timecard_audit_log ADD COLUMN IF NOT EXISTS reason TEXT`).catch(() => {});
     await client.query(`CREATE INDEX IF NOT EXISTS "IDX_timecard_audit_log_timecard_id" ON timecard_audit_log(timecard_id)`);
 
     // ── timecard_recipients table ──

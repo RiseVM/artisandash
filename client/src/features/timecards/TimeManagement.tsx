@@ -30,6 +30,7 @@ import {
   Send,
   Trash2,
   Plus,
+  AlertTriangle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -434,6 +435,7 @@ interface TimecardEntry {
   entryDate: string;
   hours: string;
   notes: string | null;
+  hoursLocked?: boolean;
 }
 
 interface AuditLogEntry {
@@ -443,6 +445,7 @@ interface AuditLogEntry {
   oldHours: string | null;
   newHours: string | null;
   description: string | null;
+  reason: string | null;
   changedAt: string;
   changedBy: CardUser;
 }
@@ -453,6 +456,8 @@ interface TimecardWithUser {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
+  hasCorrections?: boolean;
+  lastCorrectionAt?: string | null;
   user: CardUser;
   clockStatus?: {
     clockedIn: boolean;
@@ -476,6 +481,8 @@ interface TimecardDetail {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
+  hasCorrections?: boolean;
+  lastCorrectionAt?: string | null;
   entries: TimecardEntry[];
   auditLog: AuditLogEntry[];
   punches: TimecardPunch[];
@@ -877,8 +884,16 @@ export function TimeManagement() {
               ? new Date(card.clockStatus.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
               : null;
             const todayHrs = card.clockStatus?.todayHours ?? 0;
+            const hasCorrections = !!card.hasCorrections;
             return (
-              <div key={card.id} className="bg-card border rounded-lg overflow-hidden">
+              <div
+                key={card.id}
+                className={`bg-card border rounded-lg overflow-hidden ${
+                  hasCorrections && card.status !== "approved"
+                    ? "border-amber-300 ring-1 ring-amber-200 bg-amber-50/30"
+                    : ""
+                }`}
+              >
                 {/* Summary row */}
                 <button
                   onClick={() => setExpandedCard(isExpanded ? null : card.id)}
@@ -905,6 +920,19 @@ export function TimeManagement() {
                   </div>
                   <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
                   {statusBadge(card.status)}
+                  {hasCorrections && (
+                    <Badge
+                      className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] px-2 py-0.5 whitespace-nowrap"
+                      title={
+                        card.lastCorrectionAt
+                          ? `Employee corrected hours on ${new Date(card.lastCorrectionAt).toLocaleString()}`
+                          : "Employee corrected hours on this timecard"
+                      }
+                    >
+                      <AlertTriangle className="h-3 w-3 mr-1 inline" />
+                      Corrected
+                    </Badge>
+                  )}
 
                   {/* Admin clock in/out */}
                   {isClockedIn ? (
@@ -959,6 +987,51 @@ export function TimeManagement() {
                 {/* Expanded detail */}
                 {isExpanded && expandedDetail && expandedDetail.id === card.id && (
                   <div className="border-t">
+                    {/* Corrections panel — prominent callout for payroll submitter */}
+                    {(() => {
+                      const corrections = (expandedDetail.auditLog || []).filter(
+                        (l) => l.action === "employee_correction",
+                      );
+                      if (corrections.length === 0) return null;
+                      return (
+                        <div className="border-b border-amber-200 bg-amber-50/60 px-4 py-3">
+                          <p className="text-xs font-semibold text-amber-900 flex items-center gap-1 mb-2">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            Employee corrections ({corrections.length}) — review before approving
+                          </p>
+                          <div className="space-y-2">
+                            {corrections.map((log) => {
+                              const who = fullName(log.changedBy);
+                              const when = new Date(log.changedAt).toLocaleString();
+                              const dayLabel = log.entryDate ? formatDayLabel(log.entryDate) : null;
+                              return (
+                                <div key={log.id} className="text-xs bg-white/60 rounded border border-amber-200 px-2.5 py-1.5">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {dayLabel && (
+                                      <span className="font-medium text-amber-900">{dayLabel}</span>
+                                    )}
+                                    {log.oldHours && log.newHours && (
+                                      <span className="font-mono">
+                                        <span className="line-through text-red-500">{String(log.oldHours)}h</span>
+                                        <span className="mx-1 text-muted-foreground">→</span>
+                                        <span className="text-green-700 font-semibold">{String(log.newHours)}h</span>
+                                      </span>
+                                    )}
+                                    <span className="text-muted-foreground">· {who} · {when}</span>
+                                  </div>
+                                  {log.reason && (
+                                    <p className="mt-1 text-amber-900">
+                                      <span className="font-medium">Reason:</span> {log.reason}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Entries */}
                     <div className="px-4 py-2 space-y-0">
                       {/* Header */}
@@ -973,11 +1046,19 @@ export function TimeManagement() {
                         const wasAdminEdited = expandedDetail.auditLog.some(
                           (l) => l.action === "admin_edit" && l.entryDate === entry.entryDate,
                         );
+                        const wasCorrected = !!entry.hoursLocked || expandedDetail.auditLog.some(
+                          (l) => l.action === "employee_correction" && l.entryDate === entry.entryDate,
+                        );
                         const dayPunches = (expandedDetail.punches || []).filter(
                           (p) => p.punchDate === entry.entryDate,
                         );
                         return (
-                          <div key={entry.id} className="border-b last:border-b-0 py-2">
+                          <div
+                            key={entry.id}
+                            className={`border-b last:border-b-0 py-2 ${
+                              wasCorrected ? "bg-amber-50/50 -mx-4 px-4" : ""
+                            }`}
+                          >
                             {/* Row 1: Day, Clock In, Clock Out, Hours, Clear */}
                             {dayPunches.length > 0 ? (
                               <>
@@ -1090,6 +1171,11 @@ export function TimeManagement() {
                                   onBlur={(e) => handleAdminBlur(entry, "notes", e.target.value)}
                                   key={`an-${entry.id}-${entry.notes}`}
                                 />
+                                {wasCorrected && (
+                                  <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                                    Corrected
+                                  </Badge>
+                                )}
                                 {wasAdminEdited && (
                                   <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-orange-600 border-orange-200 shrink-0">
                                     Admin edited
@@ -1120,6 +1206,11 @@ export function TimeManagement() {
                                 {log.action === "admin_edit" && (
                                   <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0 text-orange-600 border-orange-200">Admin</Badge>
                                 )}
+                                {log.action === "employee_correction" && (
+                                  <Badge className="ml-1 text-[10px] px-1 py-0 bg-amber-100 text-amber-800 border border-amber-200">
+                                    Correction
+                                  </Badge>
+                                )}
                                 {log.description && <p className="text-muted-foreground">{String(log.description)}</p>}
                                 {log.oldHours && log.newHours && (
                                   <p className="text-muted-foreground">
@@ -1127,6 +1218,9 @@ export function TimeManagement() {
                                     <span className="mx-1">→</span>
                                     <span className="text-green-600 font-medium">{String(log.newHours)}h</span>
                                   </p>
+                                )}
+                                {log.reason && (
+                                  <p className="text-amber-900 italic">Reason: {log.reason}</p>
                                 )}
                               </div>
                             );

@@ -23,6 +23,9 @@ import {
   Car,
   Save,
   MessageSquare,
+  Pencil,
+  AlertCircle,
+  X,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────
@@ -93,6 +96,7 @@ interface TimecardEntry {
   entryType: string;
   notes: string | null;
   mileage: string | null;
+  hoursLocked?: boolean;
 }
 
 interface AuditLogEntry {
@@ -105,6 +109,7 @@ interface AuditLogEntry {
   oldNotes: string | null;
   newNotes: string | null;
   description: string | null;
+  reason: string | null;
   changedAt: string;
   changedBy: { id: string; firstName: string | null; lastName: string | null; email: string };
 }
@@ -118,6 +123,8 @@ interface TimecardData {
   totalOtHours: string | null;
   totalPtoHours: string | null;
   totalHolidayHours: string | null;
+  hasCorrections?: boolean;
+  lastCorrectionAt?: string | null;
   entries: TimecardEntry[];
   auditLog: AuditLogEntry[];
 }
@@ -393,6 +400,99 @@ function IdentityGate({ onVerified }: { onVerified: (user: VerifiedUser) => void
   );
 }
 
+// ── Correction editor (shared) ──────────────
+
+/**
+ * Inline editor for an employee-facing hour correction on a single day.
+ * Requires a reason. Hidden on non-work entries and on approved cards.
+ */
+function CorrectionEditor({
+  entry,
+  onCancel,
+  onSave,
+  isPending,
+  error,
+}: {
+  entry: TimecardEntry;
+  onCancel: () => void;
+  onSave: (clockIn: string, clockOut: string, reason: string) => void;
+  isPending: boolean;
+  error: string | null;
+}) {
+  const [clockIn, setClockIn] = useState(entry.clockIn || "");
+  const [clockOut, setClockOut] = useState(entry.clockOut || "");
+  const [reason, setReason] = useState("");
+
+  const reasonTrimmed = reason.trim();
+  const canSave = !!clockIn && !!clockOut && reasonTrimmed.length >= 3 && !isPending;
+
+  return (
+    <div className="bg-amber-50/70 border-t border-amber-200 px-3 py-3 space-y-2">
+      <div className="flex items-center gap-2 text-xs font-medium text-amber-900">
+        <AlertCircle className="h-3.5 w-3.5" />
+        Fix hours for {formatDayLabel(entry.entryDate)}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr] gap-2">
+        <label className="text-xs">
+          <span className="block text-muted-foreground mb-0.5">Clock in</span>
+          <input
+            type="time"
+            step={60}
+            value={clockIn}
+            onChange={(e) => setClockIn(e.target.value)}
+            className="w-full border rounded px-2 py-1.5 text-sm bg-background"
+          />
+        </label>
+        <label className="text-xs">
+          <span className="block text-muted-foreground mb-0.5">Clock out</span>
+          <input
+            type="time"
+            step={60}
+            value={clockOut}
+            onChange={(e) => setClockOut(e.target.value)}
+            className="w-full border rounded px-2 py-1.5 text-sm bg-background"
+          />
+        </label>
+      </div>
+      <label className="block text-xs">
+        <span className="block text-muted-foreground mb-0.5">
+          Reason <span className="text-amber-900 font-medium">(required)</span>
+        </span>
+        <textarea
+          placeholder="e.g. Forgot to clock out at 5 PM, system stayed open until 8 PM"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          rows={2}
+          className="w-full border rounded px-2 py-1.5 text-sm bg-background resize-y"
+        />
+      </label>
+      {error && (
+        <p className="text-xs text-red-600 flex items-center gap-1">
+          <AlertCircle className="h-3 w-3" /> {error}
+        </p>
+      )}
+      <div className="flex items-center gap-2 justify-end">
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={isPending}>
+          <X className="h-3 w-3 mr-1" /> Cancel
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => onSave(clockIn, clockOut, reasonTrimmed)}
+          disabled={!canSave}
+          className="bg-amber-600 hover:bg-amber-700 text-white"
+        >
+          {isPending ? (
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          ) : (
+            <Save className="h-3 w-3 mr-1" />
+          )}
+          Submit Correction
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Read-Only Timecard Day Row (desktop) ──
 
 function TimecardDayRow({
@@ -400,15 +500,23 @@ function TimecardDayRow({
   isToday,
   isWeekendDay,
   saveNote,
+  canCorrect,
+  submitCorrection,
+  correctPending,
 }: {
   entry: TimecardEntry;
   isToday: boolean;
   isWeekendDay: boolean;
   saveNote: (entryId: number, notes: string) => Promise<void>;
+  canCorrect: boolean;
+  submitCorrection: (entryId: number, clockIn: string, clockOut: string, reason: string) => Promise<void>;
+  correctPending: boolean;
 }) {
   const [notes, setNotes] = useState(entry.notes || "");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const serverNotes = useRef(entry.notes || "");
+  const [editing, setEditing] = useState(false);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (notes === serverNotes.current) setNotes(entry.notes || "");
@@ -430,11 +538,22 @@ function TimecardDayRow({
     }
   };
 
+  const handleCorrectionSave = async (clockIn: string, clockOut: string, reason: string) => {
+    setCorrectionError(null);
+    try {
+      await submitCorrection(entry.id, clockIn, clockOut, reason);
+      setEditing(false);
+    } catch (err: any) {
+      setCorrectionError(err?.message || "Failed to save correction");
+    }
+  };
+
   const entryType = entry.entryType || "work";
   const noClockTimes = entryType === "work" && !entry.clockIn && !entry.clockOut;
   const hrs = noClockTimes ? 0 : parseFloat(entry.hours || "0");
   const ptoHrs = parseFloat(entry.ptoHours || "0");
   const holHrs = parseFloat(entry.holidayHours || "0");
+  const wasCorrected = !!entry.hoursLocked;
 
   const typeColors: Record<string, string> = {
     work: "",
@@ -442,78 +561,120 @@ function TimecardDayRow({
     holiday: "bg-indigo-50/70",
   };
 
+  // Correction is only offered for work-type entries. PTO/holiday changes
+  // still need to go through an admin.
+  const correctionAvailable = canCorrect && entryType === "work";
+
   return (
-    <tr
-      className={`border-b last:border-b-0 ${
-        isToday ? "border-l-4 border-l-primary bg-primary/5" : ""
-      } ${isWeekendDay && entryType === "work" ? "bg-muted/20" : ""} ${
-        typeColors[entryType] || ""
-      }`}
-    >
-      <td className="px-3 py-2.5 font-medium text-sm whitespace-nowrap">
-        {formatDayLabel(entry.entryDate)}
-      </td>
-
-      <td className="px-2 py-2.5 text-center text-sm">
-        {entryType === "work" ? (
-          <span className="text-muted-foreground">{formatTime24to12(entry.clockIn)}</span>
-        ) : (
-          <span className="text-xs">
-            {entryType === "pto" && ptoHrs > 0 && (
-              <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO</Badge>
+    <>
+      <tr
+        className={`border-b last:border-b-0 ${
+          isToday ? "border-l-4 border-l-primary bg-primary/5" : ""
+        } ${isWeekendDay && entryType === "work" ? "bg-muted/20" : ""} ${
+          typeColors[entryType] || ""
+        } ${wasCorrected ? "bg-amber-50/40" : ""}`}
+      >
+        <td className="px-3 py-2.5 font-medium text-sm whitespace-nowrap">
+          <div className="flex items-center gap-1.5">
+            {formatDayLabel(entry.entryDate)}
+            {wasCorrected && (
+              <Badge className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0 border border-amber-200">
+                Corrected
+              </Badge>
             )}
-            {entryType === "holiday" && holHrs > 0 && (
-              <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday</Badge>
-            )}
+          </div>
+        </td>
+
+        <td className="px-2 py-2.5 text-center text-sm">
+          {entryType === "work" ? (
+            <span className="text-muted-foreground">{formatTime24to12(entry.clockIn)}</span>
+          ) : (
+            <span className="text-xs">
+              {entryType === "pto" && ptoHrs > 0 && (
+                <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO</Badge>
+              )}
+              {entryType === "holiday" && holHrs > 0 && (
+                <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday</Badge>
+              )}
+            </span>
+          )}
+        </td>
+
+        <td className="px-2 py-2.5 text-center text-sm">
+          {entryType === "work" ? (
+            <span className="text-muted-foreground">{formatTime24to12(entry.clockOut)}</span>
+          ) : null}
+        </td>
+
+        <td className="px-2 py-2.5 text-center">
+          <span className={`font-mono text-sm ${hrs > 0 || ptoHrs > 0 || holHrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
+            {entryType === "pto" && ptoHrs > 0
+              ? `${ptoHrs.toFixed(1)}h`
+              : entryType === "holiday" && holHrs > 0
+              ? `${holHrs.toFixed(1)}h`
+              : hrs > 0
+              ? `${hrs.toFixed(1)}h`
+              : "—"}
           </span>
-        )}
-      </td>
+        </td>
 
-      <td className="px-2 py-2.5 text-center text-sm">
-        {entryType === "work" ? (
-          <span className="text-muted-foreground">{formatTime24to12(entry.clockOut)}</span>
-        ) : null}
-      </td>
+        <td className="px-2 py-2.5">
+          <input
+            type="text"
+            placeholder="Note / report issue…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={handleSaveNote}
+            className="w-full border rounded px-2 py-1.5 text-sm bg-background h-8"
+          />
+        </td>
 
-      <td className="px-2 py-2.5 text-center">
-        <span className={`font-mono text-sm ${hrs > 0 || ptoHrs > 0 || holHrs > 0 ? "font-semibold" : "text-muted-foreground"}`}>
-          {entryType === "pto" && ptoHrs > 0
-            ? `${ptoHrs.toFixed(1)}h`
-            : entryType === "holiday" && holHrs > 0
-            ? `${holHrs.toFixed(1)}h`
-            : hrs > 0
-            ? `${hrs.toFixed(1)}h`
-            : "—"}
-        </span>
-      </td>
-
-      <td className="px-2 py-2.5">
-        <input
-          type="text"
-          placeholder="Note / report issue…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          onBlur={handleSaveNote}
-          className="w-full border rounded px-2 py-1.5 text-sm bg-background h-8"
-        />
-      </td>
-
-      <td className="px-2 py-2.5 text-center whitespace-nowrap">
-        {saveState === "saved" ? (
-          <span className="text-xs text-green-600 font-medium flex items-center gap-0.5 justify-center">
-            <Check className="h-3 w-3" /> Saved
-          </span>
-        ) : saveState === "saving" ? (
-          <span className="text-xs text-muted-foreground flex items-center gap-0.5 justify-center">
-            <Loader2 className="h-3 w-3 animate-spin" /> Saving
-          </span>
-        ) : isDirty ? (
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={handleSaveNote}>
-            <Save className="h-3 w-3 mr-1" /> Save
-          </Button>
-        ) : null}
-      </td>
-    </tr>
+        <td className="px-2 py-2.5 text-center whitespace-nowrap">
+          {saveState === "saved" ? (
+            <span className="text-xs text-green-600 font-medium flex items-center gap-0.5 justify-center">
+              <Check className="h-3 w-3" /> Saved
+            </span>
+          ) : saveState === "saving" ? (
+            <span className="text-xs text-muted-foreground flex items-center gap-0.5 justify-center">
+              <Loader2 className="h-3 w-3 animate-spin" /> Saving
+            </span>
+          ) : isDirty ? (
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={handleSaveNote}>
+              <Save className="h-3 w-3 mr-1" /> Save
+            </Button>
+          ) : correctionAvailable ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+              onClick={() => {
+                setCorrectionError(null);
+                setEditing((e) => !e);
+              }}
+              title="Fix a mistake on this day's hours"
+            >
+              <Pencil className="h-3 w-3 mr-1" /> Fix hours
+            </Button>
+          ) : null}
+        </td>
+      </tr>
+      {editing && correctionAvailable && (
+        <tr className="border-b last:border-b-0">
+          <td colSpan={6} className="p-0">
+            <CorrectionEditor
+              entry={entry}
+              onCancel={() => {
+                setEditing(false);
+                setCorrectionError(null);
+              }}
+              onSave={handleCorrectionSave}
+              isPending={correctPending}
+              error={correctionError}
+            />
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
@@ -523,14 +684,22 @@ function TimecardDayCard({
   entry,
   isToday,
   saveNote,
+  canCorrect,
+  submitCorrection,
+  correctPending,
 }: {
   entry: TimecardEntry;
   isToday: boolean;
   saveNote: (entryId: number, notes: string) => Promise<void>;
+  canCorrect: boolean;
+  submitCorrection: (entryId: number, clockIn: string, clockOut: string, reason: string) => Promise<void>;
+  correctPending: boolean;
 }) {
   const [notes, setNotes] = useState(entry.notes || "");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const serverNotes = useRef(entry.notes || "");
+  const [editing, setEditing] = useState(false);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (notes === serverNotes.current) setNotes(entry.notes || "");
@@ -552,64 +721,113 @@ function TimecardDayCard({
     }
   };
 
+  const handleCorrectionSave = async (clockIn: string, clockOut: string, reason: string) => {
+    setCorrectionError(null);
+    try {
+      await submitCorrection(entry.id, clockIn, clockOut, reason);
+      setEditing(false);
+    } catch (err: any) {
+      setCorrectionError(err?.message || "Failed to save correction");
+    }
+  };
+
   const entryType = entry.entryType || "work";
   const noClockTimes = entryType === "work" && !entry.clockIn && !entry.clockOut;
   const hrs = noClockTimes ? 0 : parseFloat(entry.hours || "0");
   const ptoHrs = parseFloat(entry.ptoHours || "0");
   const holHrs = parseFloat(entry.holidayHours || "0");
+  const wasCorrected = !!entry.hoursLocked;
+  const correctionAvailable = canCorrect && entryType === "work";
 
   return (
     <div
-      className={`bg-card border rounded-lg p-4 space-y-2 ${
+      className={`bg-card border rounded-lg overflow-hidden ${
         isToday ? "border-primary/30 border-l-4" : ""
-      } ${entryType === "pto" ? "bg-blue-50/50" : entryType === "holiday" ? "bg-indigo-50/50" : ""}`}
+      } ${entryType === "pto" ? "bg-blue-50/50" : entryType === "holiday" ? "bg-indigo-50/50" : ""} ${
+        wasCorrected ? "ring-1 ring-amber-200" : ""
+      }`}
     >
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-sm">{formatDayLabel(entry.entryDate)}</span>
+      <div className="p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-sm">{formatDayLabel(entry.entryDate)}</span>
+            {wasCorrected && (
+              <Badge className="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0 border border-amber-200">
+                Corrected
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {entryType === "pto" && ptoHrs > 0 && (
+              <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO {ptoHrs.toFixed(1)}h</Badge>
+            )}
+            {entryType === "holiday" && holHrs > 0 && (
+              <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday {holHrs.toFixed(1)}h</Badge>
+            )}
+            {entryType === "work" && hrs > 0 && (
+              <span className="font-mono text-sm font-semibold">{hrs.toFixed(1)}h</span>
+            )}
+          </div>
+        </div>
+
+        {entryType === "work" && (entry.clockIn || entry.clockOut) && (
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span>{formatTime24to12(entry.clockIn)}</span>
+            <span>→</span>
+            <span>{formatTime24to12(entry.clockOut)}</span>
+          </div>
+        )}
+
+        {/* Note / Report Issue */}
         <div className="flex items-center gap-2">
-          {entryType === "pto" && ptoHrs > 0 && (
-            <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO {ptoHrs.toFixed(1)}h</Badge>
-          )}
-          {entryType === "holiday" && holHrs > 0 && (
-            <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday {holHrs.toFixed(1)}h</Badge>
-          )}
-          {entryType === "work" && hrs > 0 && (
-            <span className="font-mono text-sm font-semibold">{hrs.toFixed(1)}h</span>
-          )}
+          <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <input
+            type="text"
+            placeholder="Note / report issue…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            onBlur={handleSaveNote}
+            className="flex-1 border rounded px-2 py-1.5 text-sm bg-background"
+          />
+          {saveState === "saved" ? (
+            <span className="text-xs text-green-600 flex items-center gap-0.5 shrink-0">
+              <Check className="h-3 w-3" />
+            </span>
+          ) : saveState === "saving" ? (
+            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
+          ) : isDirty ? (
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs shrink-0" onClick={handleSaveNote}>
+              <Save className="h-3 w-3" />
+            </Button>
+          ) : null}
         </div>
-      </div>
 
-      {entryType === "work" && (entry.clockIn || entry.clockOut) && (
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span>{formatTime24to12(entry.clockIn)}</span>
-          <span>→</span>
-          <span>{formatTime24to12(entry.clockOut)}</span>
-        </div>
-      )}
-
-      {/* Note / Report Issue */}
-      <div className="flex items-center gap-2">
-        <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <input
-          type="text"
-          placeholder="Note / report issue…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          onBlur={handleSaveNote}
-          className="flex-1 border rounded px-2 py-1.5 text-sm bg-background"
-        />
-        {saveState === "saved" ? (
-          <span className="text-xs text-green-600 flex items-center gap-0.5 shrink-0">
-            <Check className="h-3 w-3" />
-          </span>
-        ) : saveState === "saving" ? (
-          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground shrink-0" />
-        ) : isDirty ? (
-          <Button size="sm" variant="outline" className="h-7 px-2 text-xs shrink-0" onClick={handleSaveNote}>
-            <Save className="h-3 w-3" />
+        {correctionAvailable && !editing && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="w-full h-8 text-xs text-amber-700 hover:text-amber-900 hover:bg-amber-100 justify-center"
+            onClick={() => {
+              setCorrectionError(null);
+              setEditing(true);
+            }}
+          >
+            <Pencil className="h-3 w-3 mr-1" /> Fix hours for this day
           </Button>
-        ) : null}
+        )}
       </div>
+      {editing && correctionAvailable && (
+        <CorrectionEditor
+          entry={entry}
+          onCancel={() => {
+            setEditing(false);
+            setCorrectionError(null);
+          }}
+          onSave={handleCorrectionSave}
+          isPending={correctPending}
+          error={correctionError}
+        />
+      )}
     </div>
   );
 }
@@ -700,11 +918,35 @@ function TimecardsInner() {
   });
 
 
-  // Save notes only (employees can't edit times)
+  // Save notes only (employees can't edit times directly — use submitCorrection for that)
   const saveNote = useCallback(async (entryId: number, notes: string): Promise<void> => {
     await apiRequest("PATCH", `/api/timecards/entries/${entryId}`, { notes: notes || null });
     queryClient.invalidateQueries({ queryKey: ["/api/timecards/my/" + currentMonday] });
   }, [queryClient, currentMonday]);
+
+  // Employee self-correction: fix a day's clock-in / clock-out with a required reason.
+  // Blocked server-side if the card has already been approved.
+  const correctMutation = useMutation({
+    mutationFn: async ({ entryId, clockIn, clockOut, reason }: { entryId: number; clockIn: string; clockOut: string; reason: string }) => {
+      const res = await apiRequest("PATCH", `/api/timecards/entries/${entryId}/correct`, {
+        clockIn,
+        clockOut,
+        reason,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/my/" + currentMonday] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/my"] });
+    },
+  });
+
+  const submitCorrection = useCallback(
+    async (entryId: number, clockIn: string, clockOut: string, reason: string): Promise<void> => {
+      await correctMutation.mutateAsync({ entryId, clockIn, clockOut, reason });
+    },
+    [correctMutation],
+  );
 
   const navigateWeek = useCallback((direction: -1 | 1) => {
     setCurrentMonday((prev) => {
@@ -795,6 +1037,9 @@ function TimecardsInner() {
                     isToday={entry.entryDate === today}
                     isWeekendDay={isWeekend(entry.entryDate)}
                     saveNote={saveNote}
+                    canCorrect={timecard.status !== "approved"}
+                    submitCorrection={submitCorrection}
+                    correctPending={correctMutation.isPending}
                   />
                 ))}
 
@@ -833,6 +1078,9 @@ function TimecardsInner() {
                 entry={entry}
                 isToday={entry.entryDate === today}
                 saveNote={saveNote}
+                canCorrect={timecard.status !== "approved"}
+                submitCorrection={submitCorrection}
+                correctPending={correctMutation.isPending}
               />
             ))}
 
@@ -929,7 +1177,15 @@ function TimecardsInner() {
                     {log.action === "admin_edit" && (
                       <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">Admin</Badge>
                     )}
+                    {log.action === "employee_correction" && (
+                      <Badge className="ml-1 text-[10px] px-1 py-0 bg-amber-100 text-amber-800 border border-amber-200">
+                        Correction
+                      </Badge>
+                    )}
                     <p className="text-muted-foreground mt-0.5">{log.description}</p>
+                    {log.reason && (
+                      <p className="text-amber-900 mt-0.5 italic">Reason: {log.reason}</p>
+                    )}
                   </div>
                 );
               })}
