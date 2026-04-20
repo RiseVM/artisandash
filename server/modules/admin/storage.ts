@@ -1,4 +1,4 @@
-import { db } from "../../../db/index";
+import { db, pool } from "../../../db/index";
 import {
   users,
   activityLogs,
@@ -6,6 +6,9 @@ import {
   checkouts,
   signedAgreements,
   contracts,
+  timecards,
+  timecardAuditLog,
+  timecardPunches,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte } from "drizzle-orm";
 import type {
@@ -72,6 +75,65 @@ export const storage = {
       .update(activityLogs)
       .set({ userId: null })
       .where(eq(activityLogs.userId, userId));
+  },
+
+  /**
+   * Clear out timecard-related foreign keys that would otherwise block a user
+   * delete. Several timecard tables reference users without `ON DELETE` rules
+   * (and several columns are NOT NULL so SET NULL isn't an option), so we:
+   *
+   *   1. Delete the user's own timecards — this cascades to their entries,
+   *      punches, audit-log rows, and mileage rows via the timecardId FKs.
+   *   2. Null out approved_by_id on OTHER users' timecards that this user
+   *      approved (approvedById is nullable).
+   *   3. Delete audit-log rows where this user was the actor on someone
+   *      else's timecard (changedById is NOT NULL, so we can't SET NULL).
+   *   4. Delete any leftover punches that reference this user directly.
+   *
+   * This keeps other employees' timecard history intact; we only lose the
+   * audit breadcrumbs about who approved or edited.
+   */
+  async cleanupTimecardReferencesForUser(userId: string): Promise<void> {
+    // 1. Delete the user's own timecards — cascades to entries/punches/audit/mileage
+    await db.delete(timecards).where(eq(timecards.userId, userId));
+
+    // 2. Null out approvedById on others' timecards
+    await db
+      .update(timecards)
+      .set({ approvedById: null })
+      .where(eq(timecards.approvedById, userId));
+
+    // 3. Delete audit-log rows where the user was the actor on others' cards
+    await db.delete(timecardAuditLog).where(eq(timecardAuditLog.changedById, userId));
+
+    // 4. Belt-and-suspenders: any punches that still reference this user
+    await db.delete(timecardPunches).where(eq(timecardPunches.userId, userId));
+
+    // Drop any other user_id FK rows that don't CASCADE — using raw SQL because
+    // the schema has a handful of tables without explicit onDelete rules and
+    // we'd rather stay in sync via a broad NULL-update than import every one.
+    // These all have nullable user_id columns:
+    const nullableUserRefs: Array<{ table: string; col: string }> = [
+      { table: "internal_messages", col: "sender_user_id" },
+      { table: "project_notes", col: "user_id" },
+      { table: "project_messages", col: "sender_user_id" },
+      { table: "bug_reports", col: "reporter_user_id" },
+      { table: "bug_reports", col: "resolved_by_user_id" },
+      { table: "onboarding_tasks", col: "assigned_to" },
+      { table: "onboarding_tasks", col: "completed_by" },
+      { table: "project_requests", col: "responded_by_user_id" },
+    ];
+    for (const ref of nullableUserRefs) {
+      try {
+        await pool.query(
+          `UPDATE "${ref.table}" SET "${ref.col}" = NULL WHERE "${ref.col}" = $1`,
+          [userId],
+        );
+      } catch {
+        // Table may not exist in some deployments; ignore — real FKs will still
+        // fail loudly on the DELETE call and surface a usable error.
+      }
+    }
   },
 
   // ---- Activity Logs ----

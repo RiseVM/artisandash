@@ -226,8 +226,30 @@ export function registerAdminRoutes(app: Express) {
       const userName =
         `${existingUser.firstName || ""} ${existingUser.lastName || ""}`.trim() ||
         existingUser.email;
-      await storage.preserveUserNameOnRecords(id, userName);
-      await storage.deleteUser(id);
+
+      try {
+        // Preserve name on business records (checkouts, contracts, agreements)
+        await storage.preserveUserNameOnRecords(id, userName);
+        // Clear out timecard FKs that would otherwise block the delete
+        await storage.cleanupTimecardReferencesForUser(id);
+        // Now the actual user row
+        await storage.deleteUser(id);
+      } catch (err: any) {
+        // Surface FK errors in a useful shape — the frontend toast currently
+        // just shows "error 500" otherwise.
+        console.error("[delete user] Failed:", err?.code, err?.message, err?.detail);
+        if (err?.code === "23503") {
+          return res.status(409).json({
+            error:
+              "Cannot delete this user — they're still referenced by other records. Archive them instead, or contact support with this detail: " +
+              (err?.detail || err?.message || ""),
+          });
+        }
+        return res.status(500).json({
+          error: "Failed to delete user",
+          detail: err?.message,
+        });
+      }
 
       await storage.createActivityLog({
         userId: req.user!.id,
