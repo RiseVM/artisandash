@@ -135,6 +135,7 @@ interface PastTimecard {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
+  totalOtHours?: string | null;
 }
 
 interface ClockPunch {
@@ -1209,7 +1210,20 @@ function TimecardsInner() {
                 >
                   <div className="font-medium text-sm">{formatWeekLabel(card.weekStartDate)}</div>
                   <div className="mt-2 text-sm text-muted-foreground flex items-center gap-3">
-                    <span>{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
+                    {(() => {
+                      const reg = parseFloat(card.totalHours || "0");
+                      const ot = parseFloat(card.totalOtHours || "0");
+                      return (
+                        <span>
+                          {(reg + ot).toFixed(1)} hrs
+                          {ot > 0 && (
+                            <span className="ml-1 text-amber-600 text-xs font-medium">
+                              (+{ot.toFixed(1)} OT)
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </button>
               ))}

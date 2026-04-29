@@ -776,6 +776,7 @@ export function registerTimecardRoutes(app: Express) {
       const pdfCards = cards.map((c: any) => ({
         user: c.user,
         totalHours: c.totalHours,
+        totalOtHours: c.totalOtHours,
         totalMileage: c.totalMileageMiles || "0",
         entries: (c.entries || []).map((e: any) => ({
           entryDate: e.entryDate,

@@ -514,6 +514,7 @@ interface TimecardWithUser {
   weekStartDate: string;
   status: string;
   totalHours: string | null;
+  totalOtHours?: string | null;
   hasCorrections?: boolean;
   lastCorrectionAt?: string | null;
   user: CardUser;
@@ -836,8 +837,15 @@ export function TimeManagement() {
     [adminEditEntry],
   );
 
-  // Week summary
-  const weekTotalHours = allCards.reduce((s, c) => s + parseFloat(c.totalHours || "0"), 0);
+  // Week summary — sum of work hours INCLUDING overtime. The DB splits hours
+  // into a regular column (capped at 40) and an OT column (anything over) for
+  // payroll math, but the headline number on the dashboard should show the
+  // actual hours worked, not just the capped portion. Without adding the OT
+  // column back in, a 40.7-hour week reads as "40 hrs".
+  const weekTotalHours = allCards.reduce(
+    (s, c) => s + parseFloat(c.totalHours || "0") + parseFloat(c.totalOtHours || "0"),
+    0,
+  );
 
   // Conditional renders AFTER all hooks
   if (user && !isAdminUser) {
@@ -939,14 +947,23 @@ export function TimeManagement() {
         <div className="text-center py-12 text-muted-foreground">No timecards found for this week</div>
       ) : (
         <div className="space-y-3">
-          {allCards.map((card) => {
-            const isExpanded = expandedCard === card.id;
-            const isClockedIn = card.clockStatus?.clockedIn ?? false;
-            const clockTime = card.clockStatus?.clockInTime
-              ? new Date(card.clockStatus.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-              : null;
-            const todayHrs = card.clockStatus?.todayHours ?? 0;
-            const hasCorrections = !!card.hasCorrections;
+          {(() => {
+            // Hoisted once per render so each row in the .map below can
+            // cheaply check whether we're viewing the live current week.
+            // The server attaches "clocked in right now" + "hours today" to
+            // every card regardless of week, so without this guard a past
+            // week's row can read "Maria — In since 9:14 AM" when that's
+            // really her *today's* status, not last week's.
+            const todayMondayIso = formatIso(getMonday(new Date()));
+            const viewingCurrentWeek = currentMonday === todayMondayIso;
+            return allCards.map((card) => {
+              const isExpanded = expandedCard === card.id;
+              const isClockedIn = viewingCurrentWeek && (card.clockStatus?.clockedIn ?? false);
+              const clockTime = card.clockStatus?.clockInTime
+                ? new Date(card.clockStatus.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                : null;
+              const todayHrs = viewingCurrentWeek ? (card.clockStatus?.todayHours ?? 0) : 0;
+              const hasCorrections = !!card.hasCorrections;
             return (
               <div
                 key={card.id}
@@ -985,7 +1002,21 @@ export function TimeManagement() {
                       )}
                     </div>
                   </div>
-                  <span className="text-sm font-semibold">{parseFloat(card.totalHours || "0").toFixed(1)} hrs</span>
+                  {(() => {
+                    const reg = parseFloat(card.totalHours || "0");
+                    const ot = parseFloat(card.totalOtHours || "0");
+                    const total = reg + ot;
+                    return (
+                      <span className="text-sm font-semibold whitespace-nowrap" title={ot > 0 ? `${reg.toFixed(2)}h regular + ${ot.toFixed(2)}h OT` : undefined}>
+                        {total.toFixed(1)} hrs
+                        {ot > 0 && (
+                          <span className="ml-1 text-amber-600 text-xs font-medium">
+                            (+{ot.toFixed(1)} OT)
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })()}
                   {statusBadge(card.status)}
                   {hasCorrections && (
                     <Badge
@@ -1299,7 +1330,8 @@ export function TimeManagement() {
                 )}
               </div>
             );
-          })}
+            });
+          })()}
         </div>
       )}
     </div>

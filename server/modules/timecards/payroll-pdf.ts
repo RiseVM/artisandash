@@ -8,6 +8,7 @@ export async function generatePayrollPdf(
   cards: Array<{
     user: { firstName: string | null; lastName: string | null; email: string; mileageRate?: string | null };
     totalHours: string | null;
+    totalOtHours?: string | null;
     totalMileage: string | null;
     entries: Array<{ entryDate: string; hours: string; mileage: string | null }>;
   }>,
@@ -28,11 +29,11 @@ export async function generatePayrollPdf(
     doc.fontSize(12).font("Helvetica").text(`Week: ${weekLabel}`, { align: "center" });
     doc.moveDown(1);
 
-    // Table setup
+    // Table setup — name + 7 days + Reg + OT + Total + miles + $
     const startX = 40;
     let y = doc.y;
-    const colWidths = [140, 50, 50, 50, 50, 50, 50, 50, 60, 60, 60]; // name + 7 days + total + miles + $
-    const headers = ["Employee", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Total Hrs", "Miles", "Mileage $"];
+    const colWidths = [130, 45, 45, 45, 45, 45, 45, 45, 50, 45, 55, 50, 55];
+    const headers = ["Employee", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun", "Reg", "OT", "Total", "Miles", "Mileage $"];
     const rowHeight = 22;
 
     // Header row
@@ -59,18 +60,29 @@ export async function generatePayrollPdf(
       const totalMiles = parseFloat(card.totalMileage || "0");
       const mileageCost = (rate * totalMiles).toFixed(2);
 
+      // Reg = capped at 40, OT = anything above. Total = the actual hours
+      // worked (Reg + OT). The DB splits these for payroll math but the
+      // payroll person needs to see the real total too.
+      const reg = parseFloat(card.totalHours || "0");
+      const ot = parseFloat(card.totalOtHours || "0");
+      const total = reg + ot;
+
       x = startX;
       const values = [
         name,
         ...card.entries.map((e) => parseFloat(e.hours || "0").toFixed(1)),
-        parseFloat(card.totalHours || "0").toFixed(1),
+        reg.toFixed(1),
+        ot > 0 ? ot.toFixed(1) : "—",
+        total.toFixed(1),
         totalMiles.toFixed(1),
         `$${mileageCost}`,
       ];
 
+      // Bold the Employee name (col 0) and the Total column (col 10)
+      const totalColIdx = 10;
       for (let i = 0; i < values.length; i++) {
         doc.rect(x, y, colWidths[i], rowHeight).stroke();
-        const fontStyle = i === 0 || i === 8 ? "Helvetica-Bold" : "Helvetica";
+        const fontStyle = i === 0 || i === totalColIdx ? "Helvetica-Bold" : "Helvetica";
         doc.font(fontStyle).fillColor("#000").text(values[i], x + 3, y + 6, { width: colWidths[i] - 6, align: i === 0 ? "left" : "center" });
         x += colWidths[i];
       }
