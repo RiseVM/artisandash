@@ -18,25 +18,11 @@ import {
   Search,
   Users,
 } from "lucide-react";
-import { formatDateEST } from "@/lib/utils";
+import { formatDateEST, getEstWeekRange } from "@/lib/utils";
 import {
   useAdminClockEntries,
   useAdminTimeEntries,
 } from "./hooks";
-
-function getWeekRange(): { start: string; end: string } {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(now.setDate(diff));
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-
-  return {
-    start: monday.toISOString().split("T")[0],
-    end: sunday.toISOString().split("T")[0],
-  };
-}
 
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -60,7 +46,7 @@ function getUserName(user: any): string {
 }
 
 export function AdminTimesheets() {
-  const week = getWeekRange();
+  const week = getEstWeekRange();
   const [startDate, setStartDate] = useState(week.start);
   const [endDate, setEndDate] = useState(week.end);
   const [tab, setTab] = useState<"clock" | "entries">("clock");

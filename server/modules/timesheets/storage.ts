@@ -9,6 +9,19 @@ import type {
 } from "@shared/schema";
 import { eq, desc, and, gte, lte, isNull, sql } from "drizzle-orm";
 
+/**
+ * Format the calendar date the given instant *falls on* in America/New_York,
+ * as `YYYY-MM-DD`. We bucket clock entries this way so the day a row appears
+ * under matches what the admin sees on screen — a 9pm EST Monday clock-in is
+ * recorded as Monday, not as Tuesday UTC.
+ *
+ * Uses `en-CA` because that locale natively prints `YYYY-MM-DD`, sidestepping
+ * the need to parse Intl parts.
+ */
+function toEstDateString(date: Date): string {
+  return date.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
 export const timesheetStorage = {
   // ── TIME CLOCK ────────────────────────────
 
@@ -69,7 +82,7 @@ export const timesheetStorage = {
     return results
       .filter((row) => {
         if (!startDate && !endDate) return true;
-        const clockDate = row.clock.clock_in.toISOString().split("T")[0];
+        const clockDate = toEstDateString(row.clock.clock_in);
         if (startDate && clockDate < startDate) return false;
         if (endDate && clockDate > endDate) return false;
         return true;
@@ -106,7 +119,7 @@ export const timesheetStorage = {
     return results
       .filter((row) => {
         if (!startDate && !endDate) return true;
-        const clockDate = row.clock.clock_in.toISOString().split("T")[0];
+        const clockDate = toEstDateString(row.clock.clock_in);
         if (startDate && clockDate < startDate) return false;
         if (endDate && clockDate > endDate) return false;
         return true;

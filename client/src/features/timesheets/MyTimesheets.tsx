@@ -44,7 +44,7 @@ import {
   Timer,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { formatDateEST } from "@/lib/utils";
+import { formatDateEST, getEstWeekRange } from "@/lib/utils";
 import {
   useActiveClock,
   useClockEntries,
@@ -54,20 +54,6 @@ import {
   useDeleteClockEntry,
 } from "./hooks";
 import { useProjects } from "@/features/projects/hooks";
-
-function getWeekRange(): { start: string; end: string } {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
-  const monday = new Date(now.setDate(diff));
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-
-  return {
-    start: monday.toISOString().split("T")[0],
-    end: sunday.toISOString().split("T")[0],
-  };
-}
 
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -86,7 +72,7 @@ function formatTime(date: Date | string): string {
 
 export function MyTimesheets() {
   const { toast } = useToast();
-  const week = getWeekRange();
+  const week = getEstWeekRange();
   const [startDate, setStartDate] = useState(week.start);
   const [endDate, setEndDate] = useState(week.end);
   const [tab, setTab] = useState<"clock" | "entries">("clock");
