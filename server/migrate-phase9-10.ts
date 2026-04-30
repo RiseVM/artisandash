@@ -43,6 +43,12 @@ export async function migratePhase9And10() {
     await client.query(`CREATE INDEX IF NOT EXISTS "IDX_estimates_estimate_number" ON estimates(estimate_number)`);
     // Make customer_id nullable (Quote Builder creates estimates without a customer)
     await client.query(`ALTER TABLE estimates ALTER COLUMN customer_id DROP NOT NULL`).catch(() => {});
+    // Columns added after the original CREATE TABLE — for old DBs that pre-date them
+    await client.query(`ALTER TABLE estimates ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP`).catch(() => {});
+    await client.query(`ALTER TABLE estimates ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`).catch(() => {});
+    await client.query(`ALTER TABLE estimates ADD COLUMN IF NOT EXISTS expired_at TIMESTAMP`).catch(() => {});
+    await client.query(`ALTER TABLE estimates ADD COLUMN IF NOT EXISTS drive_file_id TEXT`).catch(() => {});
+    await client.query(`ALTER TABLE estimates ADD COLUMN IF NOT EXISTS drive_link TEXT`).catch(() => {});
 
     // ── ESTIMATE LINE ITEMS ──
     await client.query(`
