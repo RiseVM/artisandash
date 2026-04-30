@@ -19,6 +19,15 @@ export async function migrateTimecards() {
     // Employee self-correction tracking on the parent card
     await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS has_corrections BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS last_correction_at TIMESTAMP`);
+    // Timestamp columns expected by the Drizzle schema
+    await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT now()`);
+    await client.query(`ALTER TABLE timecards ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()`);
+    await client.query(`ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT now()`);
+    await client.query(`ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()`);
+    await client.query(`ALTER TABLE timecard_recipients ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT now()`).catch(() => {});
+    await client.query(`ALTER TABLE timecard_recipients ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()`).catch(() => {});
+    await client.query(`ALTER TABLE timecard_mileage ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT now()`).catch(() => {});
+    await client.query(`ALTER TABLE timecard_mileage ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT now()`).catch(() => {});
 
     // ── timecard_entries table additions ──
     await client.query(`ALTER TABLE timecard_entries ADD COLUMN IF NOT EXISTS clock_in TEXT`);
