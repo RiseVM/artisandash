@@ -24,6 +24,8 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role").default("staff").notNull(), // admin | manager | staff
   isActive: text("is_active").default("yes").notNull(), // yes | no
+  mileageEnabled: text("mileage_enabled").default("no").notNull(), // yes | no
+  mileageRate: varchar("mileage_rate"), // dollars per mile, e.g. "0.65"
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
