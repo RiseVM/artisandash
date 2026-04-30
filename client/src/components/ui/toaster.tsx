@@ -14,7 +14,7 @@ export function Toaster() {
   return (
     <ToastProvider>
       {toasts.map(function ({ id, title, description, action, variant, ...props }) {
-        const duration = variant === "destructive" ? Infinity : 1000
+        const duration = variant === "destructive" ? Infinity : 5000
         return (
           <Toast key={id} variant={variant} duration={duration} {...props}>
             <div className="grid gap-1">
