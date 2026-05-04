@@ -5,6 +5,45 @@ import { timesheetStorage } from "./storage";
 import { insertTimeClockSchema } from "@shared/schema";
 import { z } from "zod";
 
+/**
+ * Fire-and-forget audit log helper for timesheet events. Failures are logged
+ * to console but never bubble up — auditing must not break the user's action.
+ * Uses the general activityLogs table since timesheets has no dedicated audit
+ * table.
+ */
+async function logTimesheetEvent(
+  req: any,
+  action: string,
+  entryId: number | string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const { storage: adminStorage } = await import("../admin/storage");
+    const detailParts: string[] = [`entry=${entryId}`];
+    for (const [k, v] of Object.entries(fields)) {
+      if (v === undefined) continue;
+      const rendered =
+        v === null
+          ? "null"
+          : v instanceof Date
+            ? v.toISOString()
+            : String(v);
+      detailParts.push(`${k}=${rendered}`);
+    }
+    await adminStorage.createActivityLog({
+      userId: req.user?.id ?? null,
+      userEmail: req.user?.email ?? null,
+      action,
+      entityType: "time_clock",
+      entityId: String(entryId),
+      details: detailParts.join(" | "),
+      ipAddress: req.ip,
+    });
+  } catch (err: any) {
+    console.error(`[timesheets audit] ${action} log failed:`, err?.message);
+  }
+}
+
 export function registerTimesheetRoutes(app: Express) {
   // ── TIME CLOCK ────────────────────────────
 
@@ -42,6 +81,14 @@ export function registerTimesheetRoutes(app: Express) {
         notes: req.body.notes || null,
       });
 
+      // Audit log — silent before, leaves payroll with no trace of who clocked
+      // in when. Now writes a row to activityLogs alongside the existing
+      // timesheets data so admins can reconstruct who did what.
+      logTimesheetEvent(req, "clock_in", entry.id, {
+        clock_in: entry.clock_in,
+        project_id: entry.project_id,
+      });
+
       res.status(201).json(entry);
     })
   );
@@ -65,6 +112,12 @@ export function registerTimesheetRoutes(app: Express) {
         req.body.break_minutes,
         req.body.notes
       );
+
+      logTimesheetEvent(req, "clock_out", active.id, {
+        clock_in: active.clock_in,
+        clock_out: entry?.clock_out,
+        break_minutes: req.body.break_minutes,
+      });
 
       res.json(entry);
     })
@@ -92,7 +145,11 @@ export function registerTimesheetRoutes(app: Express) {
     })
   );
 
-  // PATCH update a clock entry
+  // PATCH update a clock entry — self-serve route (staff editing their own
+  // entries). Time fields (clock_in, clock_out) are intentionally NOT
+  // editable here; admins go through PATCH /api/admin/timesheets/clock/:id
+  // for those, which is gated and audited differently. Staff can update
+  // notes, break_minutes, and project_id on their own rows.
   app.patch(
     "/api/timesheets/clock/:id",
     isAuthenticated,
@@ -101,26 +158,90 @@ export function registerTimesheetRoutes(app: Express) {
       if (isNaN(id))
         return res.status(400).json({ error: "Invalid clock entry ID" });
 
-      const entry = await timesheetStorage.updateClockEntry(id, req.body);
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const existing = await timesheetStorage.getClockEntryById(id);
+      if (!existing)
+        return res.status(404).json({ error: "Clock entry not found" });
+
+      // Ownership check — was missing before; any logged-in user could edit
+      // any entry by ID.
+      if (existing.user_id !== userId) {
+        return res
+          .status(403)
+          .json({ error: "You can only edit your own clock entries" });
+      }
+
+      // Reject any attempt to silently rewrite time fields through this
+      // route. If the caller sends them, point them at the admin route.
+      if (req.body?.clock_in !== undefined || req.body?.clock_out !== undefined) {
+        return res.status(403).json({
+          error:
+            "Time edits aren't allowed on the self-serve route. An admin can adjust clock-in/out times via the admin route.",
+        });
+      }
+
+      // Whitelist editable fields
+      const patch: Record<string, unknown> = {};
+      if (req.body?.notes !== undefined) patch.notes = req.body.notes;
+      if (req.body?.break_minutes !== undefined) patch.break_minutes = req.body.break_minutes;
+      if (req.body?.project_id !== undefined) patch.project_id = req.body.project_id;
+
+      if (Object.keys(patch).length === 0) {
+        return res.status(400).json({ error: "No editable fields supplied" });
+      }
+
+      const entry = await timesheetStorage.updateClockEntry(id, patch);
       if (!entry)
         return res.status(404).json({ error: "Clock entry not found" });
+
+      logTimesheetEvent(req, "clock_entry_self_edit", id, {
+        ...patch,
+      });
 
       res.json(entry);
     })
   );
 
-  // DELETE a clock entry
+  // DELETE a clock entry — staff can delete their own; admins can delete any.
   app.delete(
     "/api/timesheets/clock/:id",
     isAuthenticated,
-    asyncHandler(async (req, res) => {
+    asyncHandler(async (req: any, res) => {
       const id = parseInt(req.params.id);
       if (isNaN(id))
         return res.status(400).json({ error: "Invalid clock entry ID" });
 
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+      const existing = await timesheetStorage.getClockEntryById(id);
+      if (!existing)
+        return res.status(404).json({ error: "Clock entry not found" });
+
+      // Ownership check unless caller is admin (or holds manage_projects)
+      const isOwn = existing.user_id === userId;
+      if (!isOwn) {
+        const { storage: authStorage } = await import("../auth/storage");
+        const allowed = await authStorage.hasPermission(req.user, "manage_projects");
+        if (!allowed) {
+          return res
+            .status(403)
+            .json({ error: "You can only delete your own clock entries" });
+        }
+      }
+
       const deleted = await timesheetStorage.deleteClockEntry(id);
       if (!deleted)
         return res.status(404).json({ error: "Clock entry not found" });
+
+      logTimesheetEvent(req, "clock_entry_deleted", id, {
+        owner_user_id: existing.user_id,
+        deleted_by_owner: isOwn,
+        clock_in: existing.clock_in,
+        clock_out: existing.clock_out,
+      });
 
       res.json({ success: true });
     })
