@@ -17,12 +17,14 @@ import {
   Calendar,
   Search,
   Users,
+  Pencil,
 } from "lucide-react";
 import { formatDateEST, getEstWeekRange } from "@/lib/utils";
 import {
   useAdminClockEntries,
   useAdminTimeEntries,
 } from "./hooks";
+import { AdjustClockInDialog } from "./AdjustClockInDialog";
 
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -51,6 +53,10 @@ export function AdminTimesheets() {
   const [endDate, setEndDate] = useState(week.end);
   const [tab, setTab] = useState<"clock" | "entries">("clock");
   const [search, setSearch] = useState("");
+  // Store only the id; resolve the live entry from the query data on every
+  // render so the dialog always sees the freshest clock_in (e.g. if another
+  // admin adjusted it while this one had the dialog open).
+  const [adjustingEntryId, setAdjustingEntryId] = useState<number | null>(null);
 
   const { data: clockEntries = [], isLoading: loadingClock } =
     useAdminClockEntries(startDate, endDate);
@@ -221,6 +227,7 @@ export function AdminTimesheets() {
                     <TableHead>Duration</TableHead>
                     <TableHead>Project</TableHead>
                     <TableHead>Notes</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -266,6 +273,22 @@ export function AdminTimesheets() {
                         <TableCell className="max-w-[200px] truncate">
                           {entry.notes || "-"}
                         </TableCell>
+                        <TableCell className="text-right">
+                          {/* Active entries (clock_out IS NULL) get an edit
+                              button so admins can fix a wrong clock-in time
+                              without waiting for the person to clock out. */}
+                          {!entry.clock_out && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setAdjustingEntryId(entry.id)}
+                              title="Adjust clock-in time"
+                              className="h-7 px-2"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -275,6 +298,18 @@ export function AdminTimesheets() {
           </CardContent>
         </Card>
       )}
+
+      {/* Adjust clock-in dialog — entry resolved live from clockEntries so
+          we always show the latest clock_in even if another admin just
+          edited it while this dialog was opening. */}
+      <AdjustClockInDialog
+        entry={
+          adjustingEntryId !== null
+            ? (clockEntries.find((e: any) => e.id === adjustingEntryId) ?? null)
+            : null
+        }
+        onClose={() => setAdjustingEntryId(null)}
+      />
 
       {/* Time Entries Tab */}
       {tab === "entries" && (

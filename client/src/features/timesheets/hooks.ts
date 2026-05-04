@@ -97,6 +97,27 @@ export function useAdminClockEntries(startDate?: string, endDate?: string) {
   });
 }
 
+/**
+ * Admin-only adjustment of a clock entry. Hits the hardened admin route at
+ * /api/admin/timesheets/clock/:id, which gates on `manage_projects`,
+ * validates clock_in/out, and writes an audit log row. Use this from
+ * AdminTimesheets — not the staff-facing useUpdateClockEntry.
+ */
+export function useAdminUpdateClockEntry() {
+  const qc = useQueryClient();
+  return useMutation<
+    TimeClock,
+    Error,
+    { id: number; clock_in?: string; clock_out?: string | null; reason?: string }
+  >({
+    mutationFn: ({ id, ...data }) => api.patch(`/api/admin/timesheets/clock/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "timesheets", "clock"] });
+      qc.invalidateQueries({ queryKey: ["timesheets", "clock"] });
+    },
+  });
+}
+
 export function useAdminTimeEntries(startDate?: string, endDate?: string) {
   const params = new URLSearchParams();
   if (startDate) params.set("start_date", startDate);

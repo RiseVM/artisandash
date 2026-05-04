@@ -62,6 +62,64 @@ export function toEstDateString(date: Date | string): string {
 }
 
 /**
+ * Format the time-of-day part of an instant in America/New_York (e.g. "2:14 PM").
+ */
+export function formatTimeEST(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleTimeString('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+/**
+ * Convert an EST wall-clock moment (year/month/day/hour/minute as the user typed
+ * it on a clock in New York) into the corresponding UTC `Date`. DST-safe: it
+ * works out the EST offset *for that specific moment* by formatting a naïve UTC
+ * stamp through `Intl.DateTimeFormat`, so it correctly handles both EST (UTC-5)
+ * and EDT (UTC-4) without any hardcoded offsets.
+ *
+ * Edge case: clock-in times inside the spring-forward gap (2:00–3:00 AM the
+ * second Sunday of March) don't actually exist on the wall clock and will land
+ * on the post-shift instant; that's fine for our use (admins fixing real
+ * clock-ins, not synthesizing impossible ones).
+ *
+ * @param year       e.g. 2026
+ * @param monthIndex 0 = January, 11 = December (matches `Date.UTC` convention)
+ * @param day        1–31
+ * @param hour24     0–23
+ * @param minute     0–59
+ */
+export function estWallClockToUtc(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour24: number,
+  minute: number,
+): Date {
+  const naiveUtcMs = Date.UTC(year, monthIndex, day, hour24, minute, 0);
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(new Date(naiveUtcMs));
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0', 10);
+  let h = get('hour');
+  if (h === 24) h = 0; // some runtimes report midnight as 24
+  const seenAsEstMs = Date.UTC(get('year'), get('month') - 1, get('day'), h, get('minute'), get('second'));
+  const offsetMs = naiveUtcMs - seenAsEstMs; // EST offset for that wall-clock moment
+  return new Date(naiveUtcMs + offsetMs);
+}
+
+/**
  * Compute the Mon–Sun week range that contains `reference` (default: now)
  * *as seen in America/New_York*, returned as `YYYY-MM-DD` strings.
  *

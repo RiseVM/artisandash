@@ -131,6 +131,11 @@ export const timesheetStorage = {
       }));
   },
 
+  async getClockEntryById(id: number): Promise<TimeClock | undefined> {
+    const [entry] = await db.select().from(timeClock).where(eq(timeClock.id, id));
+    return entry;
+  },
+
   async updateClockEntry(
     id: number,
     data: Partial<InsertTimeClock>
