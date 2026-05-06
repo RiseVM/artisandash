@@ -26,6 +26,10 @@ export const users = pgTable("users", {
   isActive: text("is_active").default("yes").notNull(), // yes | no
   mileageEnabled: text("mileage_enabled").default("no").notNull(), // yes | no
   mileageRate: varchar("mileage_rate"), // dollars per mile, e.g. "0.65"
+  // Whether this user appears in the timecard / clock-in workflow. Defaults
+  // to "yes" so non-admin staff are tracked automatically; admins can opt out
+  // (or in) via the user-edit form.
+  tracksHours: text("tracks_hours").default("yes").notNull(), // yes | no
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

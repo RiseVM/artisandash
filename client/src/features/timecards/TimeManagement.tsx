@@ -32,6 +32,9 @@ import {
   Trash2,
   Plus,
   AlertTriangle,
+  Car,
+  Save,
+  Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -90,6 +93,120 @@ function initials(firstName: string | null, lastName: string | null): string {
 function fullName(u: { firstName: string | null; lastName: string | null; email: string }): string {
   const n = [u.firstName, u.lastName].filter(Boolean).join(" ");
   return n || u.email;
+}
+
+
+/**
+ * Admin-side weekly mileage editor for a single employee timecard.
+ * Reads/writes via the existing /api/timecards/:id/mileage endpoints
+ * (the same ones the employee\'s own timecard view uses) so admins and
+ * employees see and update the same row. Displays computed cost using
+ * either the per-user mileageRate or a 0.67 fallback.
+ */
+function AdminMileageEditor({
+  timecardId,
+  weekStartDate,
+  userMileageRate,
+}: {
+  timecardId: number;
+  weekStartDate: string;
+  userMileageRate?: string | null;
+}) {
+  const queryClient = useQueryClient();
+  const [miles, setMiles] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery<{ entries: { id: number; miles: string | null }[]; total: number }>({
+    queryKey: ["/api/timecards/" + timecardId + "/mileage"],
+    queryFn: async () => {
+      const res = await fetch(`/api/timecards/${timecardId}/mileage`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch mileage");
+      return res.json();
+    },
+  });
+
+  // Sync input with stored total when data loads
+  useEffect(() => {
+    if (!data) return;
+    const total = (data.entries || []).reduce(
+      (sum, m) => sum + parseFloat(m.miles || "0"),
+      0,
+    );
+    setMiles(total > 0 ? String(total) : "");
+  }, [data]);
+
+  const rate = userMileageRate ? parseFloat(userMileageRate) : 0.67;
+  const milesNum = parseFloat(miles || "0");
+  const cost = isNaN(milesNum) ? 0 : milesNum * rate;
+
+  // Store weekly mileage as a single entry dated to the timecard\'s Monday,
+  // matching how the employee-side editor stores it. The POST endpoint upserts
+  // by (timecardId, entryDate), so this stays in sync with employee edits.
+  const saveMileage = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/timecards/${timecardId}/mileage`, {
+        entryDate: weekStartDate,
+        miles: parseFloat(miles || "0"),
+        purpose: null,
+      });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/" + timecardId + "/mileage"] });
+      setSaved(true);
+      setError(null);
+      setTimeout(() => setSaved(false), 2000);
+    },
+    onError: (err: any) => {
+      setError(err?.message || "Failed to save");
+      setTimeout(() => setError(null), 4000);
+    },
+  });
+
+  return (
+    <div className="border-t bg-muted/30 px-4 py-3">
+      <div className="flex items-center gap-2 mb-2">
+        <Car className="h-4 w-4 text-primary" />
+        <span className="text-sm font-medium">Mileage this week</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="number"
+          step="0.1"
+          min="0"
+          placeholder="Miles"
+          value={miles}
+          onChange={(e) => setMiles(e.target.value)}
+          className="w-28 h-8 text-sm"
+          data-testid={`input-admin-mileage-${timecardId}`}
+        />
+        <span className="text-xs text-muted-foreground">
+          @ ${rate.toFixed(2)}/mi = ${cost.toFixed(2)}
+        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => saveMileage.mutate()}
+          disabled={saveMileage.isPending || isLoading}
+          data-testid={`button-save-admin-mileage-${timecardId}`}
+        >
+          {saveMileage.isPending ? (
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          ) : (
+            <Save className="h-3 w-3 mr-1" />
+          )}
+          Save
+        </Button>
+        {saved && (
+          <span className="text-xs text-green-600 flex items-center gap-0.5">
+            <Check className="h-3 w-3" /> Saved
+          </span>
+        )}
+        {error && <span className="text-xs text-red-600">{error}</span>}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -1285,6 +1402,13 @@ export function TimeManagement() {
                         );
                       })}
                     </div>
+
+                    {/* Mileage */}
+                    <AdminMileageEditor
+                      timecardId={expandedDetail.id}
+                      weekStartDate={card.weekStartDate}
+                      userMileageRate={(card.user as any).mileageRate ?? null}
+                    />
 
                     {/* Audit log */}
                     {expandedDetail.auditLog.length > 0 && (

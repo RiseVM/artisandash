@@ -16,6 +16,7 @@ export async function migrateUsers() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TEXT NOT NULL DEFAULT 'yes'`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mileage_enabled TEXT NOT NULL DEFAULT 'no'`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS mileage_rate VARCHAR`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tracks_hours TEXT NOT NULL DEFAULT 'yes'`);
 
     // Per-user permission overrides — take precedence over role defaults.
     await client.query(`

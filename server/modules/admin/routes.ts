@@ -31,6 +31,7 @@ export function registerAdminRoutes(app: Express) {
           lastName: u.lastName,
           role: u.role,
           isActive: u.isActive,
+          tracksHours: u.tracksHours,
           createdAt: u.createdAt,
         })),
       );
@@ -41,7 +42,7 @@ export function registerAdminRoutes(app: Express) {
     "/api/users",
     isAdmin,
     asyncHandler(async (req: any, res) => {
-      const { email, password, firstName, lastName, role } = req.body;
+      const { email, password, firstName, lastName, role, tracksHours } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({ error: "Email and password are required" });
@@ -65,6 +66,8 @@ export function registerAdminRoutes(app: Express) {
         lastName: lastName || null,
         role: role || "staff",
         isActive: "yes",
+        // Default new users to tracking hours; caller can override with "no".
+        tracksHours: tracksHours === "no" ? "no" : "yes",
       });
 
       await storage.createActivityLog({
@@ -84,6 +87,7 @@ export function registerAdminRoutes(app: Express) {
         lastName: user.lastName,
         role: user.role,
         isActive: user.isActive,
+        tracksHours: user.tracksHours,
       });
     }),
   );
@@ -93,7 +97,7 @@ export function registerAdminRoutes(app: Express) {
     isAdmin,
     asyncHandler(async (req: any, res) => {
       const { id } = req.params;
-      const { email, password, firstName, lastName, role, isActive } = req.body;
+      const { email, password, firstName, lastName, role, isActive, tracksHours } = req.body;
 
       const existingUser = await storage.getUser(id);
       if (!existingUser) {
@@ -116,6 +120,7 @@ export function registerAdminRoutes(app: Express) {
       if (lastName !== undefined) updates.lastName = lastName;
       if (role !== undefined) updates.role = role;
       if (isActive !== undefined) updates.isActive = isActive;
+      if (tracksHours !== undefined) updates.tracksHours = tracksHours;
       if (password) {
         updates.passwordHash = await hashPassword(password);
       }
@@ -139,6 +144,7 @@ export function registerAdminRoutes(app: Express) {
         lastName: user!.lastName,
         role: user!.role,
         isActive: user!.isActive,
+        tracksHours: user!.tracksHours,
       });
     }),
   );

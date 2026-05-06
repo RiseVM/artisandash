@@ -25,6 +25,7 @@ interface User {
   lastName: string | null;
   role: string;
   isActive: string;
+  tracksHours?: string; // yes | no
   createdAt: string;
 }
 
@@ -53,6 +54,7 @@ export function UserManagement() {
     firstName: "",
     lastName: "",
     role: "staff",
+    tracksHours: "yes",
   });
 
   const [newPassword, setNewPassword] = useState("");
@@ -97,7 +99,7 @@ export function UserManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setIsCreateOpen(false);
-      setFormData({ email: "", password: "", firstName: "", lastName: "", role: "staff" });
+      setFormData({ email: "", password: "", firstName: "", lastName: "", role: "staff", tracksHours: "yes" });
       toast({ title: "User created successfully" });
     },
     onError: (error: Error) => {
@@ -187,6 +189,7 @@ export function UserManagement() {
       firstName: formData.firstName,
       lastName: formData.lastName,
       role: formData.role,
+      tracksHours: formData.tracksHours,
     });
   };
 
@@ -364,6 +367,7 @@ export function UserManagement() {
                                   firstName: user.firstName || "",
                                   lastName: user.lastName || "",
                                   role: user.role,
+                                  tracksHours: user.tracksHours || "yes",
                                 });
                               }}
                               disabled={!isAdmin && user.role === "admin"}
@@ -493,6 +497,20 @@ export function UserManagement() {
                       {isAdmin && <SelectItem value="admin">Admin</SelectItem>}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="edit-tracks-hours" className="text-sm">Tracks hours</Label>
+                    <p className="text-xs text-muted-foreground">
+                      When on, this user gets a weekly timecard, can clock in/out, and shows up in payroll.
+                    </p>
+                  </div>
+                  <Switch
+                    id="edit-tracks-hours"
+                    checked={formData.tracksHours === "yes"}
+                    onCheckedChange={(v) => setFormData({ ...formData, tracksHours: v ? "yes" : "no" })}
+                    data-testid="switch-tracks-hours"
+                  />
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>

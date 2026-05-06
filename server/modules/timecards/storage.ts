@@ -184,8 +184,10 @@ export const timecardStorage = {
           firstName: users.firstName,
           lastName: users.lastName,
           email: users.email,
+          mileageRate: users.mileageRate,
+          mileageEnabled: users.mileageEnabled,
         },
-        role: users.role,
+        tracksHours: users.tracksHours,
       })
       .from(timecards)
       .innerJoin(users, eq(timecards.userId, users.id))
@@ -193,8 +195,8 @@ export const timecardStorage = {
 
     const mapped = rows
       .filter((r) => {
-        // Exclude admin users from the employee list
-        if (r.role === "admin") return false;
+        // Only include users who are configured to track hours.
+        if (r.tracksHours !== "yes") return false;
         if (filters?.weekStartDate && r.card.weekStartDate !== filters.weekStartDate) return false;
         if (filters?.userId && r.card.userId !== filters.userId) return false;
         if (filters?.status && r.card.status !== filters.status) return false;
@@ -687,17 +689,17 @@ export const timecardStorage = {
         email: users.email,
       })
       .from(users)
-      .where(eq(users.isActive, "yes"))
+      .where(and(eq(users.isActive, "yes"), eq(users.tracksHours, "yes")))
       .orderBy(users.lastName);
   },
 
-  /** Ensure every active non-admin employee has a draft timecard for the given week */
+  /** Ensure every active hours-tracking employee has a draft timecard for the given week */
   async ensureTimecardsForWeek(weekStartDate: string): Promise<void> {
     const activeUsers = await this.getAllActiveUsers();
     for (const u of activeUsers) {
-      // Skip admin users — they don't need timecards
-      const [fullUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, u.id));
-      if (fullUser?.role === "admin") continue;
+      // Skip users who are not configured to track hours (admins who have opted out, etc.)
+      const [fullUser] = await db.select({ tracksHours: users.tracksHours }).from(users).where(eq(users.id, u.id));
+      if (fullUser?.tracksHours !== "yes") continue;
 
       const existing = await this.getTimecardByUserAndWeek(u.id, weekStartDate);
       if (!existing) {
@@ -964,7 +966,7 @@ export const timecardStorage = {
           eq(timecards.weekStartDate, weekStartDate),
           sql`${timecardEntries.notes} IS NOT NULL`,
           sql`trim(${timecardEntries.notes}) != ''`,
-          sql`${users.role} != 'admin'`,
+          sql`${users.tracksHours} = 'yes'`,
         ),
       );
     return rows.length;
@@ -1054,7 +1056,7 @@ export const timecardStorage = {
         firstName: users.firstName,
         lastName: users.lastName,
         email: users.email,
-        role: users.role,
+        tracksHours: users.tracksHours,
       })
       .from(users)
       .where(eq(users.isActive, "yes"))
@@ -1068,8 +1070,8 @@ export const timecardStorage = {
     }> = [];
 
     for (const u of allUsers) {
-      // Skip admin users
-      if (u.role === "admin") continue;
+      // Skip users who are not configured to track hours
+      if (u.tracksHours !== "yes") continue;
 
       try {
         // Get open punch — select only specific columns to avoid schema mismatches
