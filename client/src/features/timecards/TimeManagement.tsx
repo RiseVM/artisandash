@@ -100,17 +100,15 @@ function fullName(u: { firstName: string | null; lastName: string | null; email:
  * Admin-side weekly mileage editor for a single employee timecard.
  * Reads/writes via the existing /api/timecards/:id/mileage endpoints
  * (the same ones the employee\'s own timecard view uses) so admins and
- * employees see and update the same row. Displays computed cost using
- * either the per-user mileageRate or a 0.67 fallback.
+ * employees see and update the same row. Records total weekly miles only —
+ * dollar conversion is handled downstream in payroll.
  */
 function AdminMileageEditor({
   timecardId,
   weekStartDate,
-  userMileageRate,
 }: {
   timecardId: number;
   weekStartDate: string;
-  userMileageRate?: string | null;
 }) {
   const queryClient = useQueryClient();
   const [miles, setMiles] = useState("");
@@ -135,10 +133,6 @@ function AdminMileageEditor({
     );
     setMiles(total > 0 ? String(total) : "");
   }, [data]);
-
-  const rate = userMileageRate ? parseFloat(userMileageRate) : 0.67;
-  const milesNum = parseFloat(miles || "0");
-  const cost = isNaN(milesNum) ? 0 : milesNum * rate;
 
   // Store weekly mileage as a single entry dated to the timecard\'s Monday,
   // matching how the employee-side editor stores it. The POST endpoint upserts
@@ -181,9 +175,7 @@ function AdminMileageEditor({
           className="w-28 h-8 text-sm"
           data-testid={`input-admin-mileage-${timecardId}`}
         />
-        <span className="text-xs text-muted-foreground">
-          @ ${rate.toFixed(2)}/mi = ${cost.toFixed(2)}
-        </span>
+        <span className="text-xs text-muted-foreground">miles</span>
         <Button
           size="sm"
           variant="outline"
@@ -1407,7 +1399,6 @@ export function TimeManagement() {
                     <AdminMileageEditor
                       timecardId={expandedDetail.id}
                       weekStartDate={card.weekStartDate}
-                      userMileageRate={(card.user as any).mileageRate ?? null}
                     />
 
                     {/* Audit log */}
