@@ -1,10 +1,16 @@
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
 const app = express();
 const httpServer = createServer(app);
+
+// CSP is disabled because Vite dev (HMR) and Tailwind/shadcn inline styles
+// would need a tailored policy. The other helmet defaults still apply
+// (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, etc.).
+app.use(helmet({ contentSecurityPolicy: false }));
 
 declare module "http" {
   interface IncomingMessage {
