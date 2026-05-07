@@ -6,7 +6,13 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index";
 import { startScheduler, checkAndSendNotifications } from "./notificationScheduler";
-import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification, sendBugReportNotification, sendCheckoutConfirmation, sendPortalSetupInvitation } from "./emailService";
+import { sendSampleReminder, sendContractEmail, sendInstallerFollowUp, sendDesignerFollowUp, sendSpecialRequestFollowUp, sendPortalInvite, sendPortalPasswordReset, sendNewMessageNotification, sendChangeOrderApprovalNeeded, sendPhaseCompletedNotification, sendDeliveryUpdateNotification, sendClientMessageToAdminNotification, sendBugReportNotification, sendCheckoutConfirmation, sendPortalSetupInvitation, sendEmailFailureAlert } from "./emailService";
+
+type CheckoutEmailFailure = {
+  type: 'client_confirmation' | 'installer_followup' | 'designer_followup' | 'special_request_followup';
+  recipient: string;
+  error: string;
+};
 import { uploadAgreementToGoogleDrive, getAgreementText, uploadContractToGoogleDrive } from "./googleDriveService";
 import { generateContractPdf } from "./contractPdfService";
 import { getUncachableResendClient } from "./emailService";
@@ -761,10 +767,12 @@ export async function registerRoutes(
       const customer = await storage.getCustomer(data.customer_id);
       const item = await storage.getInventoryItem(data.inventory_item_id);
 
+      const emailFailures: CheckoutEmailFailure[] = [];
+
       // Send checkout confirmation email to customer
       if (customer && item) {
         try {
-          await sendCheckoutConfirmation(
+          const result = await sendCheckoutConfirmation(
             customer.email,
             customer.name,
             item.name,
@@ -773,15 +781,23 @@ export async function registerRoutes(
             data.checkout_date,
             data.due_date
           );
+          if (!result.ok) {
+            emailFailures.push({ type: 'client_confirmation', recipient: customer.email, error: result.error });
+          }
         } catch (emailError) {
           console.error("Failed to send checkout confirmation email:", emailError);
+          emailFailures.push({
+            type: 'client_confirmation',
+            recipient: customer.email,
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+          });
         }
       }
 
       // Send installer follow-up email if customer needs an installer
       if (data.needs_installer === "yes" && customer && item) {
         try {
-          await sendInstallerFollowUp(
+          const result = await sendInstallerFollowUp(
             customer.name,
             customer.email,
             customer.phone,
@@ -791,15 +807,23 @@ export async function registerRoutes(
             data.checkout_date,
             data.notes || null
           );
+          if (!result.ok) {
+            emailFailures.push({ type: 'installer_followup', recipient: 'showroom/claudia/michele', error: result.error });
+          }
         } catch (emailError) {
           console.error("Failed to send installer follow-up email:", emailError);
+          emailFailures.push({
+            type: 'installer_followup',
+            recipient: 'showroom/claudia/michele',
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+          });
         }
       }
-      
+
       // Send designer follow-up email if customer wants a designer
       if (data.wants_designer === "yes" && customer) {
         try {
-          await sendDesignerFollowUp(
+          const result = await sendDesignerFollowUp(
             customer.name,
             customer.email,
             customer.phone,
@@ -809,15 +833,23 @@ export async function registerRoutes(
             data.checkout_date,
             data.notes || null
           );
+          if (!result.ok) {
+            emailFailures.push({ type: 'designer_followup', recipient: 'claudia/michele', error: result.error });
+          }
         } catch (emailError) {
           console.error("Failed to send designer follow-up email:", emailError);
+          emailFailures.push({
+            type: 'designer_followup',
+            recipient: 'claudia/michele',
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+          });
         }
       }
-      
+
       // Send special request follow-up email if customer has a special request
       if (data.has_special_request === "yes" && customer) {
         try {
-          await sendSpecialRequestFollowUp(
+          const result = await sendSpecialRequestFollowUp(
             customer.name,
             customer.email,
             customer.phone,
@@ -826,12 +858,43 @@ export async function registerRoutes(
             data.checkout_date,
             data.notes || null
           );
+          if (!result.ok) {
+            emailFailures.push({ type: 'special_request_followup', recipient: 'showroom@artisantilect.com', error: result.error });
+          }
         } catch (emailError) {
           console.error("Failed to send special request follow-up email:", emailError);
+          emailFailures.push({
+            type: 'special_request_followup',
+            recipient: 'showroom@artisantilect.com',
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+          });
         }
       }
-      
-      res.status(201).json(checkout);
+
+      // If any emails failed, alert the admin team and surface a warning to the staff member
+      const emailWarnings: string[] = [];
+      if (emailFailures.length > 0 && customer) {
+        const failureLabels: Record<CheckoutEmailFailure['type'], string> = {
+          client_confirmation: `Booking confirmation to ${customer.email}`,
+          installer_followup: 'Installer follow-up to internal team',
+          designer_followup: 'Designer follow-up to internal team',
+          special_request_followup: 'Special request follow-up to showroom',
+        };
+        for (const f of emailFailures) {
+          emailWarnings.push(`${failureLabels[f.type]} failed: ${f.error}`);
+        }
+
+        // Fire-and-forget admin alert; do not block the response on this
+        sendEmailFailureAlert(emailFailures, {
+          customerName: customer.name,
+          customerEmail: customer.email,
+          sampleName: item?.name || null,
+          checkoutDate: data.checkout_date,
+          checkoutId: checkout.id,
+        }).catch(err => console.error("Failed to send admin email failure alert:", err));
+      }
+
+      res.status(201).json({ ...checkout, emailWarnings });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
@@ -904,12 +967,13 @@ export async function registerRoutes(
       }
 
       const emailsSent: string[] = [];
+      const emailFailures: CheckoutEmailFailure[] = [];
       const today = new Date().toLocaleDateString();
 
       // Send installer follow-up email if customer needs an installer
       if (needs_installer === "yes") {
         try {
-          await sendInstallerFollowUp(
+          const result = await sendInstallerFollowUp(
             customer.name,
             customer.email,
             customer.phone,
@@ -919,16 +983,25 @@ export async function registerRoutes(
             today,
             notes || null
           );
-          emailsSent.push("installer");
+          if (result.ok) {
+            emailsSent.push("installer");
+          } else {
+            emailFailures.push({ type: 'installer_followup', recipient: 'showroom/claudia/michele', error: result.error });
+          }
         } catch (emailError) {
           console.error("Failed to send installer follow-up email:", emailError);
+          emailFailures.push({
+            type: 'installer_followup',
+            recipient: 'showroom/claudia/michele',
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+          });
         }
       }
-      
+
       // Send designer follow-up email if customer wants a designer
       if (wants_designer === "yes") {
         try {
-          await sendDesignerFollowUp(
+          const result = await sendDesignerFollowUp(
             customer.name,
             customer.email,
             customer.phone,
@@ -938,16 +1011,25 @@ export async function registerRoutes(
             today,
             notes || null
           );
-          emailsSent.push("designer");
+          if (result.ok) {
+            emailsSent.push("designer");
+          } else {
+            emailFailures.push({ type: 'designer_followup', recipient: 'claudia/michele', error: result.error });
+          }
         } catch (emailError) {
           console.error("Failed to send designer follow-up email:", emailError);
+          emailFailures.push({
+            type: 'designer_followup',
+            recipient: 'claudia/michele',
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+          });
         }
       }
-      
+
       // Send special request follow-up email if customer has a special request
       if (has_special_request === "yes") {
         try {
-          await sendSpecialRequestFollowUp(
+          const result = await sendSpecialRequestFollowUp(
             customer.name,
             customer.email,
             customer.phone,
@@ -956,13 +1038,43 @@ export async function registerRoutes(
             today,
             notes || null
           );
-          emailsSent.push("special_request");
+          if (result.ok) {
+            emailsSent.push("special_request");
+          } else {
+            emailFailures.push({ type: 'special_request_followup', recipient: 'showroom@artisantilect.com', error: result.error });
+          }
         } catch (emailError) {
           console.error("Failed to send special request follow-up email:", emailError);
+          emailFailures.push({
+            type: 'special_request_followup',
+            recipient: 'showroom@artisantilect.com',
+            error: emailError instanceof Error ? emailError.message : String(emailError),
+          });
         }
       }
 
-      res.json({ success: true, emailsSent });
+      const emailWarnings: string[] = [];
+      if (emailFailures.length > 0) {
+        const failureLabels: Record<CheckoutEmailFailure['type'], string> = {
+          client_confirmation: `Booking confirmation to ${customer.email}`,
+          installer_followup: 'Installer follow-up to internal team',
+          designer_followup: 'Designer follow-up to internal team',
+          special_request_followup: 'Special request follow-up to showroom',
+        };
+        for (const f of emailFailures) {
+          emailWarnings.push(`${failureLabels[f.type]} failed: ${f.error}`);
+        }
+
+        sendEmailFailureAlert(emailFailures, {
+          customerName: customer.name,
+          customerEmail: customer.email,
+          sampleName: null,
+          checkoutDate: today,
+          checkoutId: null,
+        }).catch(err => console.error("Failed to send admin email failure alert:", err));
+      }
+
+      res.json({ success: true, emailsSent, emailWarnings });
     } catch (error) {
       console.error("Error sending follow-up emails:", error);
       res.status(500).json({ error: "Failed to send follow-up emails" });

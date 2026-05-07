@@ -17,6 +17,30 @@ export async function getUncachableResendClient() {
 
 export type NotificationType = '7_day_reminder' | '1_day_reminder' | 'overdue';
 
+export type EmailSendResult = { ok: true } | { ok: false; error: string };
+
+const ADMIN_ALERT_RECIPIENTS = [
+  'showroom@artisantilect.com',
+  'claudia@artisantilect.com',
+  'michele@artisantilect.com',
+];
+
+function describeError(err: unknown): string {
+  if (!err) return 'Unknown error';
+  if (typeof err === 'string') return err;
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object') {
+    const anyErr = err as { message?: string; name?: string };
+    if (anyErr.message) return anyErr.message;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  }
+  return String(err);
+}
+
 export async function sendSampleReminder(
   customerEmail: string,
   customerName: string,
@@ -95,7 +119,7 @@ export async function sendCheckoutConfirmation(
   sampleVendor: string | null,
   checkoutDate: string,
   dueDate: string
-): Promise<boolean> {
+): Promise<EmailSendResult> {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
 
@@ -146,11 +170,17 @@ export async function sendCheckoutConfirmation(
       html: bodyHtml,
     });
 
+    if (result.error) {
+      const errMsg = describeError(result.error);
+      console.error(`Failed to send checkout confirmation to ${customerEmail}:`, result.error);
+      return { ok: false, error: errMsg };
+    }
+
     console.log(`Checkout confirmation email sent to ${customerEmail}:`, result);
-    return true;
+    return { ok: true };
   } catch (error) {
     console.error(`Failed to send checkout confirmation to ${customerEmail}:`, error);
-    return false;
+    return { ok: false, error: describeError(error) };
   }
 }
 
@@ -163,7 +193,7 @@ export async function sendInstallerFollowUp(
   sampleName: string | null,
   checkoutDate: string,
   notes: string | null
-): Promise<boolean> {
+): Promise<EmailSendResult> {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
     
@@ -217,11 +247,17 @@ export async function sendInstallerFollowUp(
       html: bodyHtml,
     });
 
+    if (result.error) {
+      const errMsg = describeError(result.error);
+      console.error(`Failed to send installer follow-up email:`, result.error);
+      return { ok: false, error: errMsg };
+    }
+
     console.log(`Installer follow-up email sent for ${customerName}:`, result);
-    return true;
+    return { ok: true };
   } catch (error) {
     console.error(`Failed to send installer follow-up email:`, error);
-    return false;
+    return { ok: false, error: describeError(error) };
   }
 }
 
@@ -233,7 +269,7 @@ export async function sendSpecialRequestFollowUp(
   sampleName: string | null,
   checkoutDate: string,
   notes: string | null
-): Promise<boolean> {
+): Promise<EmailSendResult> {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
     
@@ -283,11 +319,17 @@ export async function sendSpecialRequestFollowUp(
       html: bodyHtml,
     });
 
+    if (result.error) {
+      const errMsg = describeError(result.error);
+      console.error(`Failed to send special request follow-up email:`, result.error);
+      return { ok: false, error: errMsg };
+    }
+
     console.log(`Special request follow-up email sent for ${customerName}:`, result);
-    return true;
+    return { ok: true };
   } catch (error) {
     console.error(`Failed to send special request follow-up email:`, error);
-    return false;
+    return { ok: false, error: describeError(error) };
   }
 }
 
@@ -300,7 +342,7 @@ export async function sendDesignerFollowUp(
   sampleName: string | null,
   checkoutDate: string,
   notes: string | null
-): Promise<boolean> {
+): Promise<EmailSendResult> {
   try {
     const { client, fromEmail } = await getUncachableResendClient();
     
@@ -354,10 +396,127 @@ export async function sendDesignerFollowUp(
       html: bodyHtml,
     });
 
+    if (result.error) {
+      const errMsg = describeError(result.error);
+      console.error(`Failed to send designer follow-up email:`, result.error);
+      return { ok: false, error: errMsg };
+    }
+
     console.log(`Designer follow-up email sent for ${customerName}:`, result);
-    return true;
+    return { ok: true };
   } catch (error) {
     console.error(`Failed to send designer follow-up email:`, error);
+    return { ok: false, error: describeError(error) };
+  }
+}
+
+export async function sendEmailFailureAlert(
+  failures: Array<{
+    type: 'client_confirmation' | 'installer_followup' | 'designer_followup' | 'special_request_followup';
+    recipient: string;
+    error: string;
+  }>,
+  context: {
+    customerName: string;
+    customerEmail: string;
+    sampleName?: string | null;
+    checkoutDate?: string | null;
+    checkoutId?: number | null;
+  }
+): Promise<boolean> {
+  if (failures.length === 0) return true;
+
+  const typeLabels: Record<string, string> = {
+    client_confirmation: 'Client booking confirmation',
+    installer_followup: 'Installer follow-up',
+    designer_followup: 'Designer follow-up',
+    special_request_followup: 'Special request follow-up',
+  };
+
+  try {
+    const { client, fromEmail } = await getUncachableResendClient();
+
+    const failureRows = failures
+      .map(f => `
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 10px; font-weight: bold; vertical-align: top;">${typeLabels[f.type] || f.type}</td>
+          <td style="padding: 10px; vertical-align: top;">${f.recipient}</td>
+          <td style="padding: 10px; vertical-align: top; font-family: monospace; font-size: 12px; color: #991b1b;">${f.error}</td>
+        </tr>
+      `)
+      .join('');
+
+    const clientFailed = failures.some(f => f.type === 'client_confirmation');
+    const subject = clientFailed
+      ? `[Action Needed] Booking confirmation NOT delivered to ${context.customerName}`
+      : `[Action Needed] Follow-up email failed for ${context.customerName}`;
+
+    const bodyHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto;">
+        <h2 style="color: #c0392b;">Email Delivery Failure</h2>
+        <p>${failures.length} email${failures.length > 1 ? 's' : ''} related to a sample checkout failed to send. Please follow up with the customer manually.</p>
+
+        <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold; width: 160px;">Customer:</td>
+            <td style="padding: 10px;">${context.customerName}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Customer email:</td>
+            <td style="padding: 10px;">${context.customerEmail}</td>
+          </tr>
+          ${context.sampleName ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Sample:</td>
+            <td style="padding: 10px;">${context.sampleName}</td>
+          </tr>` : ''}
+          ${context.checkoutDate ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Checkout date:</td>
+            <td style="padding: 10px;">${context.checkoutDate}</td>
+          </tr>` : ''}
+          ${context.checkoutId ? `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px; font-weight: bold;">Checkout ID:</td>
+            <td style="padding: 10px;">#${context.checkoutId}</td>
+          </tr>` : ''}
+        </table>
+
+        <h3 style="color: #c0392b; margin-top: 24px;">Failed deliveries</h3>
+        <table style="border-collapse: collapse; width: 100%; margin: 8px 0;">
+          <thead>
+            <tr style="background-color: #f8f9fa; border-bottom: 2px solid #ddd;">
+              <th style="padding: 10px; text-align: left;">Email type</th>
+              <th style="padding: 10px; text-align: left;">Recipient</th>
+              <th style="padding: 10px; text-align: left;">Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${failureRows}
+          </tbody>
+        </table>
+
+        ${clientFailed ? `
+        <div style="background-color: #fee2e2; padding: 16px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #c0392b;">
+          <p style="margin: 0; color: #991b1b;"><strong>The customer did not receive their booking confirmation.</strong> Please contact ${context.customerName} at ${context.customerEmail} to confirm their checkout details and due date.</p>
+        </div>
+        ` : ''}
+      </div>
+    `;
+
+    const result = await client.emails.send({
+      from: fromEmail || 'noreply@artisantile.com',
+      to: ADMIN_ALERT_RECIPIENTS,
+      subject,
+      html: bodyHtml,
+    });
+
+    if (result.error) {
+      console.error('Failed to send email failure alert to admins:', result.error);
+      return false;
+    }
+
+    console.log('Email failure alert sent to admins:', result);
+    return true;
+  } catch (error) {
+    console.error('Failed to send email failure alert to admins:', error);
     return false;
   }
 }

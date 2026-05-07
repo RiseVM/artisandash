@@ -145,12 +145,14 @@ export function useDeleteInventory() {
   });
 }
 
+export type CheckoutWithWarnings = Checkout & { emailWarnings?: string[] };
+
 export function useCreateCheckout() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: InsertCheckout) => {
       const res = await apiRequest("POST", "/api/checkouts", data);
-      return res.json() as Promise<Checkout>;
+      return res.json() as Promise<CheckoutWithWarnings>;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/checkouts"] });

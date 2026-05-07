@@ -15,12 +15,13 @@ export function NewSample() {
     try {
       const itemIds: number[] = data.inventory_item_ids || [];
       const checkoutIds: number[] = [];
-      
+      const emailWarnings: string[] = [];
+
       // If no samples selected, send follow-up emails and show success
       if (itemIds.length === 0) {
         // Send follow-up emails if any were requested
         if (data.needs_installer === "yes" || data.wants_designer === "yes" || data.has_special_request === "yes") {
-          await apiRequest("POST", "/api/send-followup-emails", {
+          const res = await apiRequest("POST", "/api/send-followup-emails", {
             customer_id: data.customer_id,
             needs_installer: data.needs_installer || "no",
             wants_designer: data.wants_designer || "no",
@@ -30,14 +31,25 @@ export function NewSample() {
             start_date: data.start_date || null,
             notes: data.notes || null,
           });
+          const body = await res.json().catch(() => ({}));
+          if (Array.isArray(body?.emailWarnings)) emailWarnings.push(...body.emailWarnings);
         }
-        toast({
-          title: "Customer Info Saved",
-          description: "Customer information has been recorded and notifications sent.",
-        });
+
+        if (emailWarnings.length > 0) {
+          toast({
+            title: "Customer Info Saved — Email Delivery Issue",
+            description: `${emailWarnings.length} email${emailWarnings.length > 1 ? 's' : ''} failed to send. Admins have been notified. ${emailWarnings.join(' | ')}`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Customer Info Saved",
+            description: "Customer information has been recorded and notifications sent.",
+          });
+        }
         return;
       }
-      
+
       for (const itemId of itemIds) {
         const checkout = await createCheckoutMutation.mutateAsync({
           customer_id: data.customer_id,
@@ -55,18 +67,21 @@ export function NewSample() {
           auth_notes: data.auth_notes || null,
         });
         checkoutIds.push(checkout.id);
+        if (Array.isArray(checkout.emailWarnings) && checkout.emailWarnings.length > 0) {
+          emailWarnings.push(...checkout.emailWarnings);
+        }
       }
-      
+
       if (data.signature && data.customer_id) {
         const customer = customers.find(c => c.id === data.customer_id);
         const customerName = customer?.name || "Customer";
-        
+
         for (let i = 0; i < checkoutIds.length; i++) {
           const itemId = itemIds[i];
           const item = inventory.find(it => it.id === itemId);
           const itemName = item?.name || `Item #${itemId}`;
           const documentTitle = `${customerName} - ${format(new Date(), 'yyyy-MM-dd')} - ${itemName}`;
-          
+
           await createAgreementMutation.mutateAsync({
             customer_id: data.customer_id,
             checkout_id: checkoutIds[i],
@@ -75,11 +90,19 @@ export function NewSample() {
           });
         }
       }
-      
-      toast({
-        title: "Checkout Created",
-        description: `${itemIds.length} sample${itemIds.length > 1 ? 's' : ''} checked out successfully.`,
-      });
+
+      if (emailWarnings.length > 0) {
+        toast({
+          title: "Checkout Created — Email Delivery Issue",
+          description: `${itemIds.length} sample${itemIds.length > 1 ? 's' : ''} checked out, but ${emailWarnings.length} email${emailWarnings.length > 1 ? 's' : ''} failed to send. Admins have been notified. ${emailWarnings.join(' | ')}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Checkout Created",
+          description: `${itemIds.length} sample${itemIds.length > 1 ? 's' : ''} checked out successfully.`,
+        });
+      }
     } catch (err: any) {
       const errorMsg = err?.message || "Failed to create checkout. Please try again.";
       toast({
