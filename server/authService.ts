@@ -5,7 +5,18 @@ import type { User } from "@shared/schema";
 const SALT_ROUNDS = 10;
 // Use environment variables for sensitive credentials
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@artisantile.com";
-const DEFAULT_ADMIN_PASSWORD = process.env.ADMIN_DEFAULT_PASSWORD || "ChangeMe123!";
+
+function getDefaultAdminPassword(): string {
+  const fromEnv = process.env.ADMIN_DEFAULT_PASSWORD;
+  if (fromEnv) return fromEnv;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Refusing to seed admin with a hard-coded default password in production. " +
+      "Set ADMIN_DEFAULT_PASSWORD before first boot.",
+    );
+  }
+  return "ChangeMe123!";
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -40,7 +51,7 @@ export async function seedAdminUser(): Promise<void> {
 
   if (!existingAdmin) {
     // Only create admin user if it doesn't exist
-    const passwordHash = await hashPassword(DEFAULT_ADMIN_PASSWORD);
+    const passwordHash = await hashPassword(getDefaultAdminPassword());
     await storage.createUser({
       email: ADMIN_EMAIL,
       passwordHash,
