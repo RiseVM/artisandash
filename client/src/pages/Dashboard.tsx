@@ -164,6 +164,7 @@ export function Dashboard() {
     });
 
     contracts.slice(0, 10).forEach(c => {
+      if (!c.signed_at) return;
       activities.push({
         id: `contract-${c.id}`,
         type: 'contract',
