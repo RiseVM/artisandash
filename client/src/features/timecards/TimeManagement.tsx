@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { formatTimeEST, formatTimestampEST } from "@/lib/utils";
 import { useAuth } from "@/features/auth/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -882,7 +883,7 @@ export function TimeManagement() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/all"] });
-      toast({ title: `${data.name} clocked ${data.action}`, description: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) });
+      toast({ title: `${data.name} clocked ${data.action}`, description: formatTimeEST(new Date()) });
     },
     onError: (err: Error) => {
       toast({ title: "Clock action failed", description: String(err.message), variant: "destructive" });
@@ -1069,7 +1070,7 @@ export function TimeManagement() {
               const isExpanded = expandedCard === card.id;
               const isClockedIn = viewingCurrentWeek && (card.clockStatus?.clockedIn ?? false);
               const clockTime = card.clockStatus?.clockInTime
-                ? new Date(card.clockStatus.clockInTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                ? formatTimeEST(card.clockStatus.clockInTime)
                 : null;
               const todayHrs = viewingCurrentWeek ? (card.clockStatus?.todayHours ?? 0) : 0;
               const hasCorrections = !!card.hasCorrections;
@@ -1132,7 +1133,7 @@ export function TimeManagement() {
                       className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px] px-2 py-0.5 whitespace-nowrap"
                       title={
                         card.lastCorrectionAt
-                          ? `Employee corrected hours on ${new Date(card.lastCorrectionAt).toLocaleString()}`
+                          ? `Employee corrected hours on ${formatTimestampEST(card.lastCorrectionAt)}`
                           : "Employee corrected hours on this timecard"
                       }
                     >
@@ -1209,7 +1210,7 @@ export function TimeManagement() {
                           <div className="space-y-2">
                             {corrections.map((log) => {
                               const who = fullName(log.changedBy);
-                              const when = new Date(log.changedAt).toLocaleString();
+                              const when = formatTimestampEST(log.changedAt);
                               const dayLabel = log.entryDate ? formatDayLabel(log.entryDate) : null;
                               return (
                                 <div key={log.id} className="text-xs bg-white/60 rounded border border-amber-200 px-2.5 py-1.5">
@@ -1410,7 +1411,7 @@ export function TimeManagement() {
                         <div className="space-y-1.5 max-h-48 overflow-y-auto">
                           {expandedDetail.auditLog.map((log) => {
                             const who = fullName(log.changedBy);
-                            const when = new Date(log.changedAt).toLocaleString();
+                            const when = formatTimestampEST(log.changedAt);
                             return (
                               <div key={log.id} className="text-xs">
                                 <span className="text-muted-foreground">{when}</span>

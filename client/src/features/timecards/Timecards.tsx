@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef, FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { formatTimeEST, formatTimestampEST } from "@/lib/utils";
 import { useAuth } from "@/features/auth/hooks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -280,9 +281,9 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
           </p>
           <div className="space-y-1">
             {todayPunches.map((p) => {
-              const inTime = new Date(p.clockIn).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+              const inTime = formatTimeEST(p.clockIn);
               const outTime = p.clockOut
-                ? new Date(p.clockOut).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+                ? formatTimeEST(p.clockOut)
                 : "—";
               return (
                 <div key={p.id} className="flex items-center justify-between text-xs">
@@ -1169,7 +1170,7 @@ function TimecardsInner() {
             <div className="border-t px-4 py-3 space-y-2 max-h-64 overflow-y-auto">
               {timecard.auditLog.map((log) => {
                 const who = [log.changedBy.firstName, log.changedBy.lastName].filter(Boolean).join(" ") || log.changedBy.email;
-                const when = new Date(log.changedAt).toLocaleString();
+                const when = formatTimestampEST(log.changedAt);
                 return (
                   <div key={log.id} className="text-xs border-b last:border-b-0 pb-2 last:pb-0">
                     <span className="text-muted-foreground">{when}</span>

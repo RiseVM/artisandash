@@ -75,6 +75,24 @@ export function formatTimeEST(date: Date | string): string {
 }
 
 /**
+ * Format a full timestamp (date + time) in America/New_York, e.g. "Jan 5, 2026,
+ * 2:14 PM EST". Use this anywhere we previously called `.toLocaleString()` so
+ * the wall-clock value is always EST regardless of the viewer's local TZ.
+ */
+export function formatTimestampEST(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }) + ' EST';
+}
+
+/**
  * Convert an EST wall-clock moment (year/month/day/hour/minute as the user typed
  * it on a clock in New York) into the corresponding UTC `Date`. DST-safe: it
  * works out the EST offset *for that specific moment* by formatting a naïve UTC
