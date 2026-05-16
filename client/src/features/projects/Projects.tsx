@@ -127,6 +127,8 @@ export function Projects() {
   const [templateDefaultApplied, setTemplateDefaultApplied] = useState(false);
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
   const [newClient, setNewClient] = useState({ name: "", email: "", phone: "" });
+  const [isAddingNewClientEdit, setIsAddingNewClientEdit] = useState(false);
+  const [newClientEdit, setNewClientEdit] = useState({ name: "", email: "", phone: "" });
   const [newProject, setNewProject] = useState({
     name: "",
     customer_id: 0,
@@ -626,33 +628,42 @@ export function Projects() {
               <Label htmlFor="customer">Customer *</Label>
               {!isAddingNewClient ? (
                 <>
-                  <Select
-                    value={newProject.customer_id ? newProject.customer_id.toString() : ""}
-                    onValueChange={(value) => {
-                      if (value === "new") {
-                        setIsAddingNewClient(true);
-                      } else {
-                        setNewProject({ ...newProject, customer_id: parseInt(value) });
+                  <div className="flex gap-2">
+                    <Select
+                      value={newProject.customer_id ? newProject.customer_id.toString() : ""}
+                      onValueChange={(value) =>
+                        setNewProject({ ...newProject, customer_id: parseInt(value) })
                       }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">
-                        <div className="flex items-center gap-2 text-primary font-medium">
-                          <UserPlus className="h-4 w-4" />
-                          + Add New Client
-                        </div>
-                      </SelectItem>
-                      {customers.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id.toString()}>
-                          {customer.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select a customer" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.length === 0 ? (
+                          <div className="px-2 py-3 text-sm text-muted-foreground">
+                            No clients yet. Click &ldquo;New client&rdquo; to add one.
+                          </div>
+                        ) : (
+                          customers.map((customer) => (
+                            <SelectItem
+                              key={customer.id}
+                              value={customer.id.toString()}
+                            >
+                              {customer.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsAddingNewClient(true)}
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      New client
+                    </Button>
+                  </div>
                 </>
               ) : (
                 <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
@@ -761,7 +772,13 @@ export function Projects() {
       </Dialog>
 
       {/* Edit Project Dialog */}
-      <Dialog open={!!editProject} onOpenChange={(open) => !open && setEditProject(null)}>
+      <Dialog open={!!editProject} onOpenChange={(open) => {
+        if (!open) {
+          setEditProject(null);
+          setIsAddingNewClientEdit(false);
+          setNewClientEdit({ name: "", email: "", phone: "" });
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Project</DialogTitle>
@@ -778,21 +795,125 @@ export function Projects() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-customer">Customer *</Label>
-              <Select
-                value={editedProject.customer_id ? editedProject.customer_id.toString() : ""}
-                onValueChange={(value) => setEditedProject({ ...editedProject, customer_id: parseInt(value) })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id.toString()}>
-                      {customer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!isAddingNewClientEdit ? (
+                <div className="flex gap-2">
+                  <Select
+                    value={editedProject.customer_id ? editedProject.customer_id.toString() : ""}
+                    onValueChange={(value) =>
+                      setEditedProject({ ...editedProject, customer_id: parseInt(value) })
+                    }
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select a customer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((customer) => (
+                        <SelectItem
+                          key={customer.id}
+                          value={customer.id.toString()}
+                        >
+                          {customer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsAddingNewClientEdit(true)}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    New client
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">New Client</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsAddingNewClientEdit(false);
+                        setNewClientEdit({ name: "", email: "", phone: "" });
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  <Input
+                    placeholder="Client name *"
+                    value={newClientEdit.name}
+                    onChange={(e) =>
+                      setNewClientEdit({ ...newClientEdit, name: e.target.value })
+                    }
+                  />
+                  <Input
+                    placeholder="Email *"
+                    type="email"
+                    value={newClientEdit.email}
+                    onChange={(e) =>
+                      setNewClientEdit({ ...newClientEdit, email: e.target.value })
+                    }
+                  />
+                  <Input
+                    placeholder="Phone (optional)"
+                    value={newClientEdit.phone}
+                    onChange={(e) =>
+                      setNewClientEdit({ ...newClientEdit, phone: e.target.value })
+                    }
+                  />
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={
+                      !newClientEdit.name ||
+                      !newClientEdit.email ||
+                      createCustomerMutation.isPending
+                    }
+                    onClick={async () => {
+                      try {
+                        const customer = await createCustomerMutation.mutateAsync({
+                          name: newClientEdit.name,
+                          email: newClientEdit.email,
+                          phone: newClientEdit.phone || null,
+                          address: null,
+                          notes: null,
+                        });
+                        setEditedProject({
+                          ...editedProject,
+                          customer_id: customer.id,
+                        });
+                        setIsAddingNewClientEdit(false);
+                        setNewClientEdit({ name: "", email: "", phone: "" });
+                        toast({
+                          title: "Client Created",
+                          description: `${customer.name} has been added.`,
+                        });
+                      } catch (err: any) {
+                        toast({
+                          title: "Error",
+                          description:
+                            err?.message || "Failed to create client.",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    {createCustomerMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Add Client
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-description">Description</Label>
