@@ -25,6 +25,8 @@ import {
   insertProjectMessageSchema,
   insertOutOfScopeItemSchema,
   insertClientFeedbackSchema,
+  insertProjectSpecsSchema,
+  insertProjectTileSchema,
 } from "@shared/schema";
 import { projectStorage } from "./storage";
 import { sendNewMessageNotification } from "../../services/emailService";
@@ -1878,6 +1880,80 @@ export function registerProjectRoutes(app: Express) {
       }
 
       res.json({ success: true });
+    })
+  );
+
+  // ============================================
+  // PROJECT SPECS (Bathroom remodel — Claudia's spec sheet)
+  // ============================================
+
+  // GET /api/projects/:projectId/specs — return specs + tile selections
+  app.get(
+    "/api/projects/:projectId/specs",
+    isAuthenticated,
+    asyncHandler(async (req, res) => {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const project = await projectStorage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      const bundle = await projectStorage.getProjectSpecsBundle(projectId);
+      res.json(bundle);
+    })
+  );
+
+  // PUT /api/projects/:projectId/specs — upsert top-level specs
+  app.put(
+    "/api/projects/:projectId/specs",
+    isAuthenticated,
+    requirePermission("manage_projects"),
+    asyncHandler(async (req: any, res) => {
+      const projectId = parseInt(req.params.projectId);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      const project = await projectStorage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      const data = insertProjectSpecsSchema
+        .partial()
+        .omit({ project_id: true })
+        .parse(req.body);
+      const specs = await projectStorage.upsertProjectSpecs(projectId, data);
+      res.json(specs);
+    })
+  );
+
+  // PUT /api/projects/:projectId/tiles/:location — upsert one tile surface
+  // location is one of: shower_wall | shower_floor | bathroom_floor
+  app.put(
+    "/api/projects/:projectId/tiles/:location",
+    isAuthenticated,
+    requirePermission("manage_projects"),
+    asyncHandler(async (req: any, res) => {
+      const projectId = parseInt(req.params.projectId);
+      const location = String(req.params.location || "").trim();
+      const ALLOWED = new Set(["shower_wall", "shower_floor", "bathroom_floor"]);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ error: "Invalid project ID" });
+      }
+      if (!ALLOWED.has(location)) {
+        return res.status(400).json({ error: "Invalid tile location" });
+      }
+      const project = await projectStorage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+      const data = insertProjectTileSchema
+        .partial()
+        .omit({ project_id: true, location: true })
+        .parse(req.body);
+      const tile = await projectStorage.upsertProjectTile(projectId, location, data);
+      res.json(tile);
     })
   );
 }

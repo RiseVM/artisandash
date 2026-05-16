@@ -36,6 +36,11 @@ import type {
   InsertProjectUpdate,
   ProjectMessage,
   InsertProjectMessage,
+  ProjectSpecs,
+  InsertProjectSpecs,
+  ProjectTile,
+  InsertProjectTile,
+  ProjectSpecsBundle,
 } from "@shared/schema";
 
 // ============================================
@@ -935,6 +940,58 @@ export function useDeleteClientFeedback() {
       api.delete(`/api/feedback/${id}`),
     onSuccess: (_, { projectId }) => {
       qc.invalidateQueries({ queryKey: ["projects", projectId, "feedback"] });
+    },
+  });
+}
+
+
+// ============================================
+// PROJECT SPECS (Bathroom remodel v2)
+// ============================================
+
+export function useProjectSpecs(projectId: number) {
+  return useQuery({
+    queryKey: ["projects", projectId, "specs"],
+    queryFn: () =>
+      apiQuery<ProjectSpecsBundle>(`/api/projects/${projectId}/specs`),
+    enabled: !!projectId,
+  });
+}
+
+export function useUpdateProjectSpecs() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      data,
+    }: {
+      projectId: number;
+      data: Partial<InsertProjectSpecs>;
+    }) => api.put<ProjectSpecs>(`/api/projects/${projectId}/specs`, data),
+    onSuccess: (_, { projectId }) => {
+      qc.invalidateQueries({ queryKey: ["projects", projectId, "specs"] });
+    },
+  });
+}
+
+export function useUpdateProjectTile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      location,
+      data,
+    }: {
+      projectId: number;
+      location: "shower_wall" | "shower_floor" | "bathroom_floor";
+      data: Partial<InsertProjectTile>;
+    }) =>
+      api.put<ProjectTile>(
+        `/api/projects/${projectId}/tiles/${location}`,
+        data
+      ),
+    onSuccess: (_, { projectId }) => {
+      qc.invalidateQueries({ queryKey: ["projects", projectId, "specs"] });
     },
   });
 }

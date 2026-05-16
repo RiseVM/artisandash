@@ -66,6 +66,7 @@ import {
 } from "lucide-react";
 import type { ProjectPhase, ProjectTask, ProjectPhaseWithTasks } from "@shared/schema";
 import { ProjectDeliveries } from "./components/ProjectDeliveries";
+import { ProjectSpecs } from "./components/ProjectSpecs";
 import { ProjectChangeOrders } from "./components/ProjectChangeOrders";
 import { ProjectTimeTracking } from "./components/ProjectTimeTracking";
 import { ProjectPricing } from "./components/ProjectPricing";
@@ -466,6 +467,9 @@ export function ProjectDetail() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Bathroom Specifications — Claudia's spec sheet (v2) */}
+      <ProjectSpecs projectId={projectId} />
 
       {/* Phases */}
       <Card>

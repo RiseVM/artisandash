@@ -1757,3 +1757,112 @@ export type TeamResource = typeof teamResources.$inferSelect;
 export type TeamMemberWithItems = TeamMember & {
   items: TeamSetupItem[];
 };
+
+// ============================================
+// PROJECT SPECS — Bathroom remodel structured specs (v2)
+// Captures selection details per trade so the project page mirrors
+// the on-site spec sheet (contractor, tile/grout, paint, plumbing,
+// electrical, vanity, hardware, shower door).
+// ============================================
+
+export const projectSpecs = pgTable("project_specs", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+
+  // Contractor (top-level)
+  contractor_on_job: text("contractor_on_job"),
+
+  // Shower extras (bench/niche/shelf are free-text descriptions
+  // — sizes, location, finish, etc.)
+  shower_bench_seat: text("shower_bench_seat"),
+  shower_niche: text("shower_niche"),
+  shower_shelf: text("shower_shelf"),
+
+  // Accent wall — free-text description of where/what
+  accent_wall: text("accent_wall"),
+
+  // Paint — wall
+  paint_wall_brand: text("paint_wall_brand"),
+  paint_wall_color: text("paint_wall_color"),
+  paint_wall_finish: text("paint_wall_finish"),
+
+  // Paint — trim
+  paint_trim_brand: text("paint_trim_brand"),
+  paint_trim_color: text("paint_trim_color"),
+  paint_trim_finish: text("paint_trim_finish"),
+
+  // Plumber
+  plumber_on_job: text("plumber_on_job"),
+  plumbing_selection: text("plumbing_selection"),
+  plumbing_description: text("plumbing_description"),
+
+  // Vent
+  vent_brand: text("vent_brand"),
+  vent_cfm: text("vent_cfm"),
+
+  // Electrical
+  electrician_on_job: text("electrician_on_job"),
+  electrical_description: text("electrical_description"),
+  electrical_fixtures: text("electrical_fixtures"),
+
+  // Vanity + top
+  vanity_brand: text("vanity_brand"),
+  vanity_color: text("vanity_color"),
+  vanity_finish: text("vanity_finish"),
+
+  // Hardware (free text — robe hooks, towel bars, TP holder, etc.)
+  hardware: text("hardware"),
+
+  // Shower door
+  shower_door_company: text("shower_door_company"),
+  shower_door_description: text("shower_door_description"),
+
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_specs_project_id").on(table.project_id),
+]);
+
+// Per-surface tile/grout selections.
+// location is one of: "shower_wall" | "shower_floor" | "bathroom_floor"
+export const projectTiles = pgTable("project_tiles", {
+  id: serial("id").primaryKey(),
+  project_id: integer("project_id")
+    .references(() => projects.id, { onDelete: "cascade" })
+    .notNull(),
+  location: text("location").notNull(),
+  pattern: text("pattern"),
+  grout_color: text("grout_color"),
+  notes: text("notes"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_project_tiles_project_id").on(table.project_id),
+  unique("UQ_project_tiles_project_location").on(table.project_id, table.location),
+]);
+
+export const insertProjectSpecsSchema = createInsertSchema(projectSpecs).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export const insertProjectTileSchema = createInsertSchema(projectTiles).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertProjectSpecs = z.infer<typeof insertProjectSpecsSchema>;
+export type ProjectSpecs = typeof projectSpecs.$inferSelect;
+
+export type InsertProjectTile = z.infer<typeof insertProjectTileSchema>;
+export type ProjectTile = typeof projectTiles.$inferSelect;
+
+export type ProjectSpecsBundle = {
+  specs: ProjectSpecs | null;
+  tiles: ProjectTile[];
+};

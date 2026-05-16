@@ -19,6 +19,8 @@ import {
   customFieldValues,
   outOfScopeItems,
   clientFeedback,
+  projectSpecs,
+  projectTiles,
   customers,
   users,
   type Project,
@@ -55,6 +57,11 @@ import {
   type InsertOutOfScopeItem,
   type ClientFeedback,
   type InsertClientFeedback,
+  type ProjectSpecs,
+  type InsertProjectSpecs,
+  type ProjectTile,
+  type InsertProjectTile,
+  type ProjectSpecsBundle,
   type ProjectWithCustomer,
   type ProjectWithDetails,
   type ProjectPhaseWithTasks,
@@ -1188,7 +1195,83 @@ export const projectStorage = {
     const result = await db.delete(clientFeedback).where(eq(clientFeedback.id, id));
     return (result.rowCount ?? 0) > 0;
   },
+
+  // ============================================
+  // PROJECT SPECS (Bathroom remodel v2)
+  // ============================================
+
+  async getProjectSpecsBundle(projectId: number): Promise<ProjectSpecsBundle> {
+    const [specs] = await db
+      .select()
+      .from(projectSpecs)
+      .where(eq(projectSpecs.project_id, projectId));
+    const tiles = await db
+      .select()
+      .from(projectTiles)
+      .where(eq(projectTiles.project_id, projectId))
+      .orderBy(asc(projectTiles.location));
+    return { specs: specs ?? null, tiles };
+  },
+
+  async upsertProjectSpecs(
+    projectId: number,
+    data: Partial<InsertProjectSpecs>
+  ): Promise<ProjectSpecs> {
+    const [existing] = await db
+      .select()
+      .from(projectSpecs)
+      .where(eq(projectSpecs.project_id, projectId));
+    if (existing) {
+      const [updated] = await db
+        .update(projectSpecs)
+        .set({ ...data, updated_at: new Date() })
+        .where(eq(projectSpecs.project_id, projectId))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(projectSpecs)
+      .values({ ...data, project_id: projectId })
+      .returning();
+    return created;
+  },
+
+  async upsertProjectTile(
+    projectId: number,
+    location: string,
+    data: Partial<InsertProjectTile>
+  ): Promise<ProjectTile> {
+    const [existing] = await db
+      .select()
+      .from(projectTiles)
+      .where(
+        and(
+          eq(projectTiles.project_id, projectId),
+          eq(projectTiles.location, location)
+        )
+      );
+    if (existing) {
+      const [updated] = await db
+        .update(projectTiles)
+        .set({ ...data, updated_at: new Date() })
+        .where(eq(projectTiles.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db
+      .insert(projectTiles)
+      .values({
+        project_id: projectId,
+        location,
+        pattern: data.pattern ?? null,
+        grout_color: data.grout_color ?? null,
+        notes: data.notes ?? null,
+      })
+      .returning();
+    return created;
+  },
 };
+
 
 // ============================================
 // SEED DEFAULT PROJECT TEMPLATE

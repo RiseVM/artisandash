@@ -88,6 +88,9 @@ declare module "http" {
     const { migrateBathroomResources } = await import("./migrate-bathroom-resources");
     await migrateBathroomResources();
 
+    const { migrateProjectSpecs } = await import("./migrate-project-specs");
+    await migrateProjectSpecs();
+
     // ------------------------------------
     // Route registration
     // ------------------------------------
