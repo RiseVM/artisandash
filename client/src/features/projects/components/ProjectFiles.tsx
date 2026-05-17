@@ -73,6 +73,43 @@ interface ProjectFilesProps {
   canManage: boolean;
 }
 
+
+// Google Drive webViewLink (https://drive.google.com/file/d/{ID}/view) is an
+// HTML viewer page and can't be used as an <img src>. These helpers convert
+// that URL into Drive's public thumbnail / inline-view endpoints, which DO
+// render directly because uploaded project files are shared as
+// 'anyone with link' (see server/services/googleDriveService.ts).
+const DRIVE_ID_RE = /\/d\/([a-zA-Z0-9_-]+)/;
+
+function driveFileId(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const m = url.match(DRIVE_ID_RE);
+  return m ? m[1] : null;
+}
+
+function driveThumbSrc(url: string | null | undefined, size = 600): string | null {
+  const id = driveFileId(url);
+  return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w${size}` : null;
+}
+
+function driveInlineSrc(url: string | null | undefined): string | null {
+  const id = driveFileId(url);
+  // 'uc?export=view' renders the raw image inline for publicly-shared files.
+  return id ? `https://drive.google.com/uc?export=view&id=${id}` : null;
+}
+
+function resolveThumb(file: { thumbnail_url?: string | null; file_url?: string | null }): string | null {
+  return (
+    driveThumbSrc(file.thumbnail_url) ??
+    driveThumbSrc(file.file_url) ??
+    null
+  );
+}
+
+function resolveFull(file: { file_url?: string | null }): string | null {
+  return driveInlineSrc(file.file_url) ?? (file.file_url || null);
+}
+
 export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -238,11 +275,25 @@ export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps
                       key={file.id}
                       className="relative group aspect-square border rounded-lg overflow-hidden bg-muted"
                     >
-                      {file.thumbnail_url || file.file_url ? (
+                      {resolveThumb(file) ? (
                         <img
-                          src={file.thumbnail_url || file.file_url}
+                          src={resolveThumb(file)!}
                           alt={file.name}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            // Drive thumbnail failed (e.g. permission revoked or
+                            // upload didn't actually hit Drive). Fall back to the
+                            // inline-view URL; if that also fails, show the icon.
+                            const img = e.currentTarget;
+                            const fallback = driveInlineSrc(file.file_url);
+                            if (fallback && img.src !== fallback) {
+                              img.src = fallback;
+                            } else {
+                              img.style.display = "none";
+                            }
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -512,11 +563,12 @@ export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps
             <DialogTitle>{previewFile?.name}</DialogTitle>
           </DialogHeader>
           <div className="flex items-center justify-center min-h-[300px]">
-            {previewFile?.file_url && (
+            {previewFile && resolveFull(previewFile) && (
               <img
-                src={previewFile.file_url}
+                src={resolveFull(previewFile)!}
                 alt={previewFile.name}
                 className="max-w-full max-h-[60vh] object-contain"
+                referrerPolicy="no-referrer"
               />
             )}
           </div>
