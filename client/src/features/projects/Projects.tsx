@@ -5,8 +5,6 @@ import {
   useCreateProject,
   useUpdateProject,
   useDeleteProject,
-  useProjectTemplates,
-  useCreateProjectFromTemplate,
 } from "./hooks";
 import { useCustomers, useCreateCustomer } from "../customers/hooks";
 import { useAuth } from "@/features/auth/hooks";
@@ -48,15 +46,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
 } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import {
   Search,
   Plus,
@@ -65,7 +58,6 @@ import {
   ChevronRight,
   Calendar,
   User,
-  Layers,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -77,7 +69,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ProjectTemplates } from "./ProjectTemplates";
 import type { ProjectWithCustomer } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
@@ -96,13 +87,6 @@ const statusLabels: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-const phaseStatusColors: Record<string, string> = {
-  not_started: "bg-gray-100 text-gray-800",
-  in_progress: "bg-blue-100 text-blue-800",
-  on_hold: "bg-yellow-100 text-yellow-800",
-  completed: "bg-green-100 text-green-800",
-  skipped: "bg-gray-100 text-gray-500",
-};
 
 export function Projects() {
   const [, setLocation] = useLocation();
@@ -110,10 +94,8 @@ export function Projects() {
   const { toast } = useToast();
   const { data: projects = [], isLoading } = useProjects();
   const { data: customers = [] } = useCustomers();
-  const { data: templates = [] } = useProjectTemplates();
   const createProjectMutation = useCreateProject();
   const updateProjectMutation = useUpdateProject();
-  const createFromTemplateMutation = useCreateProjectFromTemplate();
   const deleteProjectMutation = useDeleteProject();
   const createCustomerMutation = useCreateCustomer();
   const sendPortalSetupMutation = useSendPortalSetupEmail();
@@ -123,8 +105,6 @@ export function Projects() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editProject, setEditProject] = useState<ProjectWithCustomer | null>(null);
   const [deleteProject, setDeleteProject] = useState<ProjectWithCustomer | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
-  const [templateDefaultApplied, setTemplateDefaultApplied] = useState(false);
   const [isAddingNewClient, setIsAddingNewClient] = useState(false);
   const [newClient, setNewClient] = useState({ name: "", email: "", phone: "" });
   const [isAddingNewClientEdit, setIsAddingNewClientEdit] = useState(false);
@@ -142,13 +122,6 @@ export function Projects() {
     status: "planning",
   });
 
-  const activeTemplates = templates.filter(t => t.is_active === "yes");
-
-  // Auto-select the first active template as default
-  if (activeTemplates.length > 0 && !templateDefaultApplied && selectedTemplateId === null) {
-    setSelectedTemplateId(activeTemplates[0].id);
-    setTemplateDefaultApplied(true);
-  }
 
   const canManageProjects = hasPermission("manage_projects");
 
@@ -171,33 +144,15 @@ export function Projects() {
     }
 
     try {
-      let project;
-      if (selectedTemplateId) {
-        // Create from template
-        project = await createFromTemplateMutation.mutateAsync({
-          templateId: selectedTemplateId,
-          data: {
-            name: newProject.name,
-            customer_id: newProject.customer_id,
-            description: newProject.description || null,
-            status: newProject.status,
-          },
-        });
-      } else {
-        // Create blank project
-        project = await createProjectMutation.mutateAsync({
-          name: newProject.name,
-          customer_id: newProject.customer_id,
-          description: newProject.description || null,
-          status: newProject.status,
-        });
-      }
+      const project = await createProjectMutation.mutateAsync({
+        name: newProject.name,
+        customer_id: newProject.customer_id,
+        description: newProject.description || null,
+        status: newProject.status,
+      });
       setIsAddOpen(false);
       setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
-      setSelectedTemplateId(null);
-      setTemplateDefaultApplied(false);
       toast({ title: "Project Created", description: `${project.name} has been created.` });
-      // Navigate to the new project
       setLocation(`/projects/${project.id}`);
     } catch (err: any) {
       toast({
@@ -307,19 +262,7 @@ export function Projects() {
         </div>
       </div>
 
-      <Tabs defaultValue="projects" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="projects" className="gap-2">
-            <FolderKanban className="h-4 w-4" />
-            Projects
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-2">
-            <Layers className="h-4 w-4" />
-            Templates
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="projects" className="space-y-6">
+      <div className="space-y-6">
           {isAuthenticated && (
             <div className="flex justify-end">
               <Button onClick={() => setIsAddOpen(true)} className="w-full sm:w-auto">
@@ -384,15 +327,9 @@ export function Projects() {
                         <span className="font-medium truncate">{project.name}</span>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        {(project as any).currentPhaseName ? (
-                          <Badge className={phaseStatusColors[(project as any).currentPhaseStatus] || "bg-gray-100 text-gray-800"}>
-                            {(project as any).currentPhaseName}
-                          </Badge>
-                        ) : (
-                          <Badge className={statusColors[project.status]}>
-                            {statusLabels[project.status]}
-                          </Badge>
-                        )}
+                        <Badge className={statusColors[project.status]}>
+                          {statusLabels[project.status]}
+                        </Badge>
                         {canManageProjects && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
@@ -438,11 +375,7 @@ export function Projects() {
                       <User className="h-3 w-3" />
                       {project.customer.name}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Progress value={project.overall_progress} className="h-2 flex-1" />
-                      <span className="text-sm text-muted-foreground w-10">
-                        {project.overall_progress}%
-                      </span>
+                    <div className="flex items-center justify-end">
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
@@ -456,8 +389,7 @@ export function Projects() {
                     <TableRow>
                       <TableHead>Project</TableHead>
                       <TableHead>Customer</TableHead>
-                      <TableHead>Phase</TableHead>
-                      <TableHead>Progress</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
@@ -489,25 +421,9 @@ export function Projects() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {(project as any).currentPhaseName ? (
-                            <div>
-                              <Badge className={phaseStatusColors[(project as any).currentPhaseStatus] || "bg-gray-100 text-gray-800"}>
-                                {(project as any).currentPhaseName}
-                              </Badge>
-                            </div>
-                          ) : (
-                            <Badge className={statusColors[project.status]}>
-                              {statusLabels[project.status]}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 min-w-[120px]">
-                            <Progress value={project.overall_progress} className="h-2 flex-1" />
-                            <span className="text-sm text-muted-foreground w-10">
-                              {project.overall_progress}%
-                            </span>
-                          </div>
+                          <Badge className={statusColors[project.status]}>
+                            {statusLabels[project.status]}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-muted-foreground text-sm">
@@ -558,19 +474,12 @@ export function Projects() {
           )}
         </CardContent>
       </Card>
-        </TabsContent>
-
-        <TabsContent value="templates">
-          <ProjectTemplates />
-        </TabsContent>
-      </Tabs>
+      </div>
 
       {/* Add Project Dialog */}
       <Dialog open={isAddOpen} onOpenChange={(open) => {
         setIsAddOpen(open);
         if (!open) {
-          setSelectedTemplateId(null);
-          setTemplateDefaultApplied(false);
           setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
           setIsAddingNewClient(false);
           setNewClient({ name: "", email: "", phone: "" });
@@ -581,40 +490,6 @@ export function Projects() {
             <DialogTitle>Create New Project</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {activeTemplates.length > 0 && (
-              <div className="space-y-2">
-                <Label htmlFor="template">Start from Template</Label>
-                <Select
-                  value={selectedTemplateId?.toString() || "blank"}
-                  onValueChange={(value) => setSelectedTemplateId(value === "blank" ? null : parseInt(value))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="blank">
-                      <div className="flex items-center gap-2">
-                        <Plus className="h-4 w-4" />
-                        Blank Project
-                      </div>
-                    </SelectItem>
-                    {activeTemplates.map((template) => (
-                      <SelectItem key={template.id} value={template.id.toString()}>
-                        <div className="flex items-center gap-2">
-                          <Layers className="h-4 w-4" />
-                          {template.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedTemplateId && (
-                  <p className="text-xs text-muted-foreground">
-                    Project will be created with phases and tasks from the template.
-                  </p>
-                )}
-              </div>
-            )}
             <div className="space-y-2">
               <Label htmlFor="name">Project Name *</Label>
               <Input
@@ -757,8 +632,8 @@ export function Projects() {
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateProject} disabled={createProjectMutation.isPending || createFromTemplateMutation.isPending}>
-              {(createProjectMutation.isPending || createFromTemplateMutation.isPending) ? (
+            <Button onClick={handleCreateProject} disabled={createProjectMutation.isPending}>
+              {createProjectMutation.isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Creating...
