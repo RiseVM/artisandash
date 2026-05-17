@@ -675,30 +675,82 @@ export const projectStorage = {
 
   // ── PROJECT FILES ───────────────────────────
 
+  // Columns to return for listing (excludes file_bytes blob).
+  _projectFileListFields() {
+    return {
+      id: projectFiles.id,
+      project_id: projectFiles.project_id,
+      entity_type: projectFiles.entity_type,
+      entity_id: projectFiles.entity_id,
+      name: projectFiles.name,
+      file_url: projectFiles.file_url,
+      file_size: projectFiles.file_size,
+      mime_type: projectFiles.mime_type,
+      category: projectFiles.category,
+      description: projectFiles.description,
+      is_photo: projectFiles.is_photo,
+      thumbnail_url: projectFiles.thumbnail_url,
+      photo_type: projectFiles.photo_type,
+      client_visible: projectFiles.client_visible,
+      uploaded_by_user_id: projectFiles.uploaded_by_user_id,
+      uploaded_by_user_name: projectFiles.uploaded_by_user_name,
+      created_at: projectFiles.created_at,
+    } as const;
+  },
+
   async getProjectFiles(projectId: number): Promise<ProjectFile[]> {
     return db
-      .select()
+      .select(this._projectFileListFields() as any)
       .from(projectFiles)
       .where(eq(projectFiles.project_id, projectId))
-      .orderBy(desc(projectFiles.created_at));
+      .orderBy(desc(projectFiles.created_at)) as any;
   },
 
   async getEntityFiles(entityType: string, entityId: number): Promise<ProjectFile[]> {
     return db
-      .select()
+      .select(this._projectFileListFields() as any)
       .from(projectFiles)
       .where(and(eq(projectFiles.entity_type, entityType), eq(projectFiles.entity_id, entityId)))
-      .orderBy(desc(projectFiles.created_at));
+      .orderBy(desc(projectFiles.created_at)) as any;
   },
 
   async getProjectFile(id: number): Promise<ProjectFile | undefined> {
-    const [file] = await db.select().from(projectFiles).where(eq(projectFiles.id, id));
-    return file;
+    const [file] = await db
+      .select(this._projectFileListFields() as any)
+      .from(projectFiles)
+      .where(eq(projectFiles.id, id));
+    return file as any;
   },
 
-  async createProjectFile(file: InsertProjectFile): Promise<ProjectFile> {
-    const [result] = await db.insert(projectFiles).values(file).returning();
-    return result;
+  // Returns the raw bytes + mime type for streaming. Returns null if the
+  // record exists but has no stored bytes (legacy upload).
+  async getProjectFileBytes(
+    id: number
+  ): Promise<{ mime_type: string | null; name: string; bytes: Buffer } | null> {
+    const [row] = await db
+      .select({
+        mime_type: projectFiles.mime_type,
+        name: projectFiles.name,
+        bytes: projectFiles.file_bytes,
+      })
+      .from(projectFiles)
+      .where(eq(projectFiles.id, id));
+    if (!row || !row.bytes) return null;
+    return {
+      mime_type: row.mime_type,
+      name: row.name,
+      bytes: row.bytes as unknown as Buffer,
+    };
+  },
+
+  async createProjectFile(
+    file: InsertProjectFile & { file_bytes?: Buffer | null }
+  ): Promise<ProjectFile> {
+    const [result] = await db
+      .insert(projectFiles)
+      .values(file as any)
+      .returning(this._projectFileListFields() as any);
+    return result as any;
   },
 
   async updateProjectFile(id: number, file: Partial<InsertProjectFile>): Promise<ProjectFile | undefined> {

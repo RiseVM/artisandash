@@ -91,6 +91,9 @@ declare module "http" {
     const { migrateProjectSpecs } = await import("./migrate-project-specs");
     await migrateProjectSpecs();
 
+    const { migrateProjectFilesBytes } = await import("./migrate-project-files-bytes");
+    await migrateProjectFilesBytes();
+
     // ------------------------------------
     // Route registration
     // ------------------------------------

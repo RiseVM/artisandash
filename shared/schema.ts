@@ -1,7 +1,15 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, timestamp, integer, index, jsonb, unique, numeric, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, serial, timestamp, integer, index, jsonb, unique, numeric, boolean, customType } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Postgres BYTEA column (drizzle-orm doesn't ship one natively).
+// Treated as a Node Buffer on the JS side.
+const bytea = customType<{ data: Buffer; default: false }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
@@ -733,6 +741,13 @@ export const projectFiles = pgTable("project_files", {
   // Metadata
   uploaded_by_user_id: varchar("uploaded_by_user_id").references(() => users.id, { onDelete: 'set null' }),
   uploaded_by_user_name: varchar("uploaded_by_user_name"),
+
+  // Server-side storage for inline preview. We store the raw file bytes in
+  // Postgres so previews work even when Google Drive isn't configured
+  // (Railway sandbox / local dev). The Drive-backed file_url is still kept
+  // for sharing / external viewing when available.
+  file_bytes: bytea("file_bytes"),
+
   created_at: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("IDX_project_files_project_id").on(table.project_id),
@@ -742,6 +757,7 @@ export const projectFiles = pgTable("project_files", {
 export const insertProjectFileSchema = createInsertSchema(projectFiles).omit({
   id: true,
   created_at: true,
+  file_bytes: true,
 });
 
 export type InsertProjectFile = z.infer<typeof insertProjectFileSchema>;

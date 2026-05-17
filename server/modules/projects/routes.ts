@@ -1065,7 +1065,11 @@ export function registerProjectRoutes(app: Express) {
         uploaded_by_user_name: req.user?.email || null,
       });
 
-      const fileRecord = await projectStorage.createProjectFile(data);
+      // Also persist the raw bytes so previews work without Drive.
+      const fileRecord = await projectStorage.createProjectFile({
+        ...data,
+        file_bytes: file.buffer,
+      });
       res.status(201).json(fileRecord);
     })
   );
@@ -1880,6 +1884,38 @@ export function registerProjectRoutes(app: Express) {
       }
 
       res.json({ success: true });
+    })
+  );
+
+  // ============================================
+  // PROJECT FILE STREAMING (for inline previews)
+  // ============================================
+
+  // GET /api/projects/files/:id/raw — stream the file bytes for inline
+  // <img>/<embed> previews. Falls back to 404 if the record has no stored
+  // bytes (legacy uploads from before file_bytes existed).
+  app.get(
+    "/api/projects/files/:id/raw",
+    isAuthenticated,
+    asyncHandler(async (req, res) => {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid file ID" });
+      }
+      const data = await projectStorage.getProjectFileBytes(id);
+      if (!data) {
+        return res.status(404).json({ error: "File bytes not available" });
+      }
+      res.setHeader(
+        "Content-Type",
+        data.mime_type || "application/octet-stream"
+      );
+      res.setHeader("Cache-Control", "private, max-age=300");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${data.name.replace(/"/g, "")}"`
+      );
+      res.end(data.bytes);
     })
   );
 

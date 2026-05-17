@@ -98,16 +98,27 @@ function driveInlineSrc(url: string | null | undefined): string | null {
   return id ? `https://drive.google.com/uc?export=view&id=${id}` : null;
 }
 
-function resolveThumb(file: { thumbnail_url?: string | null; file_url?: string | null }): string | null {
-  return (
-    driveThumbSrc(file.thumbnail_url) ??
-    driveThumbSrc(file.file_url) ??
-    null
-  );
+// Local API endpoint that streams the file bytes stored in Postgres.
+// Works regardless of whether Google Drive is configured.
+function localRawSrc(id: number): string {
+  return `/api/projects/files/${id}/raw`;
 }
 
-function resolveFull(file: { file_url?: string | null }): string | null {
-  return driveInlineSrc(file.file_url) ?? (file.file_url || null);
+function resolveThumb(file: {
+  id: number;
+  thumbnail_url?: string | null;
+  file_url?: string | null;
+}): string {
+  // Prefer the local bytes endpoint; Drive thumbnails are only useful as a
+  // fallback for legacy records that have no file_bytes.
+  return localRawSrc(file.id);
+}
+
+function resolveFull(file: {
+  id: number;
+  file_url?: string | null;
+}): string {
+  return localRawSrc(file.id);
 }
 
 export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps) {
@@ -275,30 +286,28 @@ export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps
                       key={file.id}
                       className="relative group aspect-square border rounded-lg overflow-hidden bg-muted"
                     >
-                      {resolveThumb(file) ? (
+                      {(
                         <img
-                          src={resolveThumb(file)!}
+                          src={resolveThumb(file)}
                           alt={file.name}
                           className="w-full h-full object-cover"
                           loading="lazy"
                           referrerPolicy="no-referrer"
                           onError={(e) => {
-                            // Drive thumbnail failed (e.g. permission revoked or
-                            // upload didn't actually hit Drive). Fall back to the
-                            // inline-view URL; if that also fails, show the icon.
+                            // local bytes failed → try Drive thumb → Drive
+                            // inline → hide.
                             const img = e.currentTarget;
-                            const fallback = driveInlineSrc(file.file_url);
-                            if (fallback && img.src !== fallback) {
-                              img.src = fallback;
+                            const driveThumb = driveThumbSrc(file.thumbnail_url) ?? driveThumbSrc(file.file_url);
+                            const driveInline = driveInlineSrc(file.file_url);
+                            if (driveThumb && img.src.indexOf("/raw") !== -1) {
+                              img.src = driveThumb;
+                            } else if (driveInline && img.src !== driveInline) {
+                              img.src = driveInline;
                             } else {
                               img.style.display = "none";
                             }
                           }}
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Image className="h-8 w-8 text-muted-foreground" />
-                        </div>
                       )}
                       {file.photo_type && (
                         <Badge
@@ -563,12 +572,21 @@ export function ProjectFiles({ projectId, phases, canManage }: ProjectFilesProps
             <DialogTitle>{previewFile?.name}</DialogTitle>
           </DialogHeader>
           <div className="flex items-center justify-center min-h-[300px]">
-            {previewFile && resolveFull(previewFile) && (
+            {previewFile && (
               <img
-                src={resolveFull(previewFile)!}
+                src={resolveFull(previewFile)}
                 alt={previewFile.name}
                 className="max-w-full max-h-[60vh] object-contain"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  const driveInline = driveInlineSrc(previewFile.file_url);
+                  if (driveInline && img.src !== driveInline) {
+                    img.src = driveInline;
+                  } else {
+                    img.style.display = "none";
+                  }
+                }}
               />
             )}
           </div>
