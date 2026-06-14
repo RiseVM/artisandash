@@ -234,19 +234,35 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
   const todayTotal = todayPunches.reduce((sum, p) => sum + parseFloat(p.hours || "0"), 0);
 
   return (
-    <div className="bg-card border rounded-lg p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-3 h-3 rounded-full ${isClockedIn ? "bg-green-500 animate-pulse" : "bg-gray-300"}`} />
-          <div>
-            <p className="text-sm font-medium">
-              {isClockedIn ? "Currently Clocked In" : "Not Clocked In"}
-            </p>
-            {isClockedIn && elapsed && (
-              <p className="text-xs text-muted-foreground font-mono">{elapsed} elapsed</p>
+    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <span
+            className={`relative flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full ${
+              isClockedIn ? "bg-green-500/10 text-green-600" : "bg-secondary text-muted-foreground"
+            }`}
+          >
+            <Clock className="h-6 w-6" />
+            {isClockedIn && (
+              <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-green-500 animate-pulse" />
             )}
-            {!isClockedIn && todayTotal > 0 && (
-              <p className="text-xs text-muted-foreground">Today: {todayTotal.toFixed(1)} hrs across {todayPunches.filter(p => p.clockOut).length} shift(s)</p>
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {isClockedIn ? "On the clock" : "Clocked out"}
+            </p>
+            {isClockedIn && elapsed ? (
+              <p className="nums font-serif text-3xl font-bold leading-tight text-foreground">{elapsed}</p>
+            ) : todayTotal > 0 ? (
+              <p className="font-serif text-2xl font-bold leading-tight text-foreground">
+                {todayTotal.toFixed(1)}
+                <span className="font-sans text-base font-normal text-muted-foreground"> hrs today</span>
+              </p>
+            ) : (
+              <p className="font-serif text-2xl font-bold leading-tight text-foreground">Ready when you are</p>
+            )}
+            {isClockedIn && (
+              <p className="text-xs text-muted-foreground">this shift · {todayTotal.toFixed(1)} hrs logged today</p>
             )}
           </div>
         </div>
@@ -254,42 +270,43 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
         {isClockedIn ? (
           <Button
             variant="destructive"
-            size="sm"
+            size="lg"
             onClick={() => clockOut.mutate()}
             disabled={clockOut.isPending}
+            className="sm:min-w-[150px]"
           >
-            {clockOut.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <LogOut className="h-4 w-4 mr-1" />}
+            {clockOut.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
             Clock Out
           </Button>
         ) : (
           <Button
-            size="sm"
+            size="lg"
             onClick={() => clockIn.mutate()}
             disabled={clockIn.isPending}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="bg-green-600 text-white hover:bg-green-700 sm:min-w-[150px]"
           >
-            {clockIn.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <LogIn className="h-4 w-4 mr-1" />}
+            {clockIn.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogIn className="h-5 w-5" />}
             Clock In
           </Button>
         )}
       </div>
 
       {todayPunches.length > 0 && (
-        <div className="mt-3 pt-3 border-t">
-          <p className="text-xs font-medium text-muted-foreground mb-1.5 flex items-center gap-1">
-            <Timer className="h-3 w-3" /> Today's Shifts
+        <div className="border-t border-border bg-muted/30 px-5 py-3">
+          <p className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Timer className="h-3 w-3" /> Today's shifts
           </p>
           <div className="space-y-1">
             {todayPunches.map((p) => {
               const inTime = formatTimeEST(p.clockIn);
-              const outTime = p.clockOut
-                ? formatTimeEST(p.clockOut)
-                : "—";
+              const outTime = p.clockOut ? formatTimeEST(p.clockOut) : "—";
               return (
-                <div key={p.id} className="flex items-center justify-between text-xs">
-                  <span>{inTime} → {outTime}</span>
-                  <span className="text-muted-foreground">
-                    {p.hours ? `${parseFloat(p.hours).toFixed(1)} hrs` : "active"}
+                <div key={p.id} className="flex items-center justify-between text-sm">
+                  <span className="nums text-foreground">
+                    {inTime} <span className="text-muted-foreground">→</span> {outTime}
+                  </span>
+                  <span className="nums text-muted-foreground">
+                    {p.hours ? `${parseFloat(p.hours).toFixed(1)} hrs` : <span className="font-medium text-green-600">active</span>}
                   </span>
                 </div>
               );
@@ -299,7 +316,7 @@ function ClockWidget({ queryClient }: { queryClient: ReturnType<typeof useQueryC
       )}
 
       {clockError && (
-        <div className="mt-2 p-2 rounded text-sm bg-red-50 text-red-700">{clockError}</div>
+        <div className="border-t border-destructive/20 bg-destructive/5 px-5 py-2.5 text-sm text-destructive">{clockError}</div>
       )}
     </div>
   );
@@ -981,11 +998,10 @@ function TimecardsInner() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-          <Clock className="h-5 w-5 sm:h-6 sm:w-6" /> My Timecards
-        </h1>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Time &amp; Attendance</p>
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold mt-1">My Timecard</h1>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-          Logged in as <strong>{userName}</strong>
+          Signed in as <strong className="text-foreground">{userName}</strong>
         </p>
       </div>
 

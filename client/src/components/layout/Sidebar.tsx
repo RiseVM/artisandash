@@ -112,10 +112,36 @@ export function Sidebar() {
 
   const visibleAdminItems = adminItems.filter((item) => hasPermission(item.permission));
 
+  const renderNavItem = (item: { href: string; label: string; icon: typeof LayoutDashboard }, badge: number) => {
+    const Icon = item.icon;
+    const isActive = location === item.href;
+    return (
+      <Link key={item.href} href={item.href}>
+        <div
+          className={cn(
+            "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer hover-elevate",
+            isActive
+              ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+              : "font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground",
+          )}
+        >
+          {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-brass" />}
+          <Icon className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-brass" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground/80")} />
+          <span className="flex-1">{item.label}</span>
+          {badge > 0 && (
+            <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brass px-1 text-[10px] font-bold text-brass-foreground">
+              {badge}
+            </span>
+          )}
+        </div>
+      </Link>
+    );
+  };
+
   return (
     <aside className="hidden md:flex w-64 bg-sidebar border-r border-sidebar-border flex-shrink-0 flex-col">
-      <div className="p-6 flex-1">
-        <div className="mb-8">
+      <div className="p-5 flex-1 overflow-y-auto">
+        <div className="mb-7 px-1">
           <button
             onClick={() => setLocation("/")}
             className="w-full cursor-pointer"
@@ -130,94 +156,50 @@ export function Sidebar() {
         </div>
 
         {user && (
-          <div className="mb-5 px-3">
+          <div className="mb-6 rounded-lg border border-sidebar-border bg-card/50 px-3 py-2.5">
             <p className="text-sm font-semibold text-sidebar-foreground">
-              Hi, {user.firstName || user.email.split("@")[0]}
+              {user.firstName || user.email.split("@")[0]}
             </p>
             <button
               onClick={() => setLocation(isAdmin ? "/time-management" : "/timecards")}
-              className="flex items-center gap-1.5 mt-1 cursor-pointer hover:opacity-80 transition-opacity"
+              className="mt-1 flex items-center gap-1.5 cursor-pointer transition-opacity hover:opacity-80"
               title="View timecards"
             >
               <div className={cn(
-                "w-2 h-2 rounded-full",
-                isClockedIn ? "bg-green-500 animate-pulse" : "bg-gray-400",
+                "h-2 w-2 rounded-full",
+                isClockedIn ? "bg-green-500 animate-pulse" : "bg-muted-foreground/40",
               )} />
               <span className="text-xs text-sidebar-foreground/60">
-                {isClockedIn ? "Clocked In" : "Clocked Out"}
+                {isClockedIn ? "On the clock" : "Clocked out"}
               </span>
             </button>
           </div>
         )}
 
-        <nav className="space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location === item.href;
-            const msgBadge = item.href === "/messages" && unreadCount > 0 ? unreadCount : 0;
-            return (
-              <Link key={item.href} href={item.href}>
-                <div
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="flex-1">{item.label}</span>
-                  {msgBadge > 0 && (
-                    <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
-                      {msgBadge}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
+        <nav className="space-y-0.5">
+          {navItems.map((item) =>
+            renderNavItem(item, item.href === "/messages" && unreadCount > 0 ? unreadCount : 0),
+          )}
         </nav>
 
         {visibleAdminItems.length > 0 && (
-          <div className="mt-6 pt-4 border-t border-sidebar-border">
-            <p className="px-3 text-xs font-semibold text-sidebar-foreground/50 uppercase mb-2">
-              Admin
+          <div className="mt-6 pt-5 border-t border-sidebar-border">
+            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-brass/80">
+              Administration
             </p>
-            <nav className="space-y-1">
-              {visibleAdminItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location === item.href;
-                const badge = item.href === "/time-management" && notesCount > 0 ? notesCount : 0;
-                return (
-                  <Link key={item.href} href={item.href}>
-                    <div
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer",
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                      {badge > 0 && (
-                        <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
-                          {badge}
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
+            <nav className="space-y-0.5">
+              {visibleAdminItems.map((item) =>
+                renderNavItem(item, item.href === "/time-management" && notesCount > 0 ? notesCount : 0),
+              )}
             </nav>
           </div>
         )}
       </div>
 
-      <div className="p-6 border-t border-sidebar-border space-y-4">
+      <div className="p-5 border-t border-sidebar-border space-y-3">
         {user && (
-          <div className="text-xs text-sidebar-foreground/70">
-            <p className="font-medium">{user.email}</p>
+          <div className="text-xs text-sidebar-foreground/60">
+            <p className="truncate font-medium text-sidebar-foreground/80">{user.email}</p>
             <p className="capitalize">{user.role}</p>
           </div>
         )}
@@ -230,7 +212,7 @@ export function Sidebar() {
           <LogOut className="mr-2 h-4 w-4" />
           Log Out
         </Button>
-        <p className="text-xs text-sidebar-foreground/50">
+        <p className="text-[11px] leading-relaxed text-sidebar-foreground/45">
           &copy; 2025 Artisan Tile Kitchen &amp; Bath
           <br />
           Internal Use Only

@@ -277,6 +277,33 @@ export function registerTimecardRoutes(app: Express) {
     }),
   );
 
+  // ── PAYROLL SEND HISTORY ────────────────
+  // Visible to admins + the payroll submitter (manage_timecards permission).
+  // NOTE: must be registered BEFORE "/api/timecards/admin/:id" so the literal
+  // "payroll-history" path isn't captured as an :id param.
+  app.get(
+    "/api/timecards/admin/payroll-history",
+    canManageTimecards,
+    asyncHandler(async (req: any, res) => {
+      const { weekStartDate, limit } = req.query;
+      const history = await timecardStorage.getPayrollHistory({
+        weekStartDate: weekStartDate as string | undefined,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
+      });
+      res.json(history);
+    }),
+  );
+
+  // Latest successful send — used by the dashboard "last payroll sent" widget.
+  app.get(
+    "/api/timecards/admin/payroll-history/latest",
+    canManageTimecards,
+    asyncHandler(async (_req: any, res) => {
+      const latest = await timecardStorage.getLastPayrollSend();
+      res.json(latest || null);
+    }),
+  );
+
   // GET single timecard with entries + audit log + punches (admin)
   app.get(
     "/api/timecards/admin/:id",
@@ -753,6 +780,19 @@ export function registerTimecardRoutes(app: Express) {
       const { weekStartDate } = req.body;
       if (!weekStartDate) return res.status(400).json({ error: "weekStartDate required" });
 
+      // Identify the sender (admin or Maria) for the history trail.
+      const senderId: string | null = req.user?.id || null;
+      let senderName: string | null = null;
+      if (senderId) {
+        try {
+          const { storage: authStorage } = await import("../auth/storage");
+          const sender = await authStorage.getUser(senderId);
+          senderName = [sender?.firstName, sender?.lastName].filter(Boolean).join(" ") || sender?.email || null;
+        } catch {
+          senderName = null;
+        }
+      }
+
       // Get approved timecards
       const cards = await timecardStorage.getApprovedTimecardsForWeek(weekStartDate);
       if (cards.length === 0) {
@@ -764,6 +804,12 @@ export function registerTimecardRoutes(app: Express) {
       if (activeContacts.length === 0) {
         return res.status(400).json({ error: "No active payroll recipients configured. Add recipients in Settings." });
       }
+
+      // Roll up totals across all cards for the history record.
+      const totalHours = cards.reduce((s: number, c: any) => s + parseFloat(c.totalHours || "0"), 0);
+      const totalOtHours = cards.reduce((s: number, c: any) => s + parseFloat(c.totalOtHours || "0"), 0);
+      const totalMileage = cards.reduce((s: number, c: any) => s + parseFloat(c.totalMileage || "0"), 0);
+      const recipientList = activeContacts.map((c: any) => ({ name: c.name, email: c.email, title: c.title || null }));
 
       // Generate PDF
       const { generatePayrollPdf } = await import("./payroll-pdf");
@@ -777,7 +823,7 @@ export function registerTimecardRoutes(app: Express) {
         user: c.user,
         totalHours: c.totalHours,
         totalOtHours: c.totalOtHours,
-        totalMileage: c.totalMileageMiles || "0",
+        totalMileage: c.totalMileage || "0",
         entries: (c.entries || []).map((e: any) => ({
           entryDate: e.entryDate,
           hours: e.hours || "0",
@@ -785,33 +831,74 @@ export function registerTimecardRoutes(app: Express) {
         })),
       }));
 
-      const pdfBuffer = await generatePayrollPdf(weekLabel, pdfCards);
-
-      // Send email
-      const { getResendClient } = await import("../../services/emailService");
-      const { client, fromEmail } = await getResendClient();
-
       const toEmails = activeContacts.map((c: any) => c.email);
-      await client.emails.send({
-        from: fromEmail || "noreply@artisantile.com",
-        to: toEmails,
-        subject: `Timecard Report – Week of ${weekLabel}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2c3e50;">Weekly Timecard Report</h2>
-            <p>Please find the approved timecard report for the week of <strong>${weekLabel}</strong> attached.</p>
-            <p>${cards.length} employee timecard${cards.length === 1 ? "" : "s"} included.</p>
-            <p>Best regards,<br/>Artisan Tile Dashboard</p>
-          </div>`,
-        attachments: [
-          {
-            filename: `Timecards_${weekStartDate}.pdf`,
-            content: pdfBuffer.toString("base64"),
-          },
-        ],
-      });
 
-      res.json({ success: true, sentTo: toEmails, cardCount: cards.length });
+      try {
+        const pdfBuffer = await generatePayrollPdf(weekLabel, pdfCards);
+
+        // Send email
+        const { getResendClient } = await import("../../services/emailService");
+        const { client, fromEmail } = await getResendClient();
+
+        await client.emails.send({
+          from: fromEmail || "noreply@artisantile.com",
+          to: toEmails,
+          subject: `Timecard Report – Week of ${weekLabel}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #2c3e50;">Weekly Timecard Report</h2>
+              <p>Please find the approved timecard report for the week of <strong>${weekLabel}</strong> attached.</p>
+              <p>${cards.length} employee timecard${cards.length === 1 ? "" : "s"} included.</p>
+              <p>Best regards,<br/>Artisan Tile Dashboard</p>
+            </div>`,
+          attachments: [
+            {
+              filename: `Timecards_${weekStartDate}.pdf`,
+              content: pdfBuffer.toString("base64"),
+            },
+          ],
+        });
+
+        // Record a successful send in the history log.
+        let logEntry = null;
+        try {
+          logEntry = await timecardStorage.recordPayrollSend({
+            weekStartDate,
+            sentById: senderId,
+            sentByName: senderName,
+            recipients: recipientList,
+            cardCount: cards.length,
+            totalHours,
+            totalOtHours,
+            totalMileage,
+            status: "sent",
+          });
+        } catch (logErr: any) {
+          console.error("[send-payroll] Failed to record send history:", logErr?.message);
+        }
+
+        res.json({ success: true, sentTo: toEmails, cardCount: cards.length, log: logEntry });
+      } catch (sendErr: any) {
+        // Record the failure so the history reflects attempts that didn't go through.
+        try {
+          await timecardStorage.recordPayrollSend({
+            weekStartDate,
+            sentById: senderId,
+            sentByName: senderName,
+            recipients: recipientList,
+            cardCount: cards.length,
+            totalHours,
+            totalOtHours,
+            totalMileage,
+            status: "failed",
+            errorMessage: sendErr?.message || "Unknown error",
+          });
+        } catch (logErr: any) {
+          console.error("[send-payroll] Failed to record failed send:", logErr?.message);
+        }
+        console.error("[send-payroll] Send failed:", sendErr?.message);
+        return res.status(500).json({ error: sendErr?.message || "Failed to send payroll email" });
+      }
     }),
   );
 

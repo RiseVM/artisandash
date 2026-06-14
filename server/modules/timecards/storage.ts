@@ -7,6 +7,7 @@ import {
   timecardRecipients,
   timecardMileage,
   payrollContacts,
+  payrollSends,
   users,
 } from "@shared/schema";
 import type {
@@ -16,6 +17,8 @@ import type {
   TimecardRecipient,
   TimecardMileage,
   PayrollContact,
+  PayrollSend,
+  PayrollSendRecipient,
   TimecardWithEntries,
   TimecardWithUser,
   TimecardAuditLogWithUser,
@@ -990,6 +993,68 @@ export const timecardStorage = {
 
   async deletePayrollContact(id: number): Promise<void> {
     await db.delete(payrollContacts).where(eq(payrollContacts.id, id));
+  },
+
+  // ── PAYROLL SEND HISTORY ─────────────────
+
+  /** Record one payroll send (success or failure) for the audit/history trail. */
+  async recordPayrollSend(data: {
+    weekStartDate: string;
+    sentById: string | null;
+    sentByName: string | null;
+    recipients: PayrollSendRecipient[];
+    cardCount: number;
+    totalHours: number;
+    totalOtHours: number;
+    totalMileage: number;
+    status: "sent" | "failed";
+    errorMessage?: string | null;
+  }): Promise<PayrollSend> {
+    const [row] = await db
+      .insert(payrollSends)
+      .values({
+        weekStartDate: data.weekStartDate,
+        sentById: data.sentById,
+        sentByName: data.sentByName,
+        recipients: data.recipients as any,
+        cardCount: data.cardCount,
+        totalHours: data.totalHours.toFixed(2),
+        totalOtHours: data.totalOtHours.toFixed(2),
+        totalMileage: data.totalMileage.toFixed(1),
+        status: data.status,
+        errorMessage: data.errorMessage || null,
+      })
+      .returning();
+    return row;
+  },
+
+  /** Most recent payroll sends first. Optionally filter to a single week. */
+  async getPayrollHistory(opts?: { weekStartDate?: string; limit?: number }): Promise<PayrollSend[]> {
+    const limit = opts?.limit ?? 100;
+    if (opts?.weekStartDate) {
+      return db
+        .select()
+        .from(payrollSends)
+        .where(eq(payrollSends.weekStartDate, opts.weekStartDate))
+        .orderBy(desc(payrollSends.sentAt))
+        .limit(limit);
+    }
+    return db
+      .select()
+      .from(payrollSends)
+      .orderBy(desc(payrollSends.sentAt))
+      .limit(limit);
+  },
+
+  /** The single most recent successful send (for dashboard "last payroll" badge). */
+  async getLastPayrollSend(): Promise<PayrollSend | undefined> {
+    const [row] = await db
+      .select()
+      .from(payrollSends)
+      .where(eq(payrollSends.status, "sent"))
+      .orderBy(desc(payrollSends.sentAt))
+      .limit(1);
+    return row;
   },
 
   // ── APPROVED TIMECARDS FOR PAYROLL EMAIL ──
