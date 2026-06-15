@@ -79,12 +79,12 @@ function formatWeekLabel(mondayIso: string): string {
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-700",
-    submitted: "bg-blue-100 text-blue-700",
-    approved: "bg-green-100 text-green-700",
+    draft: "bg-secondary text-secondary-foreground",
+    submitted: "bg-brass-muted text-brass",
+    approved: "bg-green-100 text-green-700 border border-green-200",
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${map[status] || "bg-gray-100 text-gray-700"}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${map[status] || "bg-secondary text-secondary-foreground"}`}>
       {status}
     </span>
   );
@@ -1125,7 +1125,7 @@ export function TimeManagement() {
                 >
                   <div className="relative h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
                     {initials(card.user.firstName, card.user.lastName)}
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isClockedIn ? "bg-green-500" : "bg-gray-300"}`} />
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${isClockedIn ? "bg-green-500" : "bg-muted-foreground/40"}`} />
                   </div>
                   <div className="flex-1 text-left">
                     <div className="font-medium text-sm">{fullName(card.user)}</div>
@@ -1212,7 +1212,7 @@ export function TimeManagement() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      className="text-brass border-brass/30 hover:bg-accent"
                       onClick={(e) => {
                         e.stopPropagation();
                         approveTimecard.mutate(card.id);

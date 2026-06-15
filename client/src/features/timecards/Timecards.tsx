@@ -576,8 +576,8 @@ function TimecardDayRow({
 
   const typeColors: Record<string, string> = {
     work: "",
-    pto: "bg-blue-50/70",
-    holiday: "bg-indigo-50/70",
+    pto: "bg-brass-muted/40",
+    holiday: "bg-amber-50/60",
   };
 
   // Correction is only offered for work-type entries. PTO/holiday changes
@@ -610,10 +610,10 @@ function TimecardDayRow({
           ) : (
             <span className="text-xs">
               {entryType === "pto" && ptoHrs > 0 && (
-                <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO</Badge>
+                <Badge className="bg-brass-muted text-brass text-[10px]">PTO</Badge>
               )}
               {entryType === "holiday" && holHrs > 0 && (
-                <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday</Badge>
+                <Badge className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px]">Holiday</Badge>
               )}
             </span>
           )}
@@ -762,7 +762,7 @@ function TimecardDayCard({
     <div
       className={`bg-card border rounded-lg overflow-hidden ${
         isToday ? "border-primary/30 border-l-4" : ""
-      } ${entryType === "pto" ? "bg-blue-50/50" : entryType === "holiday" ? "bg-indigo-50/50" : ""} ${
+      } ${entryType === "pto" ? "bg-brass-muted/40" : entryType === "holiday" ? "bg-amber-50/60" : ""} ${
         wasCorrected ? "ring-1 ring-amber-200" : ""
       }`}
     >
@@ -778,10 +778,10 @@ function TimecardDayCard({
           </div>
           <div className="flex items-center gap-2">
             {entryType === "pto" && ptoHrs > 0 && (
-              <Badge className="bg-blue-100 text-blue-700 text-[10px]">PTO {ptoHrs.toFixed(1)}h</Badge>
+              <Badge className="bg-brass-muted text-brass text-[10px]">PTO {ptoHrs.toFixed(1)}h</Badge>
             )}
             {entryType === "holiday" && holHrs > 0 && (
-              <Badge className="bg-indigo-100 text-indigo-700 text-[10px]">Holiday {holHrs.toFixed(1)}h</Badge>
+              <Badge className="bg-amber-100 text-amber-800 border border-amber-200 text-[10px]">Holiday {holHrs.toFixed(1)}h</Badge>
             )}
             {entryType === "work" && hrs > 0 && (
               <span className="font-mono text-sm font-semibold">{hrs.toFixed(1)}h</span>
@@ -1075,10 +1075,10 @@ function TimecardsInner() {
                   <td className="px-2 py-3">
                     <div className="flex gap-3 text-xs">
                       {totalPtoHours > 0 && (
-                        <Badge className="bg-blue-100 text-blue-700">PTO: {totalPtoHours.toFixed(1)}h</Badge>
+                        <Badge className="bg-brass-muted text-brass">PTO: {totalPtoHours.toFixed(1)}h</Badge>
                       )}
                       {totalHolidayHours > 0 && (
-                        <Badge className="bg-indigo-100 text-indigo-700">Holiday: {totalHolidayHours.toFixed(1)}h</Badge>
+                        <Badge className="bg-amber-100 text-amber-800 border border-amber-200">Holiday: {totalHolidayHours.toFixed(1)}h</Badge>
                       )}
                     </div>
                   </td>
@@ -1116,14 +1116,14 @@ function TimecardsInner() {
               )}
               {totalPtoHours > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-blue-600">PTO:</span>
-                  <span className="text-lg font-bold text-blue-600">{totalPtoHours.toFixed(1)}h</span>
+                  <span className="text-sm text-brass">PTO:</span>
+                  <span className="text-lg font-bold text-brass">{totalPtoHours.toFixed(1)}h</span>
                 </div>
               )}
               {totalHolidayHours > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-indigo-600">Holiday:</span>
-                  <span className="text-lg font-bold text-indigo-600">{totalHolidayHours.toFixed(1)}h</span>
+                  <span className="text-sm text-amber-700">Holiday:</span>
+                  <span className="text-lg font-bold text-amber-700">{totalHolidayHours.toFixed(1)}h</span>
                 </div>
               )}
             </div>

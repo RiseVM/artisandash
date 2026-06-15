@@ -15,10 +15,10 @@ import {
 import type { ProjectWithCustomer } from "@shared/schema";
 
 const statusConfig: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  active: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Active" },
-  on_hold: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", label: "On Hold" },
-  completed: { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500", label: "Completed" },
-  cancelled: { bg: "bg-gray-50", text: "text-gray-500", dot: "bg-gray-400", label: "Cancelled" },
+  active: { bg: "bg-brass-muted", text: "text-brass", dot: "bg-brass", label: "Active" },
+  on_hold: { bg: "bg-amber-100", text: "text-amber-800", dot: "bg-amber-500", label: "On Hold" },
+  completed: { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500", label: "Completed" },
+  cancelled: { bg: "bg-secondary", text: "text-muted-foreground", dot: "bg-muted-foreground/40", label: "Cancelled" },
 };
 
 export function PortalProjects() {
@@ -38,23 +38,24 @@ export function PortalProjects() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 font-serif">Projects</h1>
-            <p className="text-gray-500 mt-1 text-sm">View and track all your projects.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Client Portal</p>
+            <h1 className="text-2xl font-bold text-foreground font-serif">Projects</h1>
+            <p className="text-muted-foreground mt-1 text-sm">View and track all your projects.</p>
           </div>
         </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : projects.length === 0 ? (
           <Card className="border-0 shadow-sm">
             <CardContent className="py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                <FolderKanban className="h-8 w-8 text-gray-400" />
+              <div className="w-16 h-16 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                <FolderKanban className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">No Projects Yet</h3>
-              <p className="text-gray-500 text-sm mb-5">
+              <h3 className="text-lg font-semibold text-foreground mb-1">No Projects Yet</h3>
+              <p className="text-muted-foreground text-sm mb-5">
                 Ready to get started? Request a new project from the dashboard.
               </p>
               <Button
@@ -72,22 +73,22 @@ export function PortalProjects() {
               return (
                 <Card
                   key={project.id}
-                  className="border-0 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group bg-white"
+                  className="border-0 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group bg-card"
                   onClick={() => setLocation(`/portal/project/${project.id}`)}
                 >
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 group-hover:text-[hsl(215,30%,35%)] transition-colors truncate">
+                        <h3 className="font-semibold text-foreground group-hover:text-brass transition-colors truncate">
                           {project.name}
                         </h3>
                         {project.description && (
-                          <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">
+                          <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
                             {project.description}
                           </p>
                         )}
                       </div>
-                      <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 ml-3" />
+                      <ChevronRight className="h-5 w-5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0 ml-3" />
                     </div>
 
                     <div className="flex items-center justify-between mb-4">
@@ -98,7 +99,7 @@ export function PortalProjects() {
                         <span className={`w-1.5 h-1.5 rounded-full ${status.dot} mr-1.5 inline-block`} />
                         {status.label}
                       </Badge>
-                      <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
                         {new Date(project.created_at).toLocaleDateString()}
                       </span>
@@ -106,12 +107,12 @@ export function PortalProjects() {
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">Progress</span>
-                        <span className="font-semibold text-gray-700">{project.overall_progress}%</span>
+                        <span className="text-muted-foreground">Progress</span>
+                        <span className="font-semibold text-foreground/70">{project.overall_progress}%</span>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                      <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
                         <div
-                          className="h-full rounded-full transition-all duration-500 bg-[hsl(215,30%,35%)]"
+                          className="h-full rounded-full transition-all duration-500 bg-brass"
                           style={{ width: `${project.overall_progress}%` }}
                         />
                       </div>

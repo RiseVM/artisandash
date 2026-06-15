@@ -583,7 +583,7 @@ export function PortalDashboard() {
         {/* Pending Project Requests */}
         {projectRequests.length > 0 && (
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
               Your Requests
             </h2>
             <div className="grid gap-3 md:grid-cols-2">
@@ -592,15 +592,15 @@ export function PortalDashboard() {
                 const status = requestStatusConfig[req.status] || requestStatusConfig.pending;
                 const TypeIcon = typeOpt?.icon || Wrench;
                 return (
-                  <Card key={req.id} className="border-0 shadow-sm bg-white">
+                  <Card key={req.id} className="border-0 shadow-sm bg-card">
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-[hsl(215,30%,35%)]/10 flex items-center justify-center shrink-0">
-                          <TypeIcon className="h-4 w-4 text-[hsl(215,30%,35%)]" />
+                        <div className="w-9 h-9 rounded-lg bg-brass-muted flex items-center justify-center shrink-0">
+                          <TypeIcon className="h-4 w-4 text-brass" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <h3 className="font-medium text-gray-900 text-sm truncate">{req.title}</h3>
+                            <h3 className="font-medium text-foreground text-sm truncate">{req.title}</h3>
                             <Badge
                               variant="secondary"
                               className={`${status.bg} ${status.text} border-0 text-[11px] px-2 py-0.5 shrink-0`}
@@ -608,7 +608,7 @@ export function PortalDashboard() {
                               {status.label}
                             </Badge>
                           </div>
-                          <p className="text-xs text-gray-400 mt-0.5">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             {typeOpt?.label || req.project_type} · Submitted {new Date(req.created_at).toLocaleDateString()}
                           </p>
                         </div>
