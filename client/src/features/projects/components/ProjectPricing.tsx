@@ -67,10 +67,10 @@ const lineItemCategories: Record<string, string> = {
 };
 
 const paymentStatuses: Record<string, { label: string; color: string }> = {
-  pending: { label: "Pending", color: "bg-yellow-100 text-yellow-800" },
-  paid: { label: "Paid", color: "bg-green-100 text-green-800" },
-  overdue: { label: "Overdue", color: "bg-red-100 text-red-800" },
-  cancelled: { label: "Cancelled", color: "bg-gray-100 text-gray-800" },
+  pending: { label: "Pending", color: "bg-amber-100 text-amber-800 border border-amber-200" },
+  paid: { label: "Paid", color: "bg-green-100 text-green-700 border border-green-200" },
+  overdue: { label: "Overdue", color: "bg-destructive/10 text-destructive border border-destructive/20" },
+  cancelled: { label: "Cancelled", color: "bg-secondary text-secondary-foreground" },
 };
 
 interface ProjectPricingProps {
@@ -351,7 +351,7 @@ export function ProjectPricing({ projectId, phases, changeOrders, canManage }: P
                   Paid: <strong className="text-green-600">{formatCurrency(paymentSummary.total_paid)}</strong>
                 </span>
                 <span>
-                  Balance: <strong className="text-blue-600">{formatCurrency(paymentSummary.balance)}</strong>
+                  Balance: <strong className="text-brass">{formatCurrency(paymentSummary.balance)}</strong>
                 </span>
               </>
             )}

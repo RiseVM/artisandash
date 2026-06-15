@@ -135,7 +135,8 @@ export function Contracts() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-primary" data-testid="text-page-title">Contracts</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Documents</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold" data-testid="text-page-title">Contracts</h1>
           <p className="text-muted-foreground">Create and manage customer contracts</p>
         </div>
       </div>
@@ -369,7 +370,7 @@ export function Contracts() {
               {selectedContract.signature_data && (
                 <div>
                   <h4 className="font-semibold">Signature</h4>
-                  <div className="border rounded-md p-2 bg-white">
+                  <div className="border rounded-md p-2 bg-card">
                     <img
                       src={selectedContract.signature_data}
                       alt="Customer Signature"
@@ -384,7 +385,7 @@ export function Contracts() {
                     href={selectedContract.google_drive_link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline flex items-center gap-1"
+                    className="text-brass hover:underline flex items-center gap-1"
                   >
                     View in Google Drive <ExternalLink className="h-4 w-4" />
                   </a>

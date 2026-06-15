@@ -63,7 +63,7 @@ export function Calendar() {
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500" />
+          <div className="w-3 h-3 rounded-full bg-brass" />
           <span className="text-muted-foreground">Checked Out</span>
         </div>
         <div className="flex items-center gap-2">
@@ -139,7 +139,7 @@ export function Calendar() {
                           {checkoutStarts.slice(0, 2).map((_, i) => (
                             <div
                               key={`start-${i}`}
-                              className="w-1.5 h-1.5 rounded-full bg-blue-500"
+                              className="w-1.5 h-1.5 rounded-full bg-brass"
                             />
                           ))}
                           {dueCheckouts.slice(0, 2).map((c, i) => (
@@ -161,13 +161,13 @@ export function Calendar() {
                       <div className="space-y-2">
                         {checkoutStarts.length > 0 && (
                           <>
-                            <p className="font-medium text-sm border-b pb-1 text-blue-600">
+                            <p className="font-medium text-sm border-b pb-1 text-brass">
                               Checked Out {format(day, "MMM d, yyyy")}
                             </p>
                             {checkoutStarts.map((checkout) => (
                               <div
                                 key={`start-${checkout.id}`}
-                                className="flex items-start justify-between text-sm p-2 bg-blue-50 rounded border-l-2 border-blue-500"
+                                className="flex items-start justify-between text-sm p-2 bg-brass-muted rounded border-l-2 border-brass"
                               >
                                 <div>
                                   <p className="font-medium">

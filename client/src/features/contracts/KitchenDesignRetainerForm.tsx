@@ -103,7 +103,8 @@ export function KitchenDesignRetainerForm() {
       </div>
 
       <div>
-        <h1 className="text-2xl font-serif font-bold text-primary" data-testid="text-page-title">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Agreement</p>
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold" data-testid="text-page-title">
           Kitchen Design Retainer Agreement
         </h1>
         <p className="text-muted-foreground">
@@ -183,12 +184,12 @@ export function KitchenDesignRetainerForm() {
               </div>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-blue-800 text-sm font-medium">Retainer Details</p>
-              <p className="text-blue-700 text-sm mt-1">
+            <div className="bg-brass-muted border border-brass/20 rounded-lg p-4">
+              <p className="text-brass text-sm font-medium">Retainer Details</p>
+              <p className="text-brass text-sm mt-1">
                 Design retainer fee: <strong>$1,200.00</strong> (non-refundable once design services commence)
               </p>
-              <p className="text-blue-700 text-sm">
+              <p className="text-brass text-sm">
                 Credit period: <strong>60 days</strong> toward cabinet purchase
               </p>
             </div>
@@ -216,7 +217,7 @@ export function KitchenDesignRetainerForm() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+            <div className="bg-amber-100 border border-amber-200 rounded-lg p-4 mb-4">
               <p className="text-amber-800 text-sm">
                 Please read the entire agreement carefully before signing. This document is legally binding.
               </p>
@@ -260,7 +261,7 @@ export function KitchenDesignRetainerForm() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="bg-green-100 border border-green-200 rounded-lg p-4">
                 <p className="text-green-800 text-sm">
                   You have reviewed and agreed to the terms. Please sign below to complete the agreement.
                 </p>
@@ -271,7 +272,7 @@ export function KitchenDesignRetainerForm() {
                 <p className="text-sm text-muted-foreground mb-2">
                   Sign in the box below. Your signature will be applied to the complete agreement document you just reviewed.
                 </p>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg bg-white">
+                <div className="border-2 border-dashed border-border rounded-lg bg-card">
                   <SignatureCanvas
                     ref={sigCanvas}
                     penColor="black"

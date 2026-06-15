@@ -221,10 +221,10 @@ export function Dashboard() {
     return (
       <div
         className={cn(
-          "group relative flex items-center gap-4 p-4 rounded-xl border bg-white transition-all cursor-pointer",
-          "hover:shadow-md hover:border-slate-300",
-          sample.status === "overdue" && "border-red-200 bg-red-50/30",
-          isDueSoon && "border-amber-200 bg-amber-50/20",
+          "group relative flex items-center gap-4 p-4 rounded-xl border bg-card transition-all cursor-pointer",
+          "hover:shadow-md hover:border-border",
+          sample.status === "overdue" && "border-destructive/20 bg-destructive/5",
+          isDueSoon && "border-amber-200 bg-amber-50/40",
         )}
         onClick={() => openEditDialog(sample)}
       >
@@ -241,35 +241,35 @@ export function Dashboard() {
 
         {/* Customer avatar + info */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-            <User className="h-4.5 w-4.5 text-slate-500" />
+          <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
+            <User className="h-4.5 w-4.5 text-muted-foreground" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">{sample.customer.name}</p>
-            <p className="text-xs text-slate-500 truncate">{sample.customer.email}</p>
+            <p className="text-sm font-semibold text-foreground truncate">{sample.customer.name}</p>
+            <p className="text-xs text-muted-foreground truncate">{sample.customer.email}</p>
           </div>
         </div>
 
         {/* Sample info */}
         <div className="hidden sm:block min-w-0 flex-1">
-          <p className="text-sm font-medium text-slate-700 truncate">{sample.item.name}</p>
-          <p className="text-xs text-slate-400 truncate">
+          <p className="text-sm font-medium text-foreground/70 truncate">{sample.item.name}</p>
+          <p className="text-xs text-muted-foreground truncate">
             {[sample.item.color, sample.item.vendor].filter(Boolean).join(" · ")}
           </p>
         </div>
 
         {/* Due date */}
         <div className="hidden md:flex items-center gap-1.5 shrink-0 min-w-[100px]">
-          <Clock className="h-3.5 w-3.5 text-slate-400" />
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
           <div>
             <p className={cn(
               "text-xs font-medium",
-              sample.status === "overdue" ? "text-red-600" : isDueSoon ? "text-amber-600" : "text-slate-600",
+              sample.status === "overdue" ? "text-destructive" : isDueSoon ? "text-amber-600" : "text-foreground/70",
             )}>
               {formatShortDateEST(sample.due_date)}
             </p>
             {sample.last_reminder_sent && (
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-muted-foreground">
                 Reminded {formatReminderDateEST(sample.last_reminder_sent)}
               </p>
             )}
@@ -295,7 +295,7 @@ export function Dashboard() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 px-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+            className="h-8 px-2.5 text-muted-foreground hover:text-brass hover:bg-accent"
             onClick={() => handleSendReminder(sample.id, sample.customer.email)}
             disabled={sendingReminderId === sample.id}
           >
@@ -308,7 +308,7 @@ export function Dashboard() {
         </div>
 
         {/* Arrow */}
-        <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+        <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
       </div>
     );
   };
@@ -318,11 +318,11 @@ export function Dashboard() {
     if (data.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-            <Package className="h-6 w-6 text-slate-400" />
+          <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center mb-3">
+            <Package className="h-6 w-6 text-muted-foreground" />
           </div>
-          <p className="text-sm font-medium text-slate-600">No checkouts found</p>
-          <p className="text-xs text-slate-400 mt-1">Try adjusting your search or create a new checkout</p>
+          <p className="text-sm font-medium text-foreground/70">No checkouts found</p>
+          <p className="text-xs text-muted-foreground mt-1">Try adjusting your search or create a new checkout</p>
         </div>
       );
     }
@@ -336,7 +336,7 @@ export function Dashboard() {
               onCheckedChange={() => toggleSelectAll(data)}
               className="h-3.5 w-3.5"
             />
-            <span className="text-xs text-slate-400">Select all</span>
+            <span className="text-xs text-muted-foreground">Select all</span>
           </div>
         )}
         {data.map((sample) => (
@@ -351,25 +351,26 @@ export function Dashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-lg bg-slate-900 flex items-center justify-center">
-              <ClipboardList className="h-5 w-5 text-white" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Sample Library</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-lg bg-brass flex items-center justify-center">
+              <ClipboardList className="h-5 w-5 text-brass-foreground" />
             </div>
             Checkouts
           </h1>
           <div className="flex items-center gap-3 mt-2">
-            <span className="inline-flex items-center gap-1.5 text-sm text-slate-600">
-              <span className="h-2 w-2 rounded-full bg-blue-500" />
+            <span className="inline-flex items-center gap-1.5 text-sm text-foreground/70">
+              <span className="h-2 w-2 rounded-full bg-brass" />
               {stats.activeCount} active
             </span>
             {stats.overdueCount > 0 && (
-              <span className="inline-flex items-center gap-1.5 text-sm text-red-600">
+              <span className="inline-flex items-center gap-1.5 text-sm text-destructive">
                 <span className="h-2 w-2 rounded-full bg-red-500" />
                 {stats.overdueCount} overdue
               </span>
             )}
-            <span className="inline-flex items-center gap-1.5 text-sm text-slate-400">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+              <span className="h-2 w-2 rounded-full bg-green-500" />
               {returnedCheckouts.length} returned
             </span>
           </div>
@@ -385,16 +386,16 @@ export function Dashboard() {
       {/* Search & Sort Bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search customers, samples, emails..."
-            className="pl-9 h-10 bg-white border-slate-200 focus-visible:ring-slate-300"
+            className="pl-9 h-10 bg-card border-border focus-visible:ring-border"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
-          <SelectTrigger className="w-[180px] h-10 bg-white border-slate-200">
+          <SelectTrigger className="w-[180px] h-10 bg-card border-border">
             <SelectValue placeholder="Sort by" />
           </SelectTrigger>
           <SelectContent>
@@ -407,11 +408,11 @@ export function Dashboard() {
 
       {/* Bulk Action Bar */}
       {selectedIds.size > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl">
-          <span className="text-sm font-medium text-blue-700">
+        <div className="flex items-center justify-between px-4 py-3 bg-brass-muted border border-brass/20 rounded-xl">
+          <span className="text-sm font-medium text-brass">
             {selectedIds.size} sample{selectedIds.size > 1 ? "s" : ""} selected
           </span>
-          <Button size="sm" onClick={handleBulkReturn} disabled={isBulkReturning} className="bg-blue-600 hover:bg-blue-700">
+          <Button size="sm" onClick={handleBulkReturn} disabled={isBulkReturning} className="bg-brass text-brass-foreground hover:bg-brass/90">
             {isBulkReturning ? (
               <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Processing...</>
             ) : (
@@ -423,14 +424,14 @@ export function Dashboard() {
 
       {/* Tabs */}
       <Tabs defaultValue="active" className="w-full">
-        <TabsList className="bg-slate-100/80 p-1 h-auto">
-          <TabsTrigger value="active" className="text-sm px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+        <TabsList className="bg-secondary p-1 h-auto">
+          <TabsTrigger value="active" className="text-sm px-4 py-2 data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Active ({activeCheckouts.length})
           </TabsTrigger>
-          <TabsTrigger value="returned" className="text-sm px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="returned" className="text-sm px-4 py-2 data-[state=active]:bg-card data-[state=active]:shadow-sm">
             Returned ({returnedCheckouts.length})
           </TabsTrigger>
-          <TabsTrigger value="all" className="text-sm px-4 py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="all" className="text-sm px-4 py-2 data-[state=active]:bg-card data-[state=active]:shadow-sm">
             All ({checkouts.length})
           </TabsTrigger>
         </TabsList>
@@ -451,11 +452,11 @@ export function Dashboard() {
           {editingCheckout && (
             <>
               {/* Dialog Header with status */}
-              <div className="bg-slate-50 border-b px-6 py-5">
+              <div className="bg-muted/40 border-b px-6 py-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <DialogTitle className="text-lg font-semibold text-slate-900">Edit Checkout</DialogTitle>
-                    <p className="text-sm text-slate-500 mt-0.5">#{editingCheckout.id}</p>
+                    <DialogTitle className="text-lg font-semibold text-foreground">Edit Checkout</DialogTitle>
+                    <p className="text-sm text-muted-foreground mt-0.5">#{editingCheckout.id}</p>
                   </div>
                   <StatusBadge status={editingCheckout.status} />
                 </div>
@@ -465,22 +466,22 @@ export function Dashboard() {
               <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
                 {/* Customer */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium uppercase tracking-wider text-slate-500">Customer</Label>
+                  <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Customer</Label>
                   <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
-                        className="w-full justify-between h-11 bg-white border-slate-200 text-left font-normal hover:bg-slate-50"
+                        className="w-full justify-between h-11 bg-card border-border text-left font-normal hover:bg-accent"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
-                            <User className="h-3.5 w-3.5 text-slate-500" />
+                          <div className="h-7 w-7 rounded-full bg-secondary flex items-center justify-center shrink-0">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
                           </div>
                           <div className="min-w-0">
                             <span className="text-sm truncate block">{selectedCustomer?.name || "Select customer"}</span>
                             {selectedCustomer?.email && (
-                              <span className="text-xs text-slate-400 truncate block">{selectedCustomer.email}</span>
+                              <span className="text-xs text-muted-foreground truncate block">{selectedCustomer.email}</span>
                             )}
                           </div>
                         </div>
@@ -515,22 +516,22 @@ export function Dashboard() {
 
                 {/* Sample Item */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium uppercase tracking-wider text-slate-500">Sample Item</Label>
+                  <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Sample Item</Label>
                   <Popover open={itemOpen} onOpenChange={setItemOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
-                        className="w-full justify-between h-11 bg-white border-slate-200 text-left font-normal hover:bg-slate-50"
+                        className="w-full justify-between h-11 bg-card border-border text-left font-normal hover:bg-accent"
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                            <Package className="h-3.5 w-3.5 text-slate-500" />
+                          <div className="h-7 w-7 rounded-lg bg-secondary flex items-center justify-center shrink-0">
+                            <Package className="h-3.5 w-3.5 text-muted-foreground" />
                           </div>
                           <div className="min-w-0">
                             <span className="text-sm truncate block">{selectedItem?.name || "Select sample"}</span>
                             {selectedItem && (
-                              <span className="text-xs text-slate-400 truncate block">
+                              <span className="text-xs text-muted-foreground truncate block">
                                 {[selectedItem.color, selectedItem.vendor].filter(Boolean).join(" · ")}
                               </span>
                             )}
@@ -568,24 +569,24 @@ export function Dashboard() {
                 {/* Dates */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-medium uppercase tracking-wider text-slate-500">Checkout Date</Label>
+                    <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Checkout Date</Label>
                     <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                       <Input
                         type="date"
-                        className="pl-10 h-10 bg-white border-slate-200"
+                        className="pl-10 h-10 bg-card border-border"
                         value={editingCheckout.checkout_date}
                         onChange={(e) => setEditingCheckout({ ...editingCheckout, checkout_date: e.target.value })}
                       />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-medium uppercase tracking-wider text-slate-500">Due Date</Label>
+                    <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Due Date</Label>
                     <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                       <Input
                         type="date"
-                        className="pl-10 h-10 bg-white border-slate-200"
+                        className="pl-10 h-10 bg-card border-border"
                         value={editingCheckout.due_date}
                         onChange={(e) => setEditingCheckout({ ...editingCheckout, due_date: e.target.value })}
                       />
@@ -595,9 +596,9 @@ export function Dashboard() {
 
                 {/* Status */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium uppercase tracking-wider text-slate-500">Status</Label>
+                  <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Status</Label>
                   <Select value={editingCheckout.status} onValueChange={(val: any) => setEditingCheckout({ ...editingCheckout, status: val })}>
-                    <SelectTrigger className="h-10 bg-white border-slate-200">
+                    <SelectTrigger className="h-10 bg-card border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -615,7 +616,7 @@ export function Dashboard() {
                       </SelectItem>
                       <SelectItem value="returned">
                         <div className="flex items-center gap-2">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                          <span className="h-2 w-2 rounded-full bg-green-500" />
                           Returned
                         </div>
                       </SelectItem>
@@ -625,12 +626,12 @@ export function Dashboard() {
 
                 {/* Notes */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium uppercase tracking-wider text-slate-500">Notes</Label>
+                  <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Notes</Label>
                   <Textarea
                     value={editingCheckout.notes}
                     onChange={(e) => setEditingCheckout({ ...editingCheckout, notes: e.target.value })}
                     placeholder="Add notes about this checkout..."
-                    className="resize-none bg-white border-slate-200 min-h-[80px]"
+                    className="resize-none bg-card border-border min-h-[80px]"
                     rows={3}
                   />
                 </div>
@@ -638,18 +639,18 @@ export function Dashboard() {
                 {/* Payment Info */}
                 {editingCheckout.auth_notes && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-medium uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                    <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                       <CreditCard className="h-3.5 w-3.5" />
                       Payment Info
                     </Label>
-                    <div className="text-sm bg-slate-50 border border-slate-200 p-3 rounded-lg text-slate-600">{editingCheckout.auth_notes}</div>
+                    <div className="text-sm bg-muted/40 border border-border p-3 rounded-lg text-foreground/70">{editingCheckout.auth_notes}</div>
                   </div>
                 )}
 
                 {/* Send Reminder */}
                 <Button
                   variant="outline"
-                  className="w-full h-10 border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50"
+                  className="w-full h-10 border-border text-foreground/70 hover:text-brass hover:border-brass/30 hover:bg-accent"
                   onClick={() => {
                     const customer = customers.find((c) => c.id === editingCheckout.customer_id);
                     if (customer) handleSendReminder(editingCheckout.id, customer.email);
@@ -666,11 +667,11 @@ export function Dashboard() {
               </div>
 
               {/* Dialog Footer */}
-              <div className="border-t bg-slate-50 px-6 py-4 flex items-center justify-between">
+              <div className="border-t bg-muted/40 px-6 py-4 flex items-center justify-between">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
                   onClick={() => setShowDeleteConfirm(true)}
                   disabled={deleteCheckoutMutation.isPending}
                 >
@@ -678,7 +679,7 @@ export function Dashboard() {
                   Delete
                 </Button>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setEditingCheckout(null)} className="border-slate-200">
+                  <Button variant="outline" size="sm" onClick={() => setEditingCheckout(null)} className="border-border">
                     Cancel
                   </Button>
                   <Button size="sm" onClick={handleUpdateCheckout} disabled={updateCheckoutMutation.isPending}>

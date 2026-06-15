@@ -295,7 +295,8 @@ export function Customers() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-primary">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Showroom</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold">
             Customers
           </h1>
           <p className="text-muted-foreground">Manage your client list.</p>

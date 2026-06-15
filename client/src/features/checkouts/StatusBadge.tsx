@@ -10,23 +10,23 @@ export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {
     checked_out: {
       label: "Checked Out",
       dot: "bg-amber-500",
-      bg: "bg-amber-50",
-      text: "text-amber-700",
-      ring: "ring-amber-500/20",
+      bg: "bg-amber-100",
+      text: "text-amber-800",
+      ring: "ring-amber-200",
     },
     overdue: {
       label: "Overdue",
       dot: "bg-red-500",
-      bg: "bg-red-50",
-      text: "text-red-700",
-      ring: "ring-red-500/20",
+      bg: "bg-destructive/10",
+      text: "text-destructive",
+      ring: "ring-destructive/20",
     },
     returned: {
       label: "Returned",
-      dot: "bg-emerald-500",
-      bg: "bg-emerald-50",
-      text: "text-emerald-700",
-      ring: "ring-emerald-500/20",
+      dot: "bg-green-500",
+      bg: "bg-green-100",
+      text: "text-green-700",
+      ring: "ring-green-200",
     },
   };
 

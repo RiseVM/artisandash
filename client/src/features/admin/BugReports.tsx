@@ -166,7 +166,8 @@ export function BugReports() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Bug Reports</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Admin</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold">Bug Reports</h1>
           <p className="text-muted-foreground">Manage user-submitted bug reports and errors</p>
         </div>
         <Button variant="outline" onClick={() => refetch()}>
@@ -191,7 +192,7 @@ export function BugReports() {
         <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setStatusFilter("in_progress")}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-blue-500" />
+              <Clock className="h-5 w-5 text-brass" />
               <div>
                 <p className="text-2xl font-bold">{openCounts.in_progress}</p>
                 <p className="text-xs text-muted-foreground">In Progress</p>
@@ -213,7 +214,7 @@ export function BugReports() {
         <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setStatusFilter("closed")}>
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-gray-500" />
+              <XCircle className="h-5 w-5 text-muted-foreground" />
               <div>
                 <p className="text-2xl font-bold">{openCounts.closed}</p>
                 <p className="text-xs text-muted-foreground">Closed</p>
@@ -414,7 +415,7 @@ function BugReportDetailDialog({ report }: { report: BugReport }) {
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bug className="h-5 w-5 text-orange-500" />
+            <Bug className="h-5 w-5 text-brass" />
             Bug Report #{report.id}
           </DialogTitle>
         </DialogHeader>
@@ -454,13 +455,13 @@ function BugReportDetailDialog({ report }: { report: BugReport }) {
           )}
 
           {report.error_message && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <Label className="text-red-700">Error Message</Label>
-              <p className="text-sm font-mono text-red-600 mt-1">{report.error_message}</p>
+            <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4">
+              <Label className="text-destructive">Error Message</Label>
+              <p className="text-sm font-mono text-destructive mt-1">{report.error_message}</p>
               {report.error_stack && (
                 <div className="mt-3">
-                  <Label className="text-red-700">Stack Trace</Label>
-                  <pre className="text-xs font-mono text-red-600 mt-1 overflow-x-auto whitespace-pre-wrap">
+                  <Label className="text-destructive">Stack Trace</Label>
+                  <pre className="text-xs font-mono text-destructive mt-1 overflow-x-auto whitespace-pre-wrap">
                     {report.error_stack}
                   </pre>
                 </div>
@@ -469,7 +470,7 @@ function BugReportDetailDialog({ report }: { report: BugReport }) {
           )}
 
           {report.resolution_notes && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-4">
+            <div className="bg-green-100 border border-green-200 rounded-md p-4">
               <Label className="text-green-700">Resolution Notes</Label>
               <p className="text-sm mt-1">{report.resolution_notes}</p>
               {report.resolved_by_user_name && (

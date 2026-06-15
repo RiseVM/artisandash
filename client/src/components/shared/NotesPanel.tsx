@@ -55,10 +55,10 @@ const noteTypeIcons: Record<string, React.ReactNode> = {
 };
 
 const noteTypeColors: Record<string, string> = {
-  general: "bg-gray-100 text-gray-800",
-  follow_up: "bg-blue-100 text-blue-800",
-  warning: "bg-yellow-100 text-yellow-800",
-  important: "bg-red-100 text-red-800",
+  general: "bg-secondary text-secondary-foreground",
+  follow_up: "bg-brass-muted text-brass",
+  warning: "bg-amber-100 text-amber-800 border border-amber-200",
+  important: "bg-destructive/10 text-destructive border border-destructive/20",
 };
 
 const noteTypeLabels: Record<string, string> = {
@@ -189,7 +189,7 @@ export function NotesPanel({ entityType, entityId, defaultInternal = false }: No
                   checked={newIsInternal}
                   onCheckedChange={(checked) => setNewIsInternal(!!checked)}
                 />
-                <label htmlFor="is-internal" className="text-xs font-medium text-orange-600 cursor-pointer flex items-center gap-1">
+                <label htmlFor="is-internal" className="text-xs font-medium text-amber-600 cursor-pointer flex items-center gap-1">
                   <ShieldAlert className="h-3 w-3" />
                   Internal note (never shown to client)
                 </label>
@@ -222,7 +222,7 @@ export function NotesPanel({ entityType, entityId, defaultInternal = false }: No
               <div
                 key={note.id}
                 className={`p-3 rounded-lg border ${
-                  note.is_pinned === "yes" ? "border-amber-300 bg-amber-50/50" : "bg-white"
+                  note.is_pinned === "yes" ? "border-amber-200 bg-amber-100/30" : "bg-card"
                 }`}
               >
                 {editingId === note.id ? (
@@ -249,7 +249,7 @@ export function NotesPanel({ entityType, entityId, defaultInternal = false }: No
                           {noteTypeLabels[note.note_type]}
                         </Badge>
                         {(note as any).is_internal === "yes" && (
-                          <Badge className="text-xs bg-orange-100 text-orange-700 border border-orange-300">
+                          <Badge className="text-xs bg-amber-100 text-amber-800 border border-amber-200">
                             <ShieldAlert className="h-3 w-3 mr-1" />
                             Internal Only
                           </Badge>

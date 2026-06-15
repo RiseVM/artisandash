@@ -17,12 +17,12 @@ import type { EstimateLineItem } from "@shared/schema";
 import { NotesPanel } from "@/components/shared/NotesPanel";
 
 const statusColors: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-800",
-  sent: "bg-blue-100 text-blue-800",
-  approved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-  expired: "bg-yellow-100 text-yellow-800",
-  converted: "bg-purple-100 text-purple-800",
+  draft: "bg-secondary text-secondary-foreground",
+  sent: "bg-brass-muted text-brass",
+  approved: "bg-green-100 text-green-700 border border-green-200",
+  rejected: "bg-destructive/10 text-destructive border border-destructive/20",
+  expired: "bg-amber-100 text-amber-800 border border-amber-200",
+  converted: "bg-secondary text-secondary-foreground",
 };
 
 const statusLabels: Record<string, string> = {
@@ -214,12 +214,12 @@ export function EstimateBuilder() {
 
       {/* ── Internal Notes ── */}
       {estimate.internal_notes && (
-        <Card className="border-orange-200">
+        <Card className="border-amber-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-orange-500" />
+              <ShieldAlert className="h-4 w-4 text-amber-600" />
               Internal Notes
-              <Badge className="text-xs bg-orange-100 text-orange-700">Internal Only</Badge>
+              <Badge className="text-xs bg-amber-100 text-amber-800 border border-amber-200">Internal Only</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>

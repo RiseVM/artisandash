@@ -33,10 +33,10 @@ import {
 import type { ProjectWithCustomer, Contract, ProjectRequest } from "@shared/schema";
 
 const statusConfig: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  active: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Active" },
-  on_hold: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", label: "On Hold" },
-  completed: { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500", label: "Completed" },
-  cancelled: { bg: "bg-gray-50", text: "text-gray-500", dot: "bg-gray-400", label: "Cancelled" },
+  active: { bg: "bg-brass-muted", text: "text-brass", dot: "bg-brass", label: "Active" },
+  on_hold: { bg: "bg-amber-100", text: "text-amber-800", dot: "bg-amber-500", label: "On Hold" },
+  completed: { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500", label: "Completed" },
+  cancelled: { bg: "bg-secondary", text: "text-muted-foreground", dot: "bg-muted-foreground/40", label: "Cancelled" },
 };
 
 const projectTypeOptions = [
@@ -63,11 +63,11 @@ const timelineOptions = [
 ];
 
 const requestStatusConfig: Record<string, { bg: string; text: string; label: string }> = {
-  pending: { bg: "bg-amber-50", text: "text-amber-700", label: "Pending Review" },
-  reviewed: { bg: "bg-blue-50", text: "text-blue-700", label: "Under Review" },
-  approved: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Approved" },
-  declined: { bg: "bg-red-50", text: "text-red-700", label: "Declined" },
-  converted: { bg: "bg-violet-50", text: "text-violet-700", label: "Converted to Project" },
+  pending: { bg: "bg-amber-100", text: "text-amber-800", label: "Pending Review" },
+  reviewed: { bg: "bg-brass-muted", text: "text-brass", label: "Under Review" },
+  approved: { bg: "bg-green-100", text: "text-green-700", label: "Approved" },
+  declined: { bg: "bg-destructive/10", text: "text-destructive", label: "Declined" },
+  converted: { bg: "bg-secondary", text: "text-secondary-foreground", label: "Converted to Project" },
 };
 
 function ProjectRequestDialog({
@@ -136,11 +136,11 @@ function ProjectRequestDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[480px]">
           <div className="py-10 text-center">
-            <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">Request Submitted!</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="text-lg font-semibold text-foreground mb-1">Request Submitted!</h3>
+            <p className="text-sm text-muted-foreground">
               We'll review your request and get back to you shortly.
             </p>
           </div>
@@ -162,7 +162,7 @@ function ProjectRequestDialog({
         <form onSubmit={handleSubmit} className="space-y-5 mt-2">
           {/* Project Type Selection */}
           <div className="space-y-2">
-            <Label className="text-sm text-gray-600">Project Type *</Label>
+            <Label className="text-sm text-foreground/70">Project Type *</Label>
             <div className="grid grid-cols-2 gap-2">
               {projectTypeOptions.map((opt) => {
                 const selected = formData.project_type === opt.value;
@@ -173,8 +173,8 @@ function ProjectRequestDialog({
                     onClick={() => updateField("project_type", opt.value)}
                     className={`flex items-center gap-2.5 p-3 rounded-lg border text-sm font-medium transition-all text-left ${
                       selected
-                        ? "border-[hsl(215,30%,35%)] bg-[hsl(215,30%,35%)]/5 text-[hsl(215,30%,25%)]"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                        ? "border-brass bg-brass-muted text-brass"
+                        : "border-border text-foreground/70 hover:border-input hover:bg-accent"
                     }`}
                   >
                     <opt.icon className="h-4 w-4 shrink-0" />
@@ -187,35 +187,35 @@ function ProjectRequestDialog({
 
           {/* Title */}
           <div className="space-y-2">
-            <Label htmlFor="req-title" className="text-sm text-gray-600">Project Title *</Label>
+            <Label htmlFor="req-title" className="text-sm text-foreground/70">Project Title *</Label>
             <Input
               id="req-title"
               placeholder="e.g., Master Bathroom Remodel"
               value={formData.title}
               onChange={(e) => updateField("title", e.target.value)}
-              className="h-10 bg-gray-50 border-gray-200 focus:bg-white"
+              className="h-10 bg-muted/40 border-border focus:bg-card"
               required
             />
           </div>
 
           {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="req-desc" className="text-sm text-gray-600">Description</Label>
+            <Label htmlFor="req-desc" className="text-sm text-foreground/70">Description</Label>
             <Textarea
               id="req-desc"
               placeholder="Describe what you're looking for..."
               value={formData.description}
               onChange={(e) => updateField("description", e.target.value)}
-              className="bg-gray-50 border-gray-200 focus:bg-white min-h-[80px] resize-none"
+              className="bg-muted/40 border-border focus:bg-card min-h-[80px] resize-none"
             />
           </div>
 
           {/* Budget + Timeline row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-sm text-gray-600">Budget Range</Label>
+              <Label className="text-sm text-foreground/70">Budget Range</Label>
               <Select value={formData.budget_range} onValueChange={(v) => updateField("budget_range", v)}>
-                <SelectTrigger className="h-10 bg-gray-50 border-gray-200">
+                <SelectTrigger className="h-10 bg-muted/40 border-border">
                   <SelectValue placeholder="Select budget" />
                 </SelectTrigger>
                 <SelectContent>
@@ -226,9 +226,9 @@ function ProjectRequestDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-sm text-gray-600">Preferred Start</Label>
+              <Label className="text-sm text-foreground/70">Preferred Start</Label>
               <Select value={formData.preferred_start} onValueChange={(v) => updateField("preferred_start", v)}>
-                <SelectTrigger className="h-10 bg-gray-50 border-gray-200">
+                <SelectTrigger className="h-10 bg-muted/40 border-border">
                   <SelectValue placeholder="Select timeline" />
                 </SelectTrigger>
                 <SelectContent>
@@ -242,31 +242,31 @@ function ProjectRequestDialog({
 
           {/* Address */}
           <div className="space-y-2">
-            <Label htmlFor="req-address" className="text-sm text-gray-600">Project Address</Label>
+            <Label htmlFor="req-address" className="text-sm text-foreground/70">Project Address</Label>
             <Input
               id="req-address"
               placeholder="Where is this project located?"
               value={formData.address}
               onChange={(e) => updateField("address", e.target.value)}
-              className="h-10 bg-gray-50 border-gray-200 focus:bg-white"
+              className="h-10 bg-muted/40 border-border focus:bg-card"
             />
           </div>
 
           {/* Additional Notes */}
           <div className="space-y-2">
-            <Label htmlFor="req-notes" className="text-sm text-gray-600">Additional Notes</Label>
+            <Label htmlFor="req-notes" className="text-sm text-foreground/70">Additional Notes</Label>
             <Textarea
               id="req-notes"
               placeholder="Anything else we should know?"
               value={formData.additional_notes}
               onChange={(e) => updateField("additional_notes", e.target.value)}
-              className="bg-gray-50 border-gray-200 focus:bg-white min-h-[60px] resize-none"
+              className="bg-muted/40 border-border focus:bg-card min-h-[60px] resize-none"
             />
           </div>
 
           {/* Error */}
           {mutation.isError && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+            <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg">
               {String(mutation.error?.message || "Something went wrong. Please try again.")}
             </div>
           )}
@@ -274,7 +274,7 @@ function ProjectRequestDialog({
           {/* Submit */}
           <Button
             type="submit"
-            className="w-full h-11 bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)] text-white font-medium"
+            className="w-full h-11 bg-brass hover:bg-brass/90 text-brass-foreground font-medium"
             disabled={mutation.isPending || !formData.project_type || !formData.title}
           >
             {mutation.isPending ? (
@@ -347,16 +347,17 @@ export function PortalDashboard() {
         {/* Welcome Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 font-serif">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Client Portal</p>
+            <h1 className="text-2xl font-bold text-foreground font-serif">
               Welcome back{user?.customer?.name ? `, ${user.customer.name.split(" ")[0]}` : ""}
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-muted-foreground mt-1">
               Here's an overview of your projects and documents.
             </p>
           </div>
           <Button
             onClick={() => setShowRequestDialog(true)}
-            className="bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)] text-white shrink-0"
+            className="bg-brass hover:bg-brass/90 text-brass-foreground shrink-0"
           >
             <Plus className="h-4 w-4 mr-2" />
             Request a Project
@@ -365,43 +366,43 @@ export function PortalDashboard() {
 
         {/* Status Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="border-0 shadow-sm bg-white">
+          <Card className="border-0 shadow-sm bg-card">
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-[hsl(215,30%,35%)]/10 flex items-center justify-center">
-                  <FolderKanban className="h-5 w-5 text-[hsl(215,30%,35%)]" />
+                <div className="w-10 h-10 rounded-xl bg-brass-muted flex items-center justify-center">
+                  <FolderKanban className="h-5 w-5 text-brass" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{activeProjects}</p>
-                  <p className="text-xs text-gray-500">Active Projects</p>
+                  <p className="text-2xl font-bold text-foreground">{activeProjects}</p>
+                  <p className="text-xs text-muted-foreground">Active Projects</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-sm bg-white">
+          <Card className="border-0 shadow-sm bg-card">
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-emerald-600" />
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{avgProgress}%</p>
-                  <p className="text-xs text-gray-500">Avg. Progress</p>
+                  <p className="text-2xl font-bold text-foreground">{avgProgress}%</p>
+                  <p className="text-xs text-muted-foreground">Avg. Progress</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-sm bg-white">
+          <Card className="border-0 shadow-sm bg-card">
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-violet-600" />
+                <div className="w-10 h-10 rounded-xl bg-brass-muted flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-brass" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{contracts.length}</p>
-                  <p className="text-xs text-gray-500">Contracts</p>
+                  <p className="text-2xl font-bold text-foreground">{contracts.length}</p>
+                  <p className="text-xs text-muted-foreground">Contracts</p>
                 </div>
               </div>
             </CardContent>
@@ -409,13 +410,13 @@ export function PortalDashboard() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-1 bg-gray-100/80 p-1 rounded-xl w-fit">
+        <div className="flex gap-1 bg-secondary p-1 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab("projects")}
             className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
               activeTab === "projects"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground/70"
             }`}
           >
             <span className="flex items-center gap-2">
@@ -427,8 +428,8 @@ export function PortalDashboard() {
             onClick={() => setActiveTab("contracts")}
             className={`px-5 py-2 rounded-lg text-sm font-medium transition-all ${
               activeTab === "contracts"
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground/70"
             }`}
           >
             <span className="flex items-center gap-2">
@@ -443,21 +444,21 @@ export function PortalDashboard() {
           <div>
             {projectsLoading ? (
               <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : projects.length === 0 ? (
               <Card className="border-0 shadow-sm">
                 <CardContent className="py-16 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                    <FolderKanban className="h-8 w-8 text-gray-400" />
+                  <div className="w-16 h-16 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                    <FolderKanban className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">No Projects Yet</h3>
-                  <p className="text-gray-500 text-sm mb-5">
+                  <h3 className="text-lg font-semibold text-foreground mb-1">No Projects Yet</h3>
+                  <p className="text-muted-foreground text-sm mb-5">
                     Ready to get started? Request a new project and we'll reach out to schedule a consultation.
                   </p>
                   <Button
                     onClick={() => setShowRequestDialog(true)}
-                    className="bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)] text-white"
+                    className="bg-brass hover:bg-brass/90 text-brass-foreground"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Request a Project
@@ -471,22 +472,22 @@ export function PortalDashboard() {
                   return (
                     <Card
                       key={project.id}
-                      className="border-0 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group bg-white"
+                      className="border-0 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group bg-card"
                       onClick={() => setLocation(`/portal/project/${project.id}`)}
                     >
                       <CardContent className="p-5">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-gray-900 group-hover:text-[hsl(215,30%,35%)] transition-colors truncate">
+                            <h3 className="font-semibold text-foreground group-hover:text-brass transition-colors truncate">
                               {project.name}
                             </h3>
                             {project.description && (
-                              <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">
+                              <p className="text-sm text-muted-foreground mt-0.5 line-clamp-1">
                                 {project.description}
                               </p>
                             )}
                           </div>
-                          <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 ml-3" />
+                          <ChevronRight className="h-5 w-5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0 ml-3" />
                         </div>
 
                         {/* Status + Date row */}
@@ -498,7 +499,7 @@ export function PortalDashboard() {
                             <span className={`w-1.5 h-1.5 rounded-full ${status.dot} mr-1.5 inline-block`} />
                             {status.label}
                           </Badge>
-                          <span className="flex items-center gap-1 text-xs text-gray-400">
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <Calendar className="h-3 w-3" />
                             {new Date(project.created_at).toLocaleDateString()}
                           </span>
@@ -507,12 +508,12 @@ export function PortalDashboard() {
                         {/* Progress */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-gray-500">Progress</span>
-                            <span className="font-semibold text-gray-700">{project.overall_progress}%</span>
+                            <span className="text-muted-foreground">Progress</span>
+                            <span className="font-semibold text-foreground/70">{project.overall_progress}%</span>
                           </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
                             <div
-                              className="h-full rounded-full transition-all duration-500 bg-[hsl(215,30%,35%)]"
+                              className="h-full rounded-full transition-all duration-500 bg-brass"
                               style={{ width: `${project.overall_progress}%` }}
                             />
                           </div>
@@ -531,16 +532,16 @@ export function PortalDashboard() {
           <div>
             {contractsLoading ? (
               <div className="flex items-center justify-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : contracts.length === 0 ? (
               <Card className="border-0 shadow-sm">
                 <CardContent className="py-16 text-center">
-                  <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                    <FileText className="h-8 w-8 text-gray-400" />
+                  <div className="w-16 h-16 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                    <FileText className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">No Contracts Yet</h3>
-                  <p className="text-gray-500 text-sm">
+                  <h3 className="text-lg font-semibold text-foreground mb-1">No Contracts Yet</h3>
+                  <p className="text-muted-foreground text-sm">
                     You don't have any signed contracts yet.
                   </p>
                 </CardContent>
@@ -548,17 +549,17 @@ export function PortalDashboard() {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {contracts.map((contract) => (
-                  <Card key={contract.id} className="border-0 shadow-sm bg-white">
+                  <Card key={contract.id} className="border-0 shadow-sm bg-card">
                     <CardContent className="p-5">
                       <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-[hsl(215,30%,35%)]/10 flex items-center justify-center shrink-0">
-                          <ClipboardCheck className="h-5 w-5 text-[hsl(215,30%,35%)]" />
+                        <div className="w-10 h-10 rounded-xl bg-brass-muted flex items-center justify-center shrink-0">
+                          <ClipboardCheck className="h-5 w-5 text-brass" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 text-sm">
+                          <h3 className="font-semibold text-foreground text-sm">
                             {getContractTypeName(contract.contract_type)}
                           </h3>
-                          <p className="text-xs text-gray-400 mt-0.5">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             Signed {new Date(contract.signed_at || contract.created_at).toLocaleDateString()}
                           </p>
                         </div>

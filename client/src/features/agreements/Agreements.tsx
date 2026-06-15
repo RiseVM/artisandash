@@ -139,7 +139,8 @@ export function Agreements() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-serif font-bold text-primary">Signed Checkouts</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Documents</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold">Signed Checkouts</h1>
           <p className="text-muted-foreground">View and manage customer signed sample checkouts</p>
         </div>
       </div>
@@ -197,7 +198,7 @@ export function Agreements() {
                           href={agreement.google_drive_link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline flex items-center gap-1"
+                          className="text-brass hover:underline flex items-center gap-1"
                         >
                           <ExternalLink className="h-3 w-3" />
                           View in Drive
@@ -336,7 +337,7 @@ export function Agreements() {
                     href={selectedAgreement.google_drive_link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline flex items-center gap-1"
+                    className="text-brass hover:underline flex items-center gap-1"
                   >
                     <ExternalLink className="h-4 w-4" />
                     View in Google Drive
@@ -348,7 +349,7 @@ export function Agreements() {
             {selectedAgreement?.agreement_text && (
               <div>
                 <p className="text-sm text-muted-foreground mb-2">Agreement Terms:</p>
-                <div className="border rounded-lg p-4 bg-gray-50 max-h-64 overflow-y-auto">
+                <div className="border rounded-lg p-4 bg-muted/40 max-h-64 overflow-y-auto">
                   <pre className="whitespace-pre-wrap text-sm font-sans">
                     {selectedAgreement.agreement_text}
                   </pre>
@@ -358,7 +359,7 @@ export function Agreements() {
 
             <div>
               <p className="text-sm text-muted-foreground mb-2">Signature:</p>
-              <div className="border rounded-lg p-4 bg-white">
+              <div className="border rounded-lg p-4 bg-card">
                 {selectedAgreement?.signature_data ? (
                   <img
                     src={selectedAgreement.signature_data}

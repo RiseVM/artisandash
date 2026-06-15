@@ -74,7 +74,7 @@ function SignatureCanvas({ onSignature }: { onSignature: (data: string) => void 
     <div className="space-y-4">
       <canvas
         ref={canvasRef}
-        className="w-full border-2 border-gray-300 rounded-lg cursor-crosshair bg-white"
+        className="w-full border-2 border-border rounded-lg cursor-crosshair bg-white"
         style={{ height: "200px" }}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
@@ -173,7 +173,7 @@ export function RemoteSign() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-muted/40">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -181,17 +181,17 @@ export function RemoteSign() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <Card className="max-w-md w-full border-red-200 bg-red-50">
+      <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
+        <Card className="max-w-md w-full border-destructive/20 bg-destructive/10">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-red-700">
+            <CardTitle className="flex items-center gap-2 text-destructive">
               <AlertCircle className="h-5 w-5" />
               Cannot Access Contract
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-red-700">{error}</p>
-            <p className="text-sm text-red-600 mt-4">
+            <p className="text-destructive">{error}</p>
+            <p className="text-sm text-destructive mt-4">
               If you believe this is an error, please contact Artisan Tile Kitchen & Bath.
             </p>
           </CardContent>
@@ -202,8 +202,8 @@ export function RemoteSign() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <Card className="max-w-md w-full border-green-200 bg-green-50">
+      <div className="min-h-screen flex items-center justify-center bg-muted/40 p-4">
+        <Card className="max-w-md w-full border border-green-200 bg-green-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-700">
               <CheckCircle2 className="h-5 w-5" />
@@ -222,7 +222,7 @@ export function RemoteSign() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-muted/40 py-12 px-4">
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>
@@ -230,7 +230,7 @@ export function RemoteSign() {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Contract Information */}
-            <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+            <div className="bg-muted/40 p-4 rounded-lg space-y-3">
               <div>
                 <p className="text-sm text-muted-foreground">Contract Type</p>
                 <p className="font-semibold">
@@ -251,9 +251,9 @@ export function RemoteSign() {
 
             {/* Contract Form Data Preview */}
             {contract?.form_data && (
-              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                <p className="text-sm font-semibold text-blue-900 mb-2">Contract Details</p>
-                <pre className="text-xs overflow-auto max-h-64 bg-white p-3 rounded border border-blue-100">
+              <div className="bg-brass-muted border border-brass/20 p-4 rounded-lg">
+                <p className="text-sm font-semibold text-brass mb-2">Contract Details</p>
+                <pre className="text-xs overflow-auto max-h-64 bg-white p-3 rounded border border-brass/10">
                   {JSON.stringify(contract.form_data, null, 2)}
                 </pre>
               </div>

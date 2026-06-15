@@ -230,7 +230,7 @@ export function TeamMemberDetail() {
     <div className="space-y-6">
       {/* ── Hero Header Card ─────────────────────── */}
       <Card className="overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 px-5 pt-5 pb-4">
+        <div className="bg-muted/40 px-5 pt-5 pb-4">
           <div className="flex items-start gap-4">
             <Button variant="ghost" size="icon" className="shrink-0 -ml-1 -mt-1" onClick={() => setLocation("/team")}>
               <ArrowLeft className="h-5 w-5" />
@@ -241,8 +241,8 @@ export function TeamMemberDetail() {
                 <Badge
                   className={
                     member.status === "complete"
-                      ? "bg-green-100 text-green-800 border-green-200"
-                      : "bg-blue-100 text-blue-800 border-blue-200"
+                      ? "bg-green-100 text-green-700 border border-green-200"
+                      : "bg-brass-muted text-brass"
                   }
                 >
                   {member.status === "complete" ? "Complete" : "In Progress"}
@@ -272,7 +272,7 @@ export function TeamMemberDetail() {
           </div>
         </div>
         {/* Full-width progress bar */}
-        <div className="px-5 py-3 border-t bg-white dark:bg-background">
+        <div className="px-5 py-3 border-t bg-card">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-sm font-medium">Overall Progress</span>
             <span className="text-sm font-semibold">
@@ -350,7 +350,7 @@ export function TeamMemberDetail() {
               className={`px-5 py-4 flex items-center gap-4 transition-colors ${
                 phaseComplete
                   ? "bg-green-50 dark:bg-green-950/20 border-b border-green-200"
-                  : "bg-slate-50/80 dark:bg-slate-900/50 border-b"
+                  : "bg-muted/40 border-b"
               }`}
             >
               <div className="flex-1 min-w-0">

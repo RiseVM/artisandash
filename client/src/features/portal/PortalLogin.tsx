@@ -63,7 +63,7 @@ export function PortalLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[hsl(215,30%,12%)] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-foreground p-4">
       {/* Subtle background pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0" style={{
@@ -74,35 +74,35 @@ export function PortalLogin() {
 
       <div className="relative w-full max-w-[420px]">
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="bg-card rounded-2xl shadow-2xl overflow-hidden">
           {/* Brand Header */}
           <div className="px-8 pt-10 pb-6 text-center">
             <div className="inline-flex items-center justify-center w-64 mb-5">
               <img src="/logo.jpg" alt="Artisan Tile Kitchen & Bath" className="w-full h-auto" />
             </div>
-            <p className="text-xs font-semibold tracking-widest text-[hsl(215,30%,35%)] uppercase">
+            <p className="text-xs font-semibold tracking-widest text-brass uppercase">
               Client Portal
             </p>
           </div>
 
           {/* Divider */}
-          <div className="mx-8 border-t border-gray-100" />
+          <div className="mx-8 border-t border-border" />
 
           {/* Form */}
           <div className="px-8 pt-6 pb-8">
             <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg">
                   {error}
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm text-gray-600">
+                <Label htmlFor="email" className="text-sm text-foreground/70">
                   Your email
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="email"
                     type="email"
@@ -110,13 +110,13 @@ export function PortalLogin() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoComplete="email"
-                    className="pl-10 h-11 bg-gray-50 border-gray-200 focus:bg-white transition-colors"
+                    className="pl-10 h-11 bg-muted/40 border-border focus:bg-card transition-colors"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm text-gray-600">
+                <Label htmlFor="password" className="text-sm text-foreground/70">
                   Password
                 </Label>
                 <div className="relative">
@@ -127,12 +127,12 @@ export function PortalLogin() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete="current-password"
-                    className="h-11 bg-gray-50 border-gray-200 focus:bg-white transition-colors pr-10"
+                    className="h-11 bg-muted/40 border-border focus:bg-card transition-colors pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground/70 transition-colors"
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -141,7 +141,7 @@ export function PortalLogin() {
 
               <Button
                 type="submit"
-                className="w-full h-11 bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)] text-white font-medium text-sm rounded-lg shadow-sm"
+                className="w-full h-11 bg-brass hover:bg-brass/90 text-brass-foreground font-medium text-sm rounded-lg shadow-sm"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -158,7 +158,7 @@ export function PortalLogin() {
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}
-                  className="text-sm text-[hsl(215,30%,45%)] hover:text-[hsl(215,30%,30%)] transition-colors"
+                  className="text-sm text-brass hover:text-brass/80 transition-colors"
                 >
                   Forgot password?
                 </button>
@@ -168,7 +168,7 @@ export function PortalLogin() {
         </div>
 
         {/* Footer */}
-        <p className="text-center mt-6 text-xs text-white/40">
+        <p className="text-center mt-6 text-xs text-background/40">
           Powered by Artisan Tile Kitchen & Bath
         </p>
       </div>
@@ -187,8 +187,8 @@ export function PortalLogin() {
               <div
                 className={`p-3 text-sm rounded-lg ${
                   forgotMessage.startsWith("Error")
-                    ? "text-red-600 bg-red-50 border border-red-200"
-                    : "text-green-600 bg-green-50 border border-green-200"
+                    ? "text-destructive bg-destructive/10 border border-destructive/20"
+                    : "text-green-700 bg-green-100 border border-green-200"
                 }`}
               >
                 {forgotMessage}
