@@ -55,11 +55,11 @@ import {
 import type { ChangeOrderWithPhase, ProjectPhase } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-800",
-  pending_approval: "bg-yellow-100 text-yellow-800",
-  approved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-  void: "bg-gray-100 text-gray-500",
+  draft: "bg-secondary text-secondary-foreground",
+  pending_approval: "bg-amber-100 text-amber-800 border border-amber-200",
+  approved: "bg-green-100 text-green-700 border border-green-200",
+  rejected: "bg-destructive/10 text-destructive border border-destructive/20",
+  void: "bg-muted text-muted-foreground",
 };
 
 const statusLabels: Record<string, string> = {
@@ -365,7 +365,7 @@ export function ProjectChangeOrders({ projectId, phases, canManage }: ProjectCha
                       )}
                     </div>
                     {co.status === "rejected" && co.rejection_reason && (
-                      <p className="text-sm text-red-600 mt-2">
+                      <p className="text-sm text-destructive mt-2">
                         Rejected: {co.rejection_reason}
                       </p>
                     )}
@@ -417,7 +417,7 @@ export function ProjectChangeOrders({ projectId, phases, canManage }: ProjectCha
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-red-600 hover:text-red-600"
+                            className="text-destructive hover:text-destructive"
                             onClick={() => setRejectingCO(co)}
                           >
                             <XCircle className="h-3 w-3 mr-1" />
@@ -578,7 +578,7 @@ export function ProjectChangeOrders({ projectId, phases, canManage }: ProjectCha
             </div>
             <div className="space-y-2">
               <Label>Signature *</Label>
-              <div className="border rounded-lg p-1 bg-white">
+              <div className="border rounded-lg p-1 bg-card">
                 <canvas
                   ref={canvasRef}
                   width={400}

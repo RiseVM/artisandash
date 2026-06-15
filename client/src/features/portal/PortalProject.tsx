@@ -39,18 +39,18 @@ import { PortalMessages } from "./components/PortalMessages";
 import type { ProjectWithDetails, ChangeOrder, ProjectDelivery, ProjectFile } from "@shared/schema";
 
 const statusConfig: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  active: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Active" },
-  on_hold: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", label: "On Hold" },
-  completed: { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500", label: "Completed" },
-  cancelled: { bg: "bg-gray-50", text: "text-gray-500", dot: "bg-gray-400", label: "Cancelled" },
+  active: { bg: "bg-brass-muted", text: "text-brass", dot: "bg-brass", label: "Active" },
+  on_hold: { bg: "bg-amber-100", text: "text-amber-800", dot: "bg-amber-500", label: "On Hold" },
+  completed: { bg: "bg-green-100", text: "text-green-700", dot: "bg-green-500", label: "Completed" },
+  cancelled: { bg: "bg-secondary", text: "text-muted-foreground", dot: "bg-muted-foreground/40", label: "Cancelled" },
 };
 
 const phaseStatusIcons: Record<string, React.ReactNode> = {
-  not_started: <Circle className="h-4 w-4 text-gray-300" />,
-  in_progress: <Clock className="h-4 w-4 text-blue-500" />,
-  completed: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
+  not_started: <Circle className="h-4 w-4 text-muted-foreground/40" />,
+  in_progress: <Clock className="h-4 w-4 text-brass" />,
+  completed: <CheckCircle2 className="h-4 w-4 text-green-500" />,
   on_hold: <Clock className="h-4 w-4 text-amber-500" />,
-  skipped: <Circle className="h-4 w-4 text-gray-300" />,
+  skipped: <Circle className="h-4 w-4 text-muted-foreground/40" />,
 };
 
 const phaseStatusLabels: Record<string, string> = {
@@ -62,20 +62,20 @@ const phaseStatusLabels: Record<string, string> = {
 };
 
 const changeOrderStatusConfig: Record<string, { bg: string; text: string; label: string }> = {
-  draft: { bg: "bg-gray-50", text: "text-gray-600", label: "Draft" },
-  pending_approval: { bg: "bg-amber-50", text: "text-amber-700", label: "Pending Approval" },
-  approved: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Approved" },
-  rejected: { bg: "bg-red-50", text: "text-red-700", label: "Rejected" },
-  void: { bg: "bg-gray-50", text: "text-gray-400", label: "Void" },
+  draft: { bg: "bg-secondary", text: "text-secondary-foreground", label: "Draft" },
+  pending_approval: { bg: "bg-amber-100", text: "text-amber-800", label: "Pending Approval" },
+  approved: { bg: "bg-green-100", text: "text-green-700", label: "Approved" },
+  rejected: { bg: "bg-destructive/10", text: "text-destructive", label: "Rejected" },
+  void: { bg: "bg-secondary", text: "text-muted-foreground", label: "Void" },
 };
 
 const deliveryStatusConfig: Record<string, { bg: string; text: string; label: string }> = {
-  pending: { bg: "bg-gray-50", text: "text-gray-600", label: "Pending" },
-  ordered: { bg: "bg-blue-50", text: "text-blue-700", label: "Ordered" },
-  shipped: { bg: "bg-violet-50", text: "text-violet-700", label: "Shipped" },
-  in_transit: { bg: "bg-indigo-50", text: "text-indigo-700", label: "In Transit" },
-  delivered: { bg: "bg-emerald-50", text: "text-emerald-700", label: "Delivered" },
-  delayed: { bg: "bg-red-50", text: "text-red-700", label: "Delayed" },
+  pending: { bg: "bg-secondary", text: "text-secondary-foreground", label: "Pending" },
+  ordered: { bg: "bg-brass-muted", text: "text-brass", label: "Ordered" },
+  shipped: { bg: "bg-brass-muted", text: "text-brass", label: "Shipped" },
+  in_transit: { bg: "bg-brass-muted", text: "text-brass", label: "In Transit" },
+  delivered: { bg: "bg-green-100", text: "text-green-700", label: "Delivered" },
+  delayed: { bg: "bg-destructive/10", text: "text-destructive", label: "Delayed" },
 };
 
 export function PortalProject() {
@@ -204,7 +204,7 @@ export function PortalProject() {
     return (
       <PortalLayout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </PortalLayout>
     );
@@ -214,10 +214,10 @@ export function PortalProject() {
     return (
       <PortalLayout>
         <div className="text-center py-16">
-          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-            <FolderKanban className="h-8 w-8 text-gray-400" />
+          <div className="w-16 h-16 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+            <FolderKanban className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Project not found</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-2">Project not found</h2>
           <Button onClick={() => setLocation("/portal")} variant="outline">
             Back to Dashboard
           </Button>
@@ -235,7 +235,7 @@ export function PortalProject() {
         <div>
           <button
             onClick={() => setLocation("/portal/projects")}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-4"
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground/70 transition-colors mb-4"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Projects
@@ -243,7 +243,7 @@ export function PortalProject() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 mb-1">
-                <h1 className="text-2xl font-bold text-gray-900 font-serif">{project.name}</h1>
+                <h1 className="text-2xl font-bold text-foreground font-serif">{project.name}</h1>
                 <Badge
                   variant="secondary"
                   className={`${status.bg} ${status.text} border-0 font-medium text-xs`}
@@ -253,24 +253,24 @@ export function PortalProject() {
                 </Badge>
               </div>
               {project.description && (
-                <p className="text-gray-500 text-sm">{project.description}</p>
+                <p className="text-muted-foreground text-sm">{project.description}</p>
               )}
             </div>
           </div>
         </div>
 
         {/* Progress Card */}
-        <Card className="border-0 shadow-sm bg-white overflow-hidden">
+        <Card className="border-0 shadow-sm bg-card overflow-hidden">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-gray-700">Overall Progress</h3>
-              <span className="text-2xl font-bold text-[hsl(215,30%,35%)]">
+              <h3 className="text-sm font-semibold text-foreground/70">Overall Progress</h3>
+              <span className="text-2xl font-bold text-brass">
                 {project.overall_progress}%
               </span>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+            <div className="w-full bg-secondary rounded-full h-3 overflow-hidden">
               <div
-                className="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-[hsl(215,30%,40%)] to-[hsl(215,30%,30%)]"
+                className="h-full rounded-full transition-all duration-700 bg-brass"
                 style={{ width: `${project.overall_progress}%` }}
               />
             </div>
@@ -279,16 +279,16 @@ export function PortalProject() {
 
         {/* Phases — simplified view showing status and progress only */}
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Project Timeline</h2>
+          <h2 className="text-lg font-semibold text-foreground">Project Timeline</h2>
           {project.phases.length === 0 ? (
             <Card className="border-0 shadow-sm">
               <CardContent className="py-12 text-center">
-                <FolderKanban className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">No phases available to display yet.</p>
+                <FolderKanban className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
+                <p className="text-muted-foreground">No phases available to display yet.</p>
               </CardContent>
             </Card>
           ) : (
-            <Card className="border-0 shadow-sm bg-white overflow-hidden">
+            <Card className="border-0 shadow-sm bg-card overflow-hidden">
               <CardContent className="p-5 space-y-4">
                 {project.phases
                   .filter((phase) => {
@@ -306,10 +306,10 @@ export function PortalProject() {
                           <div className={cn(
                             "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold",
                             phase.status === "completed"
-                              ? "bg-emerald-500 text-white"
+                              ? "bg-green-500 text-white"
                               : phase.status === "in_progress"
-                                ? "bg-[hsl(215,30%,35%)] text-white"
-                                : "bg-gray-100 text-gray-400"
+                                ? "bg-brass text-brass-foreground"
+                                : "bg-secondary text-muted-foreground"
                           )}>
                             {phase.status === "completed" ? (
                               <CheckCircle2 className="h-4 w-4" />
@@ -322,22 +322,22 @@ export function PortalProject() {
                         {/* Phase info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-medium text-gray-900 truncate">{phase.name}</p>
-                            <span className="text-xs text-gray-400 shrink-0">
+                            <p className="text-sm font-medium text-foreground truncate">{phase.name}</p>
+                            <span className="text-xs text-muted-foreground shrink-0">
                               {phaseStatusLabels[phase.status]}
                             </span>
                           </div>
                           {phase.description && (
-                            <p className="text-xs text-gray-500 mt-0.5 truncate">{phase.description}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{phase.description}</p>
                           )}
                           <div className="flex items-center gap-2 mt-2">
-                            <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                            <div className="flex-1 bg-secondary rounded-full h-1.5 overflow-hidden">
                               <div
-                                className="h-full rounded-full bg-[hsl(215,30%,35%)] transition-all"
+                                className="h-full rounded-full bg-brass transition-all"
                                 style={{ width: `${phase.progress}%` }}
                               />
                             </div>
-                            <span className="text-[11px] text-gray-400 w-12 text-right">
+                            <span className="text-[11px] text-muted-foreground w-12 text-right">
                               {totalTasks > 0 ? `${completedTasks}/${totalTasks}` : `${phase.progress}%`}
                             </span>
                           </div>
@@ -354,9 +354,9 @@ export function PortalProject() {
         {changeOrders.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-gray-900">Change Orders</h2>
+              <h2 className="text-lg font-semibold text-foreground">Change Orders</h2>
               {pendingChangeOrders.length > 0 && (
-                <Badge className="bg-amber-100 text-amber-700 border-0 text-xs">
+                <Badge className="bg-amber-100 text-amber-800 border border-amber-200 text-xs">
                   {pendingChangeOrders.length} pending
                 </Badge>
               )}
@@ -365,18 +365,18 @@ export function PortalProject() {
               {changeOrders.map((co) => {
                 const coStatus = changeOrderStatusConfig[co.status || "draft"] || changeOrderStatusConfig.draft;
                 return (
-                  <Card key={co.id} className="border-0 shadow-sm bg-white">
+                  <Card key={co.id} className="border-0 shadow-sm bg-card">
                     <CardContent className="p-4 sm:p-5">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="font-semibold text-sm text-gray-900">CO-{co.co_number}: {co.title}</span>
+                            <span className="font-semibold text-sm text-foreground">CO-{co.co_number}: {co.title}</span>
                             <Badge variant="secondary" className={`${coStatus.bg} ${coStatus.text} border-0 text-xs`}>
                               {coStatus.label}
                             </Badge>
                           </div>
-                          {co.description && <p className="text-sm text-gray-500 mb-2">{co.description}</p>}
-                          <div className="flex flex-wrap gap-4 text-xs text-gray-500">
+                          {co.description && <p className="text-sm text-muted-foreground mb-2">{co.description}</p>}
+                          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                             {co.cost_impact && (
                               <span className="flex items-center gap-1">
                                 <DollarSign className="h-3 w-3" />
@@ -394,7 +394,7 @@ export function PortalProject() {
                         {co.status === "pending_approval" && (
                           <Button
                             size="sm"
-                            className="w-full sm:w-auto bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)]"
+                            className="w-full sm:w-auto bg-brass hover:bg-brass/90 text-brass-foreground"
                             onClick={() => setApproveChangeOrder(co)}
                           >
                             <PenLine className="h-4 w-4 mr-1" />
@@ -413,25 +413,25 @@ export function PortalProject() {
         {/* Deliveries */}
         {deliveries.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Truck className="h-5 w-5 text-gray-400" />
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Truck className="h-5 w-5 text-muted-foreground" />
               Deliveries
             </h2>
             <div className="space-y-3">
               {deliveries.map((delivery) => {
                 const delStatus = deliveryStatusConfig[delivery.status || "pending"] || deliveryStatusConfig.pending;
                 return (
-                  <Card key={delivery.id} className="border-0 shadow-sm bg-white">
+                  <Card key={delivery.id} className="border-0 shadow-sm bg-card">
                     <CardContent className="p-4 sm:p-5">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-sm text-gray-900">{delivery.description}</span>
+                            <span className="font-semibold text-sm text-foreground">{delivery.description}</span>
                             <Badge variant="secondary" className={`${delStatus.bg} ${delStatus.text} border-0 text-xs`}>
                               {delStatus.label}
                             </Badge>
                           </div>
-                          <div className="flex flex-wrap gap-4 text-xs text-gray-500 mt-1">
+                          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground mt-1">
                             {delivery.vendor && <span>Vendor: {delivery.vendor}</span>}
                             {delivery.expected_date && (
                               <span className="flex items-center gap-1">
@@ -454,28 +454,28 @@ export function PortalProject() {
         {/* Files & Photos */}
         {files.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Image className="h-5 w-5 text-gray-400" />
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Image className="h-5 w-5 text-muted-foreground" />
               Files & Photos
             </h2>
 
             {photoFiles.length > 0 && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                   Photos ({photoFiles.length})
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {photoFiles.map((file) => (
                     <div
                       key={file.id}
-                      className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 cursor-pointer shadow-sm"
+                      className="relative group aspect-square rounded-xl overflow-hidden bg-muted/40 cursor-pointer shadow-sm"
                       onClick={() => setPreviewFile(file)}
                     >
                       {file.thumbnail_url || file.file_url ? (
                         <img src={file.thumbnail_url || file.file_url} alt={file.name} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Image className="h-8 w-8 text-gray-300" />
+                          <Image className="h-8 w-8 text-muted-foreground/40" />
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
@@ -489,22 +489,22 @@ export function PortalProject() {
 
             {documentFiles.length > 0 && (
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
                   Documents ({documentFiles.length})
                 </h3>
                 <div className="space-y-2">
                   {documentFiles.map((file) => (
-                    <Card key={file.id} className="border-0 shadow-sm bg-white">
+                    <Card key={file.id} className="border-0 shadow-sm bg-card">
                       <CardContent className="p-3 flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center shrink-0">
-                          <File className="h-4 w-4 text-blue-600" />
+                        <div className="w-9 h-9 rounded-lg bg-brass-muted flex items-center justify-center shrink-0">
+                          <File className="h-4 w-4 text-brass" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-gray-900 truncate">{file.name}</p>
-                          {file.description && <p className="text-xs text-gray-400 truncate">{file.description}</p>}
+                          <p className="font-medium text-sm text-foreground truncate">{file.name}</p>
+                          {file.description && <p className="text-xs text-muted-foreground truncate">{file.description}</p>}
                         </div>
                         {file.file_url && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600" onClick={() => window.open(file.file_url, "_blank")}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground/70" onClick={() => window.open(file.file_url, "_blank")}>
                             <Download className="h-4 w-4" />
                           </Button>
                         )}
@@ -531,7 +531,7 @@ export function PortalProject() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {approveChangeOrder?.description && <p className="text-sm text-gray-600">{approveChangeOrder.description}</p>}
+            {approveChangeOrder?.description && <p className="text-sm text-foreground/70">{approveChangeOrder.description}</p>}
             <div className="flex gap-4 text-sm">
               {approveChangeOrder?.cost_impact && (
                 <span>Cost Impact: <strong>{formatCurrency(approveChangeOrder.cost_impact)}</strong></span>
@@ -546,7 +546,7 @@ export function PortalProject() {
                 ref={canvasRef}
                 width={350}
                 height={150}
-                className="border rounded-xl bg-white w-full cursor-crosshair"
+                className="border rounded-xl bg-card w-full cursor-crosshair"
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
@@ -560,7 +560,7 @@ export function PortalProject() {
             <Button
               onClick={handleApprove}
               disabled={approveMutation.isPending}
-              className="bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)]"
+              className="bg-brass hover:bg-brass/90 text-brass-foreground"
             >
               {approveMutation.isPending ? "Approving..." : "Approve & Sign"}
             </Button>

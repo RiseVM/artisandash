@@ -48,17 +48,17 @@ interface InternalMessagingProps {
 }
 
 const priorityColors: Record<string, string> = {
-  low: "bg-gray-100 text-gray-700",
-  normal: "bg-blue-100 text-blue-700",
-  high: "bg-orange-100 text-orange-700",
-  urgent: "bg-red-100 text-red-700",
+  low: "bg-secondary text-secondary-foreground",
+  normal: "bg-brass-muted text-brass",
+  high: "bg-amber-100 text-amber-800 border border-amber-200",
+  urgent: "bg-destructive/10 text-destructive border border-destructive/20",
 };
 
 const priorityBorder: Record<string, string> = {
-  low: "border-l-gray-300",
-  normal: "border-l-blue-300",
-  high: "border-l-orange-400",
-  urgent: "border-l-red-500",
+  low: "border-l-border",
+  normal: "border-l-brass/40",
+  high: "border-l-amber-400",
+  urgent: "border-l-destructive",
 };
 
 export function InternalMessaging({ compact = false, projectId }: InternalMessagingProps) {
@@ -193,7 +193,7 @@ export function InternalMessaging({ compact = false, projectId }: InternalMessag
 
             {/* Replies */}
             {selectedThread.replies.map((reply) => (
-              <div key={reply.id} className="p-3 rounded-lg bg-white border group">
+              <div key={reply.id} className="p-3 rounded-lg bg-card border group">
                 <div className="flex justify-between items-start">
                   <p className="text-sm whitespace-pre-wrap flex-1">{reply.content}</p>
                   <Button
@@ -275,13 +275,13 @@ export function InternalMessaging({ compact = false, projectId }: InternalMessag
                 key={thread.id}
                 className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors border-l-4 group ${
                   priorityBorder[thread.priority]
-                } ${isUnread(thread) ? "bg-blue-50/50" : ""}`}
+                } ${isUnread(thread) ? "bg-brass-muted/50" : ""}`}
                 onClick={() => setSelectedThreadId(thread.id)}
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     {isUnread(thread) && (
-                      <Circle className="h-2 w-2 fill-blue-500 text-blue-500 shrink-0" />
+                      <Circle className="h-2 w-2 fill-brass text-brass shrink-0" />
                     )}
                     <span className={`text-sm font-medium truncate ${isUnread(thread) ? "font-bold" : ""}`}>
                       {thread.subject || "No Subject"}

@@ -45,23 +45,56 @@ import {
   User,
   Calendar,
   FolderKanban,
+  MapPin,
+  Phone,
+  Mail,
+  DollarSign,
+  Hammer,
+  CalendarRange,
 } from "lucide-react";
 import { ProjectFiles } from "./components/ProjectFiles";
 import { ProjectSpecs } from "./components/ProjectSpecs";
 
 const statusColors: Record<string, string> = {
-  active: "bg-green-100 text-green-800",
-  on_hold: "bg-yellow-100 text-yellow-800",
-  completed: "bg-blue-100 text-blue-800",
-  cancelled: "bg-gray-100 text-gray-800",
+  planning: "bg-secondary text-secondary-foreground border border-secondary-border",
+  active: "bg-green-100 text-green-700 border border-green-200",
+  in_progress: "bg-green-100 text-green-700 border border-green-200",
+  on_hold: "bg-amber-100 text-amber-800 border border-amber-200",
+  completed: "bg-brass-muted text-brass border border-brass/20",
+  cancelled: "bg-muted text-muted-foreground border border-border",
 };
 
 const statusLabels: Record<string, string> = {
+  planning: "Planning",
   active: "Active",
+  in_progress: "In Progress",
   on_hold: "On Hold",
   completed: "Completed",
   cancelled: "Cancelled",
 };
+
+const typeLabels: Record<string, string> = {
+  bathroom: "Bathroom",
+  kitchen: "Kitchen",
+  floor: "Flooring",
+  full_reno: "Full Renovation",
+  custom: "Custom",
+};
+
+const PROJECT_TYPES = ["bathroom", "kitchen", "floor", "full_reno", "custom"];
+
+function fmtMoney(v: string | number | null | undefined): string | null {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (!n || isNaN(n) || n <= 0) return null;
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+function fmtDate(v: string | null | undefined): string | null {
+  if (!v) return null;
+  const d = new Date(v + "T12:00:00");
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
 export function ProjectDetail() {
   const [, params] = useRoute("/projects/:id");
@@ -80,6 +113,11 @@ export function ProjectDetail() {
     name: "",
     description: "",
     status: "active",
+    project_type: "",
+    site_address: "",
+    estimated_start_date: "",
+    estimated_end_date: "",
+    estimated_value: "",
   });
 
   const canManageProjects = hasPermission("manage_projects");
@@ -93,6 +131,11 @@ export function ProjectDetail() {
           name: editedProject.name,
           description: editedProject.description || null,
           status: editedProject.status,
+          project_type: editedProject.project_type || null,
+          site_address: editedProject.site_address || null,
+          estimated_start_date: editedProject.estimated_start_date || null,
+          estimated_end_date: editedProject.estimated_end_date || null,
+          original_estimate: editedProject.estimated_value ? editedProject.estimated_value : null,
         },
       });
       setIsEditingProject(false);
@@ -185,6 +228,11 @@ export function ProjectDetail() {
                   name: project.name,
                   description: project.description || "",
                   status: project.status,
+                  project_type: project.project_type || "",
+                  site_address: project.site_address || "",
+                  estimated_start_date: project.estimated_start_date || "",
+                  estimated_end_date: project.estimated_end_date || "",
+                  estimated_value: project.original_estimate ? String(project.original_estimate) : "",
                 });
                 setIsEditingProject(true);
               }}
@@ -202,6 +250,31 @@ export function ProjectDetail() {
           </div>
         )}
       </div>
+
+      {/* At a glance — surfaces the project's key facts so the page never feels empty */}
+      <Card>
+        <CardContent className="p-5">
+          {typeof project.overall_progress === "number" && project.overall_progress > 0 && (
+            <div className="mb-5">
+              <div className="mb-1.5 flex items-center justify-between text-xs">
+                <span className="font-semibold uppercase tracking-wider text-muted-foreground">Progress</span>
+                <span className="nums font-semibold text-foreground">{project.overall_progress}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                <div className="h-full rounded-full bg-brass" style={{ width: `${Math.min(100, project.overall_progress)}%` }} />
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+            <Fact icon={<Hammer className="h-4 w-4" />} label="Type" value={project.project_type ? (typeLabels[project.project_type] || project.project_type) : null} />
+            <Fact icon={<DollarSign className="h-4 w-4" />} label="Estimated Value" value={fmtMoney(project.original_estimate)} accent />
+            <Fact icon={<CalendarRange className="h-4 w-4" />} label="Target Window" value={targetWindow(project.estimated_start_date, project.estimated_end_date)} />
+            <Fact icon={<MapPin className="h-4 w-4" />} label="Site Address" value={project.site_address || null} />
+            <Fact icon={<Mail className="h-4 w-4" />} label="Client Email" value={project.customer.email || null} />
+            <Fact icon={<Phone className="h-4 w-4" />} label="Client Phone" value={project.customer.phone || null} />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Description (if present) */}
       {project.description && (
@@ -224,7 +297,7 @@ export function ProjectDetail() {
 
       {/* Edit Project Dialog */}
       <Dialog open={isEditingProject} onOpenChange={setIsEditingProject}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Project</DialogTitle>
           </DialogHeader>
@@ -238,6 +311,64 @@ export function ProjectDetail() {
                   setEditedProject({ ...editedProject, name: e.target.value })
                 }
               />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-type">Project Type</Label>
+                <Select
+                  value={editedProject.project_type}
+                  onValueChange={(value) => setEditedProject({ ...editedProject, project_type: value })}
+                >
+                  <SelectTrigger id="edit-type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{typeLabels[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-value">Estimated Value</Label>
+                <Input
+                  id="edit-value"
+                  type="number"
+                  min="0"
+                  placeholder="$"
+                  value={editedProject.estimated_value}
+                  onChange={(e) => setEditedProject({ ...editedProject, estimated_value: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-site-address">Site Address</Label>
+              <Input
+                id="edit-site-address"
+                placeholder="123 Main St, Town, CT"
+                value={editedProject.site_address}
+                onChange={(e) => setEditedProject({ ...editedProject, site_address: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-start">Target Start</Label>
+                <Input
+                  id="edit-start"
+                  type="date"
+                  value={editedProject.estimated_start_date}
+                  onChange={(e) => setEditedProject({ ...editedProject, estimated_start_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-end">Target Finish</Label>
+                <Input
+                  id="edit-end"
+                  type="date"
+                  value={editedProject.estimated_end_date}
+                  onChange={(e) => setEditedProject({ ...editedProject, estimated_end_date: e.target.value })}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-description">Description</Label>
@@ -320,6 +451,45 @@ export function ProjectDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function targetWindow(start: string | null | undefined, end: string | null | undefined): string | null {
+  const s = fmtDate(start);
+  const e = fmtDate(end);
+  if (s && e) return `${s} – ${e}`;
+  if (s) return `Starts ${s}`;
+  if (e) return `Due ${e}`;
+  return null;
+}
+
+function Fact({
+  icon,
+  label,
+  value,
+  accent,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | null;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-secondary text-foreground/60">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+        {value ? (
+          <p className={`truncate text-sm ${accent ? "font-semibold text-brass" : "text-foreground"}`} title={value}>
+            {value}
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground/40">Not set</p>
+        )}
+      </div>
     </div>
   );
 }

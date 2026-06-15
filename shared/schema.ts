@@ -1420,6 +1420,32 @@ export const payrollContacts = pgTable("payroll_contacts", {
 
 export type PayrollContact = typeof payrollContacts.$inferSelect;
 
+// Payroll Send Log — an immutable record of every time the approved weekly
+// payroll report was emailed out. Gives admins + the payroll submitter (Maria)
+// a verifiable "send history": who sent it, to whom, for which week, the hour
+// totals at the time of sending, and whether it succeeded.
+export const payrollSends = pgTable("payroll_sends", {
+  id: serial("id").primaryKey(),
+  weekStartDate: varchar("week_start_date").notNull(), // Monday ISO date
+  sentById: varchar("sent_by_id").references(() => users.id, { onDelete: "set null" }),
+  sentByName: varchar("sent_by_name"),
+  recipients: jsonb("recipients").notNull().default(sql`'[]'::jsonb`), // [{name,email,title}]
+  cardCount: integer("card_count").notNull().default(0),
+  totalHours: numeric("total_hours", { precision: 8, scale: 2 }).notNull().default("0"),
+  totalOtHours: numeric("total_ot_hours", { precision: 8, scale: 2 }).notNull().default("0"),
+  totalMileage: numeric("total_mileage", { precision: 8, scale: 1 }).notNull().default("0"),
+  status: varchar("status").notNull().default("sent"), // sent | failed
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+}, (table) => [
+  index("IDX_payroll_sends_week").on(table.weekStartDate),
+  index("IDX_payroll_sends_sent_at").on(table.sentAt),
+]);
+
+export type PayrollSend = typeof payrollSends.$inferSelect;
+
+export type PayrollSendRecipient = { name: string; email: string; title?: string | null };
+
 // ============================================
 // PROJECT REQUESTS (Client Portal)
 // ============================================

@@ -129,6 +129,26 @@ export async function migrateTimecards() {
       )
     `);
 
+    // ── payroll_sends table (immutable payroll send/history log) ──
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payroll_sends (
+        id SERIAL PRIMARY KEY,
+        week_start_date VARCHAR NOT NULL,
+        sent_by_id VARCHAR REFERENCES users(id) ON DELETE SET NULL,
+        sent_by_name VARCHAR,
+        recipients JSONB NOT NULL DEFAULT '[]'::jsonb,
+        card_count INTEGER NOT NULL DEFAULT 0,
+        total_hours NUMERIC(8,2) NOT NULL DEFAULT '0',
+        total_ot_hours NUMERIC(8,2) NOT NULL DEFAULT '0',
+        total_mileage NUMERIC(8,1) NOT NULL DEFAULT '0',
+        status VARCHAR NOT NULL DEFAULT 'sent',
+        error_message TEXT,
+        sent_at TIMESTAMP NOT NULL DEFAULT now()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS "IDX_payroll_sends_week" ON payroll_sends(week_start_date)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS "IDX_payroll_sends_sent_at" ON payroll_sends(sent_at)`);
+
     console.log("[migration] Timecards: All columns and tables ready.");
   } catch (err) {
     console.error("[migration] Timecards error:", err);

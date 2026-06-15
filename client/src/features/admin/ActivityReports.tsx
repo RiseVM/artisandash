@@ -106,7 +106,8 @@ export function ActivityReports() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Activity Reports</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Admin</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold">Activity Reports</h1>
           <p className="text-muted-foreground">Track user actions and system activity</p>
         </div>
         <div className="flex gap-2">

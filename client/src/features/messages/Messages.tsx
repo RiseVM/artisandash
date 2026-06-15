@@ -66,10 +66,13 @@ export function Messages() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <MessageSquare className="h-6 w-6" />
-          Messages
-        </h1>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Inbox</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <MessageSquare className="h-6 w-6 text-brass" />
+            Messages
+          </h1>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -139,7 +142,7 @@ function ClientMessages({
   return (
     <div className="space-y-4">
       {projects.map((project) => (
-        <Card key={project.projectId} className={project.unreadCount > 0 ? "border-blue-200" : ""}>
+        <Card key={project.projectId} className={project.unreadCount > 0 ? "border-brass/40" : ""}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div>
@@ -174,13 +177,13 @@ function ClientMessages({
                     key={msg.id}
                     className={`p-3 rounded-lg text-sm ${
                       msg.read_by_admin === "no"
-                        ? "bg-blue-50 border-l-4 border-l-blue-400"
+                        ? "bg-brass-muted border-l-4 border-l-brass"
                         : "bg-muted/30"
                     }`}
                   >
                     <div className="flex items-start gap-2">
                       {msg.read_by_admin === "no" && (
-                        <Circle className="h-2 w-2 fill-blue-500 text-blue-500 shrink-0 mt-1.5" />
+                        <Circle className="h-2 w-2 fill-brass text-brass shrink-0 mt-1.5" />
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -192,7 +195,7 @@ function ClientMessages({
                   </div>
                 ))}
                 {project.messages.length > 3 && (
-                  <p className="text-xs text-blue-600 hover:underline text-center py-1">
+                  <p className="text-xs text-brass hover:underline text-center py-1">
                     View all {project.messages.length} messages &rarr;
                   </p>
                 )}

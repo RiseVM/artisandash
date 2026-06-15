@@ -218,7 +218,8 @@ export function UserManagement() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">User Management</h1>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Admin</p>
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold">User Management</h1>
         <p className="text-muted-foreground">Manage staff accounts and permissions</p>
       </div>
 

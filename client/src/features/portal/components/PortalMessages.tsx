@@ -124,20 +124,20 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
     return (
       <Card className="border-0 shadow-sm mt-8">
         <CardContent className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="flex flex-col h-[350px] sm:h-[500px] mt-8 border-0 shadow-sm bg-white overflow-hidden">
-      <CardHeader className="flex-none border-b border-gray-100 py-4 px-5">
-        <CardTitle className="flex items-center gap-2 text-base font-semibold text-gray-900">
-          <MessageCircle className="h-5 w-5 text-gray-400" />
+    <Card className="flex flex-col h-[350px] sm:h-[500px] mt-8 border-0 shadow-sm bg-card overflow-hidden">
+      <CardHeader className="flex-none border-b border-border py-4 px-5">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
+          <MessageCircle className="h-5 w-5 text-muted-foreground" />
           Messages
           {unreadData?.count ? (
-            <Badge className="bg-[hsl(215,30%,35%)] text-white border-0 text-[10px] px-2 py-0">
+            <Badge className="bg-brass text-brass-foreground border-0 text-[10px] px-2 py-0">
               {unreadData.count} new
             </Badge>
           ) : null}
@@ -146,7 +146,7 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
       <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
         <ScrollArea className="flex-1 p-4">
           {!messages || messages.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-muted-foreground">
               <MessageCircle className="h-10 w-10 mx-auto mb-3 opacity-40" />
               <p className="text-sm font-medium">No messages yet</p>
               <p className="text-xs mt-1">Send a message to contact your project team</p>
@@ -162,14 +162,14 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
                     className={cn(
                       "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
                       message.sender_type === "client"
-                        ? "bg-[hsl(215,30%,35%)] text-white"
-                        : "bg-gray-100",
+                        ? "bg-brass text-brass-foreground"
+                        : "bg-secondary",
                     )}
                   >
                     {message.sender_type === "client" ? (
                       <User className="h-4 w-4" />
                     ) : (
-                      <Building className="h-4 w-4 text-gray-500" />
+                      <Building className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
                   <div className={cn("flex-1 max-w-[80%]", message.sender_type === "client" ? "text-right" : "")}>
@@ -177,8 +177,8 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
                       className={cn(
                         "inline-block rounded-2xl px-4 py-2.5",
                         message.sender_type === "client"
-                          ? "bg-[hsl(215,30%,35%)] text-white rounded-tr-md"
-                          : "bg-gray-100 text-gray-800 rounded-tl-md",
+                          ? "bg-brass text-brass-foreground rounded-tr-md"
+                          : "bg-secondary text-secondary-foreground rounded-tl-md",
                       )}
                     >
                       {message.subject && (
@@ -188,12 +188,12 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
                     </div>
                     <div
                       className={cn(
-                        "flex items-center gap-2 mt-1.5 text-[11px] text-gray-400",
+                        "flex items-center gap-2 mt-1.5 text-[11px] text-muted-foreground",
                         message.sender_type === "client" ? "justify-end" : "",
                       )}
                     >
                       <span>{message.sender_type === "admin" ? "Project Team" : "You"}</span>
-                      <span className="text-gray-300">&bull;</span>
+                      <span className="text-muted-foreground/40">&bull;</span>
                       <span>{format(new Date(message.created_at), "MMM d, h:mm a")}</span>
                     </div>
                   </div>
@@ -204,13 +204,13 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
           )}
         </ScrollArea>
 
-        <div className="flex-none border-t border-gray-100 p-4">
+        <div className="flex-none border-t border-border p-4">
           <form onSubmit={handleSend} className="space-y-2">
             <Input
               placeholder="Subject (optional)"
               value={newMessage.subject}
               onChange={(e) => setNewMessage({ ...newMessage, subject: e.target.value })}
-              className="text-sm h-9 bg-gray-50 border-gray-200"
+              className="text-sm h-9 bg-muted/40 border-border"
             />
             <div className="flex gap-2">
               <Textarea
@@ -218,12 +218,12 @@ export function PortalMessages({ projectId }: PortalMessagesProps) {
                 value={newMessage.content}
                 onChange={(e) => setNewMessage({ ...newMessage, content: e.target.value })}
                 rows={2}
-                className="flex-1 resize-none text-sm bg-gray-50 border-gray-200"
+                className="flex-1 resize-none text-sm bg-muted/40 border-border"
               />
               <Button
                 type="submit"
                 size="icon"
-                className="h-auto bg-[hsl(215,30%,25%)] hover:bg-[hsl(215,30%,20%)]"
+                className="h-auto bg-brass hover:bg-brass/90 text-brass-foreground"
                 disabled={sendMessage.isPending || !newMessage.content.trim()}
               >
                 {sendMessage.isPending ? (

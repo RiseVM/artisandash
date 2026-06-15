@@ -36,6 +36,9 @@ import {
   Car,
   Save,
   Check,
+  Mail,
+  Receipt,
+  XCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -76,12 +79,12 @@ function formatWeekLabel(mondayIso: string): string {
 
 function statusBadge(status: string) {
   const map: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-700",
-    submitted: "bg-blue-100 text-blue-700",
-    approved: "bg-green-100 text-green-700",
+    draft: "bg-secondary text-secondary-foreground",
+    submitted: "bg-brass-muted text-brass",
+    approved: "bg-green-100 text-green-700 border border-green-200",
   };
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${map[status] || "bg-gray-100 text-gray-700"}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${map[status] || "bg-secondary text-secondary-foreground"}`}>
       {status}
     </span>
   );
@@ -752,6 +755,7 @@ export function TimeManagement() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [verifiedUser, setVerifiedUser] = useState<VerifiedUser | null>(null);
+  const [view, setView] = useState<"cards" | "history">("cards");
 
   // Anyone with `manage_timecards` can manage timecards here — typically admin
   // and designated payroll staff (e.g. Maria). Variable kept for minimal churn
@@ -912,6 +916,8 @@ export function TimeManagement() {
       return res.json();
     },
     onSuccess: (data: { sentTo: string[]; cardCount: number }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/payroll-history"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/timecards/admin/payroll-history/latest"] });
       toast({ title: "Payroll sent", description: `${data.cardCount} timecards emailed to ${data.sentTo.join(", ")}` });
     },
     onError: (err: Error) => {
@@ -976,13 +982,42 @@ export function TimeManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Users className="h-6 w-6" /> Time Management
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">Review and approve employee timecards</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Payroll</p>
+          <h1 className="font-serif text-2xl font-bold flex items-center gap-2 mt-1">
+            Time Management
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {view === "cards" ? "Review and approve employee timecards" : "A complete record of every payroll report you've sent"}
+          </p>
+        </div>
+
+        {/* View toggle */}
+        <div className="inline-flex items-center rounded-lg border border-border bg-card p-1 self-start">
+          <button
+            onClick={() => setView("cards")}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              view === "cards" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Users className="h-4 w-4" /> Timecards
+          </button>
+          <button
+            onClick={() => setView("history")}
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              view === "history" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Receipt className="h-4 w-4" /> Payroll History
+          </button>
+        </div>
       </div>
 
+      {view === "history" ? (
+        <PayrollHistory />
+      ) : (
+      <>
       {/* Week Nav + Filters */}
       <div className="bg-card border rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-center gap-4">
@@ -1090,7 +1125,7 @@ export function TimeManagement() {
                 >
                   <div className="relative h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
                     {initials(card.user.firstName, card.user.lastName)}
-                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${isClockedIn ? "bg-green-500" : "bg-gray-300"}`} />
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${isClockedIn ? "bg-green-500" : "bg-muted-foreground/40"}`} />
                   </div>
                   <div className="flex-1 text-left">
                     <div className="font-medium text-sm">{fullName(card.user)}</div>
@@ -1177,7 +1212,7 @@ export function TimeManagement() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                      className="text-brass border-brass/30 hover:bg-accent"
                       onClick={(e) => {
                         e.stopPropagation();
                         approveTimecard.mutate(card.id);
@@ -1450,6 +1485,145 @@ export function TimeManagement() {
           })()}
         </div>
       )}
+      </>
+      )}
+    </div>
+  );
+}
+
+// ── Payroll Send History ────────────────────
+
+interface PayrollSendRow {
+  id: number;
+  weekStartDate: string;
+  sentByName: string | null;
+  recipients: { name: string; email: string; title?: string | null }[];
+  cardCount: number;
+  totalHours: string;
+  totalOtHours: string;
+  totalMileage: string;
+  status: string;
+  errorMessage: string | null;
+  sentAt: string;
+}
+
+function PayrollHistory() {
+  const { data: history = [], isLoading } = useQuery<PayrollSendRow[]>({
+    queryKey: ["/api/timecards/admin/payroll-history"],
+    queryFn: async () => {
+      const res = await fetch("/api/timecards/admin/payroll-history?limit=200", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load payroll history");
+      return res.json();
+    },
+  });
+
+  if (isLoading) {
+    return <div className="py-12 text-center text-muted-foreground">Loading payroll history…</div>;
+  }
+
+  if (history.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border bg-card py-16 text-center">
+        <Receipt className="mx-auto h-8 w-8 text-muted-foreground/50" />
+        <p className="mt-3 text-sm font-medium text-foreground">No payroll has been sent yet</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          When you approve a week's timecards and click <span className="font-medium text-foreground">Send to Payroll</span>,
+          every send is recorded here.
+        </p>
+      </div>
+    );
+  }
+
+  // Total wages/hours sent across all records (a quiet "this is what this tool tracks for you" signal)
+  const lifetimeHours = history
+    .filter((h) => h.status === "sent")
+    .reduce((s, h) => s + parseFloat(h.totalHours || "0") + parseFloat(h.totalOtHours || "0"), 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary strip */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border bg-card px-5 py-3 text-sm">
+        <span className="text-muted-foreground">
+          <span className="nums font-semibold text-foreground">{history.filter((h) => h.status === "sent").length}</span> payroll{history.filter((h) => h.status === "sent").length === 1 ? "" : "s"} sent
+        </span>
+        <span className="text-muted-foreground">
+          <span className="nums font-semibold text-foreground">{lifetimeHours.toFixed(0)}</span> total hours reported
+        </span>
+      </div>
+
+      {/* Records */}
+      <div className="space-y-3">
+        {history.map((row) => {
+          const reg = parseFloat(row.totalHours || "0");
+          const ot = parseFloat(row.totalOtHours || "0");
+          const total = reg + ot;
+          const miles = parseFloat(row.totalMileage || "0");
+          const failed = row.status === "failed";
+          return (
+            <div
+              key={row.id}
+              className={`rounded-lg border bg-card p-4 ${failed ? "border-destructive/30 bg-destructive/5" : "border-border"}`}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-serif text-base font-bold text-foreground">{formatWeekLabel(row.weekStartDate)}</h3>
+                    {failed ? (
+                      <Badge className="bg-destructive/10 text-destructive border border-destructive/20">
+                        <XCircle className="mr-1 inline h-3 w-3" /> Failed
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-green-100 text-green-700 border border-green-200">
+                        <CheckCircle2 className="mr-1 inline h-3 w-3" /> Sent
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatTimestampEST(row.sentAt)}
+                    {row.sentByName ? <> · by <span className="font-medium text-foreground">{row.sentByName}</span></> : null}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                    {row.recipients.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">No recipients recorded</span>
+                    ) : (
+                      row.recipients.map((r, i) => (
+                        <span
+                          key={i}
+                          className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground"
+                          title={r.email}
+                        >
+                          {r.name}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                  {failed && row.errorMessage && (
+                    <p className="mt-2 text-xs text-destructive">{row.errorMessage}</p>
+                  )}
+                </div>
+
+                {/* Stats */}
+                <div className="flex shrink-0 items-center gap-5 sm:pl-4">
+                  <Stat label="Cards" value={String(row.cardCount)} />
+                  <Stat label="Hours" value={total.toFixed(1)} accent />
+                  {ot > 0 && <Stat label="OT" value={ot.toFixed(1)} />}
+                  {miles > 0 && <Stat label="Miles" value={miles.toFixed(0)} />}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="text-center">
+      <p className={`nums font-serif text-xl font-bold ${accent ? "text-brass" : "text-foreground"}`}>{value}</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
     </div>
   );
 }

@@ -83,11 +83,11 @@ const categoryIcons: Record<string, React.ReactNode> = {
 };
 
 const categoryColors: Record<string, string> = {
-  setup: "text-blue-600",
-  sop: "text-green-600",
-  policy: "text-orange-600",
-  standards: "text-purple-600",
-  other: "text-gray-600",
+  setup: "text-brass",
+  sop: "text-brass",
+  policy: "text-brass",
+  standards: "text-brass",
+  other: "text-muted-foreground",
 };
 
 export function TeamResources() {
@@ -147,10 +147,10 @@ export function TeamResources() {
   }, [resources]);
 
   const getResourceIcon = (r: TeamResource) => {
-    if (r.external_url) return <ExternalLink className="h-4 w-4 text-blue-500 shrink-0" />;
+    if (r.external_url) return <ExternalLink className="h-4 w-4 text-brass shrink-0" />;
     const name = r.file_url || r.file_name || r.title || "";
-    if (name.match(/\.(pdf)$/i)) return <FileText className="h-4 w-4 text-red-500 shrink-0" />;
-    if (name.match(/\.(doc|docx)$/i)) return <FileText className="h-4 w-4 text-blue-600 shrink-0" />;
+    if (name.match(/\.(pdf)$/i)) return <FileText className="h-4 w-4 text-destructive shrink-0" />;
+    if (name.match(/\.(doc|docx)$/i)) return <FileText className="h-4 w-4 text-brass shrink-0" />;
     return <FileDown className="h-4 w-4 text-muted-foreground shrink-0" />;
   };
 
@@ -225,8 +225,9 @@ export function TeamResources() {
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BookOpen className="h-6 w-6 text-primary" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Team</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <BookOpen className="h-6 w-6 text-brass" />
             Resource Library
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -368,7 +369,7 @@ export function TeamResources() {
                       <div key={cat}>
                         {/* Category header */}
                         <div className="flex items-center gap-2 mb-1.5 px-1">
-                          <span className={categoryColors[cat] || "text-gray-600"}>
+                          <span className={categoryColors[cat] || "text-muted-foreground"}>
                             {categoryIcons[cat] || <FolderOpen className="h-4 w-4" />}
                           </span>
                           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">

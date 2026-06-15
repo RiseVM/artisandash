@@ -19,9 +19,9 @@ export function PortalLayout({ children }: PortalLayoutProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[hsl(210,20%,97%)]">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-[hsl(215,30%,35%)]" />
+          <Loader2 className="h-8 w-8 animate-spin text-brass" />
           <p className="text-sm text-muted-foreground">Loading your portal...</p>
         </div>
       </div>
@@ -34,7 +34,7 @@ export function PortalLayout({ children }: PortalLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(210,20%,97%)]">
+    <div className="min-h-screen bg-background">
       <PortalSidebar />
 
       {/* Main content — offset by sidebar width */}

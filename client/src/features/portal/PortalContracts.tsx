@@ -34,22 +34,23 @@ export function PortalContracts() {
     <PortalLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 font-serif">Contracts</h1>
-          <p className="text-gray-500 mt-1 text-sm">View and download your signed contracts.</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Client Portal</p>
+          <h1 className="text-2xl font-bold text-foreground font-serif">Contracts</h1>
+          <p className="text-muted-foreground mt-1 text-sm">View and download your signed contracts.</p>
         </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : contracts.length === 0 ? (
           <Card className="border-0 shadow-sm">
             <CardContent className="py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                <FileText className="h-8 w-8 text-gray-400" />
+              <div className="w-16 h-16 rounded-2xl bg-muted/40 flex items-center justify-center mx-auto mb-4">
+                <FileText className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-1">No Contracts Yet</h3>
-              <p className="text-gray-500 text-sm">
+              <h3 className="text-lg font-semibold text-foreground mb-1">No Contracts Yet</h3>
+              <p className="text-muted-foreground text-sm">
                 You don't have any signed contracts yet.
               </p>
             </CardContent>
@@ -57,17 +58,17 @@ export function PortalContracts() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {contracts.map((contract) => (
-              <Card key={contract.id} className="border-0 shadow-sm bg-white">
+              <Card key={contract.id} className="border-0 shadow-sm bg-card">
                 <CardContent className="p-5">
                   <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-[hsl(215,30%,35%)]/10 flex items-center justify-center shrink-0">
-                      <ClipboardCheck className="h-5 w-5 text-[hsl(215,30%,35%)]" />
+                    <div className="w-10 h-10 rounded-xl bg-brass-muted flex items-center justify-center shrink-0">
+                      <ClipboardCheck className="h-5 w-5 text-brass" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-sm">
+                      <h3 className="font-semibold text-foreground text-sm">
                         {getContractTypeName(contract.contract_type)}
                       </h3>
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         Signed {new Date(contract.signed_at || contract.created_at).toLocaleDateString()}
                       </p>
                     </div>

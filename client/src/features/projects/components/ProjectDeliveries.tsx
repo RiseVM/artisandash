@@ -49,12 +49,12 @@ import {
 import type { ProjectDeliveryWithPhase, ProjectPhase } from "@shared/schema";
 
 const deliveryStatusColors: Record<string, string> = {
-  pending: "bg-gray-100 text-gray-800",
-  ordered: "bg-blue-100 text-blue-800",
-  shipped: "bg-purple-100 text-purple-800",
-  delivered: "bg-green-100 text-green-800",
-  delayed: "bg-red-100 text-red-800",
-  cancelled: "bg-gray-100 text-gray-500",
+  pending: "bg-secondary text-secondary-foreground",
+  ordered: "bg-brass-muted text-brass",
+  shipped: "bg-brass-muted text-brass",
+  delivered: "bg-green-100 text-green-700 border border-green-200",
+  delayed: "bg-amber-100 text-amber-800 border border-amber-200",
+  cancelled: "bg-muted text-muted-foreground",
 };
 
 const deliveryStatusLabels: Record<string, string> = {
@@ -261,7 +261,7 @@ export function ProjectDeliveries({ projectId, phases, canManage }: ProjectDeliv
                     )}
                   </div>
                   {delivery.status === "delayed" && delivery.delay_reason && (
-                    <div className="flex items-center gap-1 mt-1 text-sm text-red-600">
+                    <div className="flex items-center gap-1 mt-1 text-sm text-amber-700">
                       <AlertCircle className="h-3 w-3" />
                       {delivery.delay_reason}
                     </div>

@@ -37,12 +37,12 @@ import {
 import type { EstimateWithCustomer } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-800",
-  sent: "bg-blue-100 text-blue-800",
-  approved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
-  expired: "bg-yellow-100 text-yellow-800",
-  converted: "bg-purple-100 text-purple-800",
+  draft: "bg-secondary text-secondary-foreground",
+  sent: "bg-brass-muted text-brass",
+  approved: "bg-green-100 text-green-700 border border-green-200",
+  rejected: "bg-destructive/10 text-destructive border border-destructive/20",
+  expired: "bg-amber-100 text-amber-800 border border-amber-200",
+  converted: "bg-secondary text-secondary-foreground",
 };
 
 const statusLabels: Record<string, string> = {
@@ -55,10 +55,10 @@ const statusLabels: Record<string, string> = {
 };
 
 const qbStatusColors: Record<string, string> = {
-  not_synced: "bg-gray-100 text-gray-600",
-  queued: "bg-yellow-100 text-yellow-800",
-  synced: "bg-emerald-100 text-emerald-800",
-  error: "bg-red-100 text-red-800",
+  not_synced: "bg-secondary text-muted-foreground",
+  queued: "bg-amber-100 text-amber-800 border border-amber-200",
+  synced: "bg-green-100 text-green-700 border border-green-200",
+  error: "bg-destructive/10 text-destructive border border-destructive/20",
 };
 
 const qbStatusLabels: Record<string, string> = {
@@ -111,8 +111,9 @@ export function Estimates() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="h-6 w-6 text-primary" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Sales</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <FileText className="h-6 w-6 text-brass" />
             Quotes
           </h1>
           <p className="text-muted-foreground text-sm mt-1">

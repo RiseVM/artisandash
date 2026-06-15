@@ -218,7 +218,7 @@ export function ProjectTimeTracking({ projectId, phases, canManage }: ProjectTim
                       <Badge variant="secondary">{categoryLabels[entry.category] || entry.category}</Badge>
                     )}
                     {entry.is_billable === "yes" ? (
-                      <Badge className="bg-green-100 text-green-800">Billable</Badge>
+                      <Badge className="bg-green-100 text-green-700 border border-green-200">Billable</Badge>
                     ) : (
                       <Badge variant="outline">Non-billable</Badge>
                     )}

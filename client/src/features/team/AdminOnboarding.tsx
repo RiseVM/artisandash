@@ -104,8 +104,9 @@ export function AdminOnboarding() {
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <UserPlus className="h-6 w-6 text-primary" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Team</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <UserPlus className="h-6 w-6 text-brass" />
             New Member Setup
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -145,7 +146,7 @@ export function AdminOnboarding() {
                   {/* Left accent bar */}
                   <div
                     className={`w-1.5 shrink-0 ${
-                      isComplete ? "bg-green-500" : isReady ? "bg-blue-500" : "bg-blue-300"
+                      isComplete ? "bg-green-500" : isReady ? "bg-brass" : "bg-brass/40"
                     }`}
                   />
                   <CardContent className="flex-1 py-4 px-5">
@@ -180,10 +181,10 @@ export function AdminOnboarding() {
                         <Badge
                           className={
                             isComplete
-                              ? "bg-green-100 text-green-800"
+                              ? "bg-green-100 text-green-700 border border-green-200"
                               : isReady
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-yellow-100 text-yellow-800"
+                                ? "bg-brass-muted text-brass"
+                                : "bg-amber-100 text-amber-800 border border-amber-200"
                           }
                         >
                           {isComplete ? "Complete" : isReady ? "Ready" : `${pct}%`}

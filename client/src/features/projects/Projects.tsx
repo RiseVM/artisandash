@@ -72,20 +72,50 @@ import {
 import type { ProjectWithCustomer } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
-  planning: "bg-purple-100 text-purple-800",
-  in_progress: "bg-green-100 text-green-800",
-  on_hold: "bg-yellow-100 text-yellow-800",
-  completed: "bg-blue-100 text-blue-800",
-  cancelled: "bg-gray-100 text-gray-800",
+  planning: "bg-secondary text-secondary-foreground border border-secondary-border",
+  active: "bg-green-100 text-green-700 border border-green-200",
+  in_progress: "bg-green-100 text-green-700 border border-green-200",
+  on_hold: "bg-amber-100 text-amber-800 border border-amber-200",
+  completed: "bg-brass-muted text-brass border border-brass/20",
+  cancelled: "bg-muted text-muted-foreground border border-border",
 };
 
 const statusLabels: Record<string, string> = {
   planning: "Planning",
+  active: "Active",
   in_progress: "In Progress",
   on_hold: "On Hold",
   completed: "Completed",
   cancelled: "Cancelled",
 };
+
+const typeLabels: Record<string, string> = {
+  bathroom: "Bathroom",
+  kitchen: "Kitchen",
+  floor: "Flooring",
+  full_reno: "Full Renovation",
+  custom: "Custom",
+};
+
+const PROJECT_TYPES = ["bathroom", "kitchen", "floor", "full_reno", "custom"];
+
+const EMPTY_PROJECT = {
+  name: "",
+  customer_id: 0,
+  description: "",
+  status: "planning",
+  project_type: "",
+  site_address: "",
+  estimated_start_date: "",
+  estimated_end_date: "",
+  estimated_value: "",
+};
+
+function fmtMoney(v: string | number | null | undefined): string | null {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (!n || isNaN(n) || n <= 0) return null;
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
 
 
 export function Projects() {
@@ -109,18 +139,8 @@ export function Projects() {
   const [newClient, setNewClient] = useState({ name: "", email: "", phone: "" });
   const [isAddingNewClientEdit, setIsAddingNewClientEdit] = useState(false);
   const [newClientEdit, setNewClientEdit] = useState({ name: "", email: "", phone: "" });
-  const [newProject, setNewProject] = useState({
-    name: "",
-    customer_id: 0,
-    description: "",
-    status: "planning",
-  });
-  const [editedProject, setEditedProject] = useState({
-    name: "",
-    customer_id: 0,
-    description: "",
-    status: "planning",
-  });
+  const [newProject, setNewProject] = useState({ ...EMPTY_PROJECT });
+  const [editedProject, setEditedProject] = useState({ ...EMPTY_PROJECT });
 
 
   const canManageProjects = hasPermission("manage_projects");
@@ -149,9 +169,14 @@ export function Projects() {
         customer_id: newProject.customer_id,
         description: newProject.description || null,
         status: newProject.status,
+        project_type: newProject.project_type || null,
+        site_address: newProject.site_address || null,
+        estimated_start_date: newProject.estimated_start_date || null,
+        estimated_end_date: newProject.estimated_end_date || null,
+        original_estimate: newProject.estimated_value ? newProject.estimated_value : null,
       });
       setIsAddOpen(false);
-      setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
+      setNewProject({ ...EMPTY_PROJECT });
       toast({ title: "Project Created", description: `${project.name} has been created.` });
       setLocation(`/projects/${project.id}`);
     } catch (err: any) {
@@ -209,6 +234,11 @@ export function Projects() {
       customer_id: project.customer_id,
       description: project.description || "",
       status: project.status,
+      project_type: project.project_type || "",
+      site_address: project.site_address || "",
+      estimated_start_date: project.estimated_start_date || "",
+      estimated_end_date: project.estimated_end_date || "",
+      estimated_value: project.original_estimate ? String(project.original_estimate) : "",
     });
     setEditProject(project);
   };
@@ -232,6 +262,11 @@ export function Projects() {
           customer_id: editedProject.customer_id,
           description: editedProject.description || null,
           status: editedProject.status,
+          project_type: editedProject.project_type || null,
+          site_address: editedProject.site_address || null,
+          estimated_start_date: editedProject.estimated_start_date || null,
+          estimated_end_date: editedProject.estimated_end_date || null,
+          original_estimate: editedProject.estimated_value ? editedProject.estimated_value : null,
         },
       });
       setEditProject(null);
@@ -371,11 +406,21 @@ export function Projects() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                       <User className="h-3 w-3" />
                       {project.customer.name}
                     </div>
-                    <div className="flex items-center justify-end">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {project.project_type && (
+                          <span className="rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground">
+                            {typeLabels[project.project_type] || project.project_type}
+                          </span>
+                        )}
+                        {fmtMoney(project.original_estimate) && (
+                          <span className="nums font-medium text-foreground">{fmtMoney(project.original_estimate)}</span>
+                        )}
+                      </div>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
@@ -389,8 +434,9 @@ export function Projects() {
                     <TableRow>
                       <TableHead>Project</TableHead>
                       <TableHead>Customer</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Value</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Created</TableHead>
                       <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -421,15 +467,23 @@ export function Projects() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge className={statusColors[project.status]}>
-                            {statusLabels[project.status]}
-                          </Badge>
+                          {project.project_type ? (
+                            <span className="text-sm text-foreground">{typeLabels[project.project_type] || project.project_type}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {fmtMoney(project.original_estimate) ? (
+                            <span className="nums text-sm font-medium text-foreground">{fmtMoney(project.original_estimate)}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/50">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                            <Calendar className="h-3 w-3" />
-                            {new Date(project.created_at).toLocaleDateString()}
-                          </div>
+                          <Badge className={statusColors[project.status]}>
+                            {statusLabels[project.status] || project.status}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           {canManageProjects ? (
@@ -480,12 +534,12 @@ export function Projects() {
       <Dialog open={isAddOpen} onOpenChange={(open) => {
         setIsAddOpen(open);
         if (!open) {
-          setNewProject({ name: "", customer_id: 0, description: "", status: "planning" });
+          setNewProject({ ...EMPTY_PROJECT });
           setIsAddingNewClient(false);
           setNewClient({ name: "", email: "", phone: "" });
         }
       }}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Project</DialogTitle>
           </DialogHeader>
@@ -602,6 +656,64 @@ export function Projects() {
                 </div>
               )}
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="type">Project Type</Label>
+                <Select
+                  value={newProject.project_type}
+                  onValueChange={(value) => setNewProject({ ...newProject, project_type: value })}
+                >
+                  <SelectTrigger id="type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{typeLabels[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="value">Estimated Value</Label>
+                <Input
+                  id="value"
+                  type="number"
+                  min="0"
+                  placeholder="$"
+                  value={newProject.estimated_value}
+                  onChange={(e) => setNewProject({ ...newProject, estimated_value: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="site-address">Site Address</Label>
+              <Input
+                id="site-address"
+                placeholder="123 Main St, Town, CT"
+                value={newProject.site_address}
+                onChange={(e) => setNewProject({ ...newProject, site_address: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="start">Target Start</Label>
+                <Input
+                  id="start"
+                  type="date"
+                  value={newProject.estimated_start_date}
+                  onChange={(e) => setNewProject({ ...newProject, estimated_start_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end">Target Finish</Label>
+                <Input
+                  id="end"
+                  type="date"
+                  value={newProject.estimated_end_date}
+                  onChange={(e) => setNewProject({ ...newProject, estimated_end_date: e.target.value })}
+                />
+              </div>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
@@ -654,7 +766,7 @@ export function Projects() {
           setNewClientEdit({ name: "", email: "", phone: "" });
         }
       }}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Project</DialogTitle>
           </DialogHeader>
@@ -789,6 +901,64 @@ export function Projects() {
                   </Button>
                 </div>
               )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-type">Project Type</Label>
+                <Select
+                  value={editedProject.project_type}
+                  onValueChange={(value) => setEditedProject({ ...editedProject, project_type: value })}
+                >
+                  <SelectTrigger id="edit-type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{typeLabels[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-value">Estimated Value</Label>
+                <Input
+                  id="edit-value"
+                  type="number"
+                  min="0"
+                  placeholder="$"
+                  value={editedProject.estimated_value}
+                  onChange={(e) => setEditedProject({ ...editedProject, estimated_value: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-site-address">Site Address</Label>
+              <Input
+                id="edit-site-address"
+                placeholder="123 Main St, Town, CT"
+                value={editedProject.site_address}
+                onChange={(e) => setEditedProject({ ...editedProject, site_address: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit-start">Target Start</Label>
+                <Input
+                  id="edit-start"
+                  type="date"
+                  value={editedProject.estimated_start_date}
+                  onChange={(e) => setEditedProject({ ...editedProject, estimated_start_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-end">Target Finish</Label>
+                <Input
+                  id="edit-end"
+                  type="date"
+                  value={editedProject.estimated_end_date}
+                  onChange={(e) => setEditedProject({ ...editedProject, estimated_end_date: e.target.value })}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-description">Description</Label>

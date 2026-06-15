@@ -175,10 +175,13 @@ export function CatalogSettings() {
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Settings className="h-6 w-6" />
-          Service Catalog
-        </h1>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Admin</p>
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <Settings className="h-6 w-6" />
+            Service Catalog
+          </h1>
+        </div>
         <div className="flex gap-2">
           {catalog.length === 0 && (
             <Button onClick={handleSeed} disabled={seedMutation.isPending} variant="outline">

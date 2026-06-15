@@ -201,7 +201,7 @@ export function ProjectOutOfScope({ projectId }: ProjectOutOfScopeProps) {
                       </span>
                     </label>
                     {item.client_visible === "no" && (
-                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
+                      <span className="text-xs bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">
                         Internal only
                       </span>
                     )}

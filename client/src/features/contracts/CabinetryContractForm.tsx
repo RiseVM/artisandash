@@ -123,7 +123,8 @@ export function CabinetryContractForm() {
       </div>
 
       <div>
-        <h1 className="text-2xl font-serif font-bold text-primary" data-testid="text-page-title">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-brass">Contract</p>
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold" data-testid="text-page-title">
           Cabinet Design & Layout Agreement
         </h1>
         <p className="text-muted-foreground">
@@ -243,7 +244,7 @@ export function CabinetryContractForm() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+            <div className="bg-amber-100 border border-amber-200 rounded-lg p-4 mb-4">
               <p className="text-amber-800 text-sm">
                 Please read the entire contract carefully before signing. This document is legally binding.
               </p>
@@ -254,7 +255,7 @@ export function CabinetryContractForm() {
                 href="/api/contract-templates/cabinetry"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                className="inline-flex items-center text-sm text-brass hover:text-brass hover:underline"
                 data-testid="link-download-template"
               >
                 <Download className="h-4 w-4 mr-1" />
@@ -300,7 +301,7 @@ export function CabinetryContractForm() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="bg-green-100 border border-green-200 rounded-lg p-4">
                 <p className="text-green-800 text-sm">
                   You have reviewed and agreed to the contract terms. Please sign below to complete the agreement.
                 </p>
@@ -311,11 +312,11 @@ export function CabinetryContractForm() {
                 <p className="text-sm text-muted-foreground mb-2">
                   Sign in the box below. Your signature will be applied to the complete contract document you just reviewed.
                 </p>
-                <div className="border rounded-md bg-white p-2">
+                <div className="border rounded-md bg-card p-2">
                   <SignatureCanvas
                     ref={sigCanvas}
                     canvasProps={{
-                      className: "w-full h-32 border border-dashed border-gray-300 rounded",
+                      className: "w-full h-32 border border-dashed border-border rounded",
                     } as React.CanvasHTMLAttributes<HTMLCanvasElement>}
                   />
                 </div>
